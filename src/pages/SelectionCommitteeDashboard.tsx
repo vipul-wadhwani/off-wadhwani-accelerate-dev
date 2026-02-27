@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, TrendingUp, Loader2, Briefcase, Users, Target, AlertTriangle, HelpCircle, Map, ChevronRight, Zap, CheckCircle, FileText, ChevronUp, Plus } from 'lucide-react';
+import { Sparkles, TrendingUp, Loader2, Briefcase, Users, Target, AlertTriangle, HelpCircle, Map, ChevronRight, Zap, FileText, ChevronUp, Plus } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
@@ -83,7 +83,6 @@ export const SelectionCommitteeDashboard: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [generatingRoadmap, setGeneratingRoadmap] = useState(false);
     const [roadmapGenerated, setRoadmapGenerated] = useState(false);
-    const [savingCommitment, setSavingCommitment] = useState(false);
     const [analyzing, setAnalyzing] = useState(false);
     const [analysisResult, setAnalysisResult] = useState<any | null>(null);
 
@@ -191,44 +190,6 @@ export const SelectionCommitteeDashboard: React.FC = () => {
         }, 2000);
     };
 
-    const handleStatusChange = async (newStatus: string) => {
-        if (!selectedVenture) return;
-
-        setSavingCommitment(true);
-
-        try {
-            const updatePayload: any = {
-                status: newStatus,
-                venture_partner: user?.email || 'Panel (Core, Select)',
-            };
-
-            // If status is Contract Sent, lock the workbench
-            if (newStatus === 'Contract Sent') {
-                updatePayload.workbench_locked = true;
-            }
-
-            await api.updateVenture(selectedVenture.id, updatePayload);
-
-            // Update local state
-            setVentures(prev => prev.map(v =>
-                v.id === selectedVenture.id
-                    ? { ...v, status: newStatus }
-                    : v
-            ));
-
-            setSelectedVenture(prev => prev ? { ...prev, status: newStatus } : null);
-
-            // Show workbench lock notification if contract sent
-            if (newStatus === 'Contract Sent') {
-                alert(`✓ Status updated to: ${newStatus}\n\n🔒 Workbench has been locked. The venture will be notified to take action.`);
-            }
-        } catch (error: any) {
-            console.error('Error updating venture status:', error);
-            alert('Failed to update status: ' + error.message);
-        } finally {
-            setSavingCommitment(false);
-        }
-    };
 
     const [revenueFilter, setRevenueFilter] = useState<string>('all');
 

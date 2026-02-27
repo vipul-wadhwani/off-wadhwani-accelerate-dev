@@ -107,9 +107,7 @@ export const PanelFeedbackForm: React.FC = () => {
     const [ventureName, setVentureName] = useState('');
     const [smeName, setSmeName] = useState('');
 
-    // Header
-    const [panelExpertName, setPanelExpertName] = useState('');
-    const [panelDate, setPanelDate] = useState(new Date().toISOString().split('T')[0]);
+    // Header fields are computed at submit time from user context
 
     // === Core/Select fields (Sections A-D) ===
     // Section A
@@ -191,9 +189,7 @@ export const PanelFeedbackForm: React.FC = () => {
             const { venture } = await api.getVenture(ventureId!);
             setVentureName(venture.name || '');
             setSmeName(venture.founder_name || '');
-            if (user?.full_name) {
-                setPanelExpertName(user.full_name);
-            }
+            // Panel expert name is derived from user context at submit time
         } catch (err) {
             console.error('Error loading venture:', err);
         } finally {
@@ -215,7 +211,7 @@ export const PanelFeedbackForm: React.FC = () => {
         setSubmitting(true);
         try {
             const commonPayload = {
-                panel_expert_name: user?.full_name || user?.email || 'Unknown',
+                panel_expert_name: user?.user_metadata?.full_name || user?.email || 'Unknown',
                 panel_date: new Date().toISOString().split('T')[0],
                 sme_name: smeName || null,
             };
@@ -337,9 +333,6 @@ export const PanelFeedbackForm: React.FC = () => {
     const inputClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none";
     const textareaClass = `${inputClass} resize-none`;
     const selectClass = inputClass;
-    const sectionTitle = "text-lg font-bold text-gray-900 mb-4";
-    const fieldLabel = "block text-sm font-medium text-gray-700 mb-1";
-    const questionHeading = "block text-base font-semibold text-gray-900 mb-1";
 
     // ========== PRIME FORM ==========
     const questionNumber = (num: number) => (

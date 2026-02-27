@@ -1,0 +1,114 @@
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'BRANCH_NAME', defaultValue: 'main', description: 'Branch to build')
+    }
+
+    environment {
+        AZURE_CREDENTIALS_ID = 'c72037f6-e5d5-46fd-9fa1-8ab164be7696'
+        IMAGE_NAME = 'wen-accelerate-assisted-growth-be'
+
+        // DEV Environment
+        ACR_NAME = 'nextgendevelop'
+        ACR_LOGIN_SERVER = 'nextgendevelop.azurecr.io'
+        ENV = 'dev'
+        KUBE_CONFIG = 'Nextgen-dev-cluster'
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout([
+                    $class: 'GitSCM',
+                    branches: [[name: "*/${params.BRANCH_NAME}"]],
+                    userRemoteConfigs: scm.userRemoteConfigs
+                ])
+            }
+        }
+
+        stage('Build Docker Image (Backend)') {
+            steps {
+                withCredentials([
+                    azureServicePrincipal(credentialsId: "${env.AZURE_CREDENTIALS_ID}"),
+                    string(credentialsId: 'npm_token_key', variable: 'NPM_TOKEN')
+                ]) {
+                    script {
+                        try {
+                            echo "Building backend Docker image..."
+                            
+                            dockerImage = docker.build(
+                                "${env.ACR_LOGIN_SERVER}/${env.IMAGE_NAME}:${env.ENV}-${env.BUILD_NUMBER}",
+                                "--no-cache -f backend/Dockerfile backend"
+                            )
+
+                            env.DOCKER_IMAGE_BUILT = 'true'
+                        } catch (Exception e) {
+                            env.DOCKER_IMAGE_BUILT = 'false'
+                            echo "Docker build failed: ${e.getMessage()}"
+                            throw e
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Login to Azure & ACR') {
+            steps {
+                withCredentials([azureServicePrincipal(credentialsId: "${env.AZURE_CREDENTIALS_ID}")]) {
+                    sh """
+                        az login --service-principal \
+                            -u $AZURE_CLIENT_ID \
+                            -p $AZURE_CLIENT_SECRET \
+                            --tenant $AZURE_TENANT_ID
+
+                        az acr login --name ${ACR_NAME}
+                    """
+                }
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                script {
+                    dockerImage.push()
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                withCredentials([file(credentialsId: "${env.KUBE_CONFIG}", variable: 'KUBECONFIG')]) {
+                    sh """
+                        kubectl --kubeconfig=\${KUBECONFIG} set image deployment/${IMAGE_NAME} \
+                        ${IMAGE_NAME}=${ACR_LOGIN_SERVER}/${IMAGE_NAME}:${ENV}-${BUILD_NUMBER} --record
+
+                        kubectl --kubeconfig=\${KUBECONFIG} rollout status deployment/${IMAGE_NAME}
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+
+        always {
+            script {
+                if (env.DOCKER_IMAGE_BUILT == 'true') {
+                    sh """
+                        docker rmi ${ACR_LOGIN_SERVER}/${IMAGE_NAME}:${ENV}-${BUILD_NUMBER} || true
+                    """
+                }
+            }
+        }
+
+        success {
+            echo '✅ Docker image built, pushed, and deployed successfully.'
+        }
+
+        failure {
+            echo '❌ Build or deployment failed.'
+        }
+    }
+}

@@ -117,15 +117,15 @@ export const VentureDetails: React.FC = () => {
                         <div className="space-y-4">
                             <div>
                                 <div className="text-xs font-medium text-gray-400 uppercase">New Product</div>
-                                <div className="font-medium text-gray-900">{venture.growth_target?.product || 'N/A'}</div>
+                                <div className="font-medium text-gray-900">{venture.focus_product || 'N/A'}</div>
                             </div>
                             <div>
                                 <div className="text-xs font-medium text-gray-400 uppercase">New Segment</div>
-                                <div className="font-medium text-gray-900">{venture.growth_target?.segment || 'N/A'}</div>
+                                <div className="font-medium text-gray-900">{venture.focus_segment || 'N/A'}</div>
                             </div>
                             <div>
                                 <div className="text-xs font-medium text-gray-400 uppercase">New Geography</div>
-                                <div className="font-medium text-gray-900">{venture.growth_target?.geography || 'N/A'}</div>
+                                <div className="font-medium text-gray-900">{venture.focus_geography || 'N/A'}</div>
                             </div>
                             <div>
                                 <div className="text-xs font-medium text-gray-400 uppercase">Revenue Potential (3 Years)</div>

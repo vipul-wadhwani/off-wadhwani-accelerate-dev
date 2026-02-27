@@ -12,6 +12,7 @@ import { VSMDashboardLayout } from './layouts/VSMDashboardLayout';
 import { VSMDashboard } from './pages/VSMDashboard';
 import { VentureManagerDashboard } from './pages/VentureManagerDashboard';
 import { SelectionCommitteeDashboard } from './pages/SelectionCommitteeDashboard';
+import { PanelFeedbackForm } from './pages/PanelFeedbackForm';
 
 import { VentureWorkbench } from './pages/VentureWorkbench';
 
@@ -91,11 +92,13 @@ function App() {
           {/* Panel (Prime) Dashboard Routes */}
           <Route path="/vmanager/dashboard" element={<VSMDashboardLayout />}>
             <Route index element={<VentureManagerDashboard />} />
+            <Route path="panel-feedback/:ventureId" element={<PanelFeedbackForm />} />
           </Route>
 
           {/* Panel (Core, Select) Dashboard Routes */}
           <Route path="/committee/dashboard" element={<VSMDashboardLayout />}>
             <Route index element={<SelectionCommitteeDashboard />} />
+            <Route path="panel-feedback/:ventureId" element={<PanelFeedbackForm />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

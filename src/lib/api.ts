@@ -366,7 +366,7 @@ class ApiClient {
     async getInteractions(ventureId: string) {
         const { data, error } = await supabase
             .from('venture_interactions')
-            .select('*, created_by_user:users!venture_interactions_created_by_fkey(id, email)')
+            .select('*')
             .eq('venture_id', ventureId)
             .is('deleted_at', null)
             .order('interaction_date', { ascending: false });
@@ -438,6 +438,37 @@ class ApiClient {
 
         const data = await response.json();
         return data; // Returns { message, insights }
+    }
+
+    // ============ PANEL FEEDBACK ENDPOINTS ============
+
+    async getPanelFeedback(ventureId: string) {
+        const { data, error } = await supabase
+            .from('panel_feedback')
+            .select('*')
+            .eq('venture_id', ventureId)
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        return { feedback: data || [] };
+    }
+
+    async createPanelFeedback(ventureId: string, data: any) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+
+        const { data: feedback, error } = await supabase
+            .from('panel_feedback')
+            .insert({
+                venture_id: ventureId,
+                submitted_by: user.id,
+                ...data
+            })
+            .select()
+            .single();
+
+        if (error) throw error;
+        return { feedback };
     }
 
     async getPanelistsByProgram(program: string) {

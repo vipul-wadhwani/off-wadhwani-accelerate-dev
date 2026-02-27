@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Sparkles, TrendingUp, Loader2, Briefcase, Users, Target, AlertTriangle, HelpCircle, Map, ChevronRight, Zap, CheckCircle, FileText, ChevronUp, Plus } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
@@ -76,16 +77,15 @@ const OtherDetailsReadOnlySection: React.FC<{ selectedVenture: any }> = ({ selec
 
 export const SelectionCommitteeDashboard: React.FC = () => {
     const { user } = useAuth();
+    const navigate = useNavigate();
     const [ventures, setVentures] = useState<Venture[]>([]);
     const [selectedVenture, setSelectedVenture] = useState<Venture | null>(null);
     const [loading, setLoading] = useState(true);
     const [generatingRoadmap, setGeneratingRoadmap] = useState(false);
     const [roadmapGenerated, setRoadmapGenerated] = useState(false);
-
-    // Commitment & Approval State
-    const [selectedProgram, setSelectedProgram] = useState('Accelerate Core');
-    const [ventureComments, setVentureComments] = useState('');
     const [savingCommitment, setSavingCommitment] = useState(false);
+    const [analyzing, setAnalyzing] = useState(false);
+    const [analysisResult, setAnalysisResult] = useState<any | null>(null);
 
     useEffect(() => {
         if (user) {
@@ -134,6 +134,7 @@ export const SelectionCommitteeDashboard: React.FC = () => {
         // Optimistically set selected to show UI immediately
         setSelectedVenture(venture);
         setRoadmapGenerated(false); // Reset roadmap when selecting new venture
+        setAnalysisResult(null);
 
         // Fetch fresh details with streams
         try {
@@ -152,8 +153,29 @@ export const SelectionCommitteeDashboard: React.FC = () => {
             };
 
             setSelectedVenture(fullVenture);
+            setAnalysisResult(freshVenture.ai_analysis || null);
         } catch (error) {
             console.error('Error fetching venture details:', error);
+        }
+    };
+
+    const runAIAnalysis = async () => {
+        if (!selectedVenture) return;
+        setAnalyzing(true);
+
+        try {
+            const result = await api.generateInsights(selectedVenture.id);
+            const insights = result.insights || result;
+
+            setAnalysisResult(insights);
+            setVentures(prev => prev.map(v =>
+                v.id === selectedVenture.id ? { ...v, ai_analysis: insights } : v
+            ));
+        } catch (error: any) {
+            console.error('Error generating AI insights:', error);
+            alert(error.message || 'Failed to generate AI insights.');
+        } finally {
+            setAnalyzing(false);
         }
     };
 
@@ -203,49 +225,6 @@ export const SelectionCommitteeDashboard: React.FC = () => {
         } catch (error: any) {
             console.error('Error updating venture status:', error);
             alert('Failed to update status: ' + error.message);
-        } finally {
-            setSavingCommitment(false);
-        }
-    };
-
-    const handleApproveAndSend = async (actionType: 'agreement' | 'contract') => {
-        if (!selectedVenture) return;
-
-        setSavingCommitment(true);
-
-        try {
-            const newStatus = actionType === 'agreement' ? 'Agreement Sent' : 'Contract Sent';
-
-            const updatePayload: any = {
-                status: newStatus,
-                venture_partner: user?.email || 'Panel (Core, Select)',
-                // Store commitment data if needed
-            };
-
-            // If sending contract, lock the workbench
-            if (actionType === 'contract') {
-                updatePayload.workbench_locked = true;
-            }
-
-            await api.updateVenture(selectedVenture.id, updatePayload);
-
-            // Update local state
-            setVentures(prev => prev.map(v =>
-                v.id === selectedVenture.id
-                    ? { ...v, status: newStatus }
-                    : v
-            ));
-
-            setSelectedVenture(prev => prev ? { ...prev, status: newStatus } : null);
-
-            if (actionType === 'contract') {
-                alert(`✓ Contract sent successfully!\n\nStatus updated to: ${newStatus}\n🔒 Workbench has been locked. The venture will be notified to take action.`);
-            } else {
-                alert(`✓ Agreement sent successfully!\n\nStatus updated to: ${newStatus}`);
-            }
-        } catch (error: any) {
-            console.error('Error updating venture:', error);
-            alert('Failed to send: ' + error.message);
         } finally {
             setSavingCommitment(false);
         }
@@ -344,7 +323,7 @@ export const SelectionCommitteeDashboard: React.FC = () => {
                                         <div className="col-span-2 flex items-center justify-end gap-3 border-l border-gray-100 pl-4">
                                             <div className="text-right">
                                                 <div className="text-[15px] font-semibold text-gray-800 whitespace-nowrap">
-                                                    {v.revenue_12m || '--'}
+                                                    {v.revenue_12m ? `₹${v.revenue_12m} Cr` : '--'}
                                                 </div>
                                             </div>
                                             <div className="w-9 h-9 rounded-full flex items-center justify-center text-gray-300 group-hover:bg-purple-600 group-hover:text-white transition-all duration-200 flex-shrink-0">
@@ -397,14 +376,14 @@ export const SelectionCommitteeDashboard: React.FC = () => {
                                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Current Revenue</span>
                                 <div className="text-xl font-bold text-gray-900 flex items-center gap-1">
                                     <span className="text-sm text-gray-400">₹</span>
-                                    {selectedVenture.revenue_12m || '0'}
+                                    {selectedVenture.revenue_12m || '0'}<span className="text-sm text-gray-400 ml-0.5">Cr</span>
                                 </div>
                             </div>
                             <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Target Revenue (3Y)</span>
                                 <div className="text-xl font-bold text-gray-900 flex items-center gap-1">
                                     <span className="text-sm text-gray-400">₹</span>
-                                    {selectedVenture.revenue_potential_3y || '0'}
+                                    {selectedVenture.revenue_potential_3y || '0'}<span className="text-sm text-gray-400 ml-0.5">Cr</span>
                                 </div>
                             </div>
                             <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
@@ -419,10 +398,16 @@ export const SelectionCommitteeDashboard: React.FC = () => {
                                 <div className="text-xl font-bold text-gray-900 flex items-center gap-1">
                                     <Users className="w-4 h-4 text-gray-400" />
                                     {(() => {
-                                        const revenuePotential = String(selectedVenture.revenue_potential_3y || '');
-                                        if (revenuePotential === '5Cr - 15 Cr') return '5';
-                                        if (revenuePotential === '15Cr - 50Cr') return '20';
-                                        if (revenuePotential === '50Cr+') return '30';
+                                        const rev = String(selectedVenture.revenue_potential_3y || '');
+                                        if (rev === '5Cr - 15 Cr') return '5';
+                                        if (rev === '15Cr - 50Cr') return '20';
+                                        if (rev === '50Cr+') return '30';
+                                        const num = parseFloat(rev);
+                                        if (!isNaN(num)) {
+                                            if (num < 15) return '5';
+                                            if (num < 50) return '20';
+                                            return '30';
+                                        }
                                         return '0';
                                     })()}
                                 </div>
@@ -501,15 +486,15 @@ export const SelectionCommitteeDashboard: React.FC = () => {
                                         <div className="space-y-5">
                                             <div>
                                                 <span className="text-xs font-bold text-blue-400 uppercase block mb-1.5">New Product</span>
-                                                <p className="text-sm text-gray-800 bg-white p-3 rounded-lg border border-blue-50 min-h-[44px] flex items-center shadow-sm shadow-blue-100/50">{selectedVenture.growth_target?.product || 'N/A'}</p>
+                                                <p className="text-sm text-gray-800 bg-white p-3 rounded-lg border border-blue-50 min-h-[44px] flex items-center shadow-sm shadow-blue-100/50">{(selectedVenture as any).focus_product || 'N/A'}</p>
                                             </div>
                                             <div>
                                                 <span className="text-xs font-bold text-blue-400 uppercase block mb-1.5">New Segment</span>
-                                                <p className="text-sm text-gray-800 bg-white p-3 rounded-lg border border-blue-50 min-h-[44px] flex items-center shadow-sm shadow-blue-100/50">{selectedVenture.growth_target?.segment || 'N/A'}</p>
+                                                <p className="text-sm text-gray-800 bg-white p-3 rounded-lg border border-blue-50 min-h-[44px] flex items-center shadow-sm shadow-blue-100/50">{(selectedVenture as any).focus_segment || 'N/A'}</p>
                                             </div>
                                             <div>
                                                 <span className="text-xs font-bold text-blue-400 uppercase block mb-1.5">New Region</span>
-                                                <p className="text-sm text-gray-800 bg-white p-3 rounded-lg border border-blue-50 min-h-[44px] flex items-center shadow-sm shadow-blue-100/50">{selectedVenture.growth_target?.geography || 'N/A'}</p>
+                                                <p className="text-sm text-gray-800 bg-white p-3 rounded-lg border border-blue-50 min-h-[44px] flex items-center shadow-sm shadow-blue-100/50">{(selectedVenture as any).focus_geography || 'N/A'}</p>
                                             </div>
                                         </div>
                                     </div>
@@ -657,12 +642,39 @@ export const SelectionCommitteeDashboard: React.FC = () => {
                         <OtherDetailsReadOnlySection selectedVenture={selectedVenture} />
 
                         {/* AI Analysis */}
-                        {selectedVenture.ai_analysis && (
-                            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                                <div className="flex items-center gap-2 px-6 py-4 border-b border-gray-100">
+                        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                                <div className="flex items-center gap-2">
                                     <Sparkles className="w-5 h-5 text-indigo-500" />
-                                    <span className="text-base font-bold text-gray-700">AI Insights</span>
+                                    <span className="text-base font-bold text-gray-700">Generate AI insights</span>
+                                    {analysisResult && !analyzing && (
+                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-xs font-medium text-indigo-600">
+                                            <Sparkles className="w-3 h-3" />
+                                            AI Generated
+                                        </span>
+                                    )}
                                 </div>
+                                <button
+                                    onClick={runAIAnalysis}
+                                    disabled={analyzing}
+                                    className="flex items-center gap-2 px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold transition-colors shadow-sm"
+                                >
+                                    {analyzing ? (<><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</>) : (<><Sparkles className="w-4 h-4" /> Generate insights</>)}
+                                </button>
+                            </div>
+                            {!analysisResult && !analyzing && (
+                                <div className="py-10 flex flex-col items-center gap-2 text-gray-300">
+                                    <Sparkles className="w-10 h-10" />
+                                    <p className="text-sm">Click "Generate insights" to analyse this venture</p>
+                                </div>
+                            )}
+                            {analyzing && (
+                                <div className="py-10 flex flex-col items-center gap-2 text-indigo-400">
+                                    <Loader2 className="w-8 h-8 animate-spin" />
+                                    <p className="text-sm font-medium">Analysing venture data...</p>
+                                </div>
+                            )}
+                            {analysisResult && !analyzing && (
                                 <div className="grid grid-cols-3 divide-x divide-gray-100">
                                     <div className="p-6">
                                         <div className="flex items-center gap-2 mb-4">
@@ -670,7 +682,7 @@ export const SelectionCommitteeDashboard: React.FC = () => {
                                             <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">PROS</span>
                                         </div>
                                         <ul className="space-y-2">
-                                            {(selectedVenture.ai_analysis.strengths || []).map((s: string, i: number) => (
+                                            {(analysisResult.strengths || []).map((s: string, i: number) => (
                                                 <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
                                                     <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
                                                     {s}
@@ -684,7 +696,7 @@ export const SelectionCommitteeDashboard: React.FC = () => {
                                             <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">CONS</span>
                                         </div>
                                         <ul className="space-y-2">
-                                            {(selectedVenture.ai_analysis.risks || []).map((r: string, i: number) => (
+                                            {(analysisResult.risks || []).map((r: string, i: number) => (
                                                 <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
                                                     <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
                                                     {r}
@@ -698,14 +710,14 @@ export const SelectionCommitteeDashboard: React.FC = () => {
                                             <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Probing Questions</span>
                                         </div>
                                         <ol className="space-y-2 list-decimal list-inside">
-                                            {(selectedVenture.ai_analysis.questions || []).map((q: string, i: number) => (
+                                            {(analysisResult.questions || []).map((q: string, i: number) => (
                                                 <li key={i} className="text-sm text-gray-700">{q}</li>
                                             ))}
                                         </ol>
                                     </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
+                        </div>
 
                         {/* Program Recommendation */}
                         <div className="bg-white rounded-xl border border-gray-200 p-6">
@@ -1107,167 +1119,15 @@ export const SelectionCommitteeDashboard: React.FC = () => {
                             )}
                         </div>
 
-                        {/* Finalize Program Section */}
-                        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-gray-50 to-white">
-                                <div className="flex items-center gap-2">
-                                    <CheckCircle className="w-5 h-5 text-gray-400" />
-                                    <span className="text-base font-bold text-gray-700">Finalize Program</span>
-                                </div>
-                                {selectedVenture.status === 'Agreement Sent' && (
-                                    <span className="text-xs text-green-600 font-medium bg-green-50 px-3 py-1 rounded-full border border-green-200">
-                                        ✓ Agreement Sent
-                                    </span>
-                                )}
-                                {selectedVenture.status === 'Contract Sent' && (
-                                    <span className="text-xs text-indigo-600 font-medium bg-indigo-50 px-3 py-1 rounded-full border border-indigo-200">
-                                        ✓ Contract Sent
-                                    </span>
-                                )}
-                            </div>
-
-                            <div className="p-6 space-y-5">
-                                {/* Contract Status Log */}
-                                {selectedVenture.status === 'Contract Sent' && (
-                                    <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 flex items-start gap-3">
-                                        <div className="w-2 h-2 rounded-full bg-indigo-500 mt-1.5 flex-shrink-0"></div>
-                                        <div>
-                                            <p className="text-sm font-semibold text-indigo-900">Contract Sent - Awaiting Signature</p>
-                                            <p className="text-xs text-indigo-600 mt-1">
-                                                {(selectedVenture as any).updated_at ? new Date((selectedVenture as any).updated_at).toLocaleString('en-US', {
-                                                    month: 'short',
-                                                    day: 'numeric',
-                                                    year: 'numeric',
-                                                    hour: '2-digit',
-                                                    minute: '2-digit'
-                                                }) : 'Recently'}
-                                            </p>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Program Selection */}
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                                        Program
-                                    </label>
-                                    <select
-                                        value={selectedProgram}
-                                        onChange={(e) => setSelectedProgram(e.target.value)}
-                                        className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-100 focus:border-indigo-300 outline-none text-sm text-gray-800"
-                                    >
-                                        <option value="Accelerate Core">Accelerate Core</option>
-                                        <option value="Accelerate Select">Accelerate Select</option>
-                                        <option value="Accelerate Prime">Accelerate Prime</option>
-                                    </select>
-                                </div>
-
-                                {/* Comments */}
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                                        Comments
-                                    </label>
-                                    <textarea
-                                        value={ventureComments}
-                                        onChange={(e) => setVentureComments(e.target.value)}
-                                        placeholder="Add any notes or comments about the commitment..."
-                                        className="w-full h-32 p-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-100 focus:border-indigo-300 outline-none text-sm text-gray-700 placeholder:text-gray-400 resize-none"
-                                    />
-                                </div>
-
-                                {/* Status-based CTAs */}
-                                <div className="pt-4 border-t border-gray-100">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                                                Current Status:
-                                            </label>
-                                            <select
-                                                value={selectedVenture.status}
-                                                onChange={(e) => handleStatusChange(e.target.value)}
-                                                disabled={savingCommitment}
-                                                className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-indigo-100 focus:border-indigo-300 outline-none disabled:opacity-60 disabled:cursor-not-allowed"
-                                            >
-                                                <option value="Submitted">Submitted</option>
-                                                <option value="Under Review">Under Review</option>
-                                                <option value="Approved">Approved</option>
-                                                <option value="Agreement Sent">Agreement Sent</option>
-                                                <option value="Contract Sent">Contract Sent</option>
-                                                <option value="Rejected">Rejected</option>
-                                            </select>
-                                        </div>
-
-                                        <div className="flex items-center gap-3">
-                                            {selectedVenture.status === 'Under Review' && (
-                                                <button
-                                                    onClick={() => handleApproveAndSend('agreement')}
-                                                    disabled={savingCommitment}
-                                                    className="flex items-center gap-2 px-6 py-3 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:opacity-60 text-white font-semibold transition-all shadow-md hover:shadow-lg"
-                                                >
-                                                    {savingCommitment ? (
-                                                        <>
-                                                            <Loader2 className="w-5 h-5 animate-spin" />
-                                                            Sending...
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <FileText className="w-5 h-5" />
-                                                            Approve & Send Agreement
-                                                        </>
-                                                    )}
-                                                </button>
-                                            )}
-
-                                            {selectedVenture.status === 'Agreement Sent' && (
-                                                <button
-                                                    onClick={() => handleApproveAndSend('contract')}
-                                                    disabled={savingCommitment}
-                                                    className="flex items-center gap-2 px-6 py-3 rounded-lg bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 disabled:opacity-60 text-white font-semibold transition-all shadow-md hover:shadow-lg"
-                                                >
-                                                    {savingCommitment ? (
-                                                        <>
-                                                            <Loader2 className="w-5 h-5 animate-spin" />
-                                                            Sending...
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <CheckCircle className="w-5 h-5" />
-                                                            Send Contract
-                                                        </>
-                                                    )}
-                                                </button>
-                                            )}
-
-                                            {selectedVenture.status === 'Contract Sent' && (
-                                                <div className="flex items-center gap-2 px-6 py-3 rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200">
-                                                    <CheckCircle className="w-5 h-5 text-green-600" />
-                                                    <span className="font-semibold text-gray-700">Contract Sent - Awaiting Signature</span>
-                                                </div>
-                                            )}
-
-                                            {selectedVenture.status === 'Submitted' && (
-                                                <button
-                                                    onClick={() => handleApproveAndSend('agreement')}
-                                                    disabled={savingCommitment}
-                                                    className="flex items-center gap-2 px-6 py-3 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:opacity-60 text-white font-semibold transition-all shadow-md hover:shadow-lg"
-                                                >
-                                                    {savingCommitment ? (
-                                                        <>
-                                                            <Loader2 className="w-5 h-5 animate-spin" />
-                                                            Sending...
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <FileText className="w-5 h-5" />
-                                                            Approve & Send Agreement
-                                                        </>
-                                                    )}
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                        {/* Panel Feedback Button */}
+                        <div className="mt-8 flex justify-end">
+                            <button
+                                onClick={() => navigate(`/committee/dashboard/panel-feedback/${selectedVenture.id}`)}
+                                className="px-6 py-3 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 transition-colors flex items-center gap-2"
+                            >
+                                Next: Panel Feedback
+                                <ChevronRight className="w-4 h-4" />
+                            </button>
                         </div>
                     </div>
                 </div>

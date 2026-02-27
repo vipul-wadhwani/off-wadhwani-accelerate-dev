@@ -100,6 +100,12 @@ const AIInsightsSection: React.FC<{ selectedVenture: any; vsmNotes: string; anal
             <div className="flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-indigo-500" />
                 <span className="text-base font-bold text-gray-700">Generate AI insights</span>
+                {analysisResult && !analyzing && (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-xs font-medium text-indigo-600">
+                        <Sparkles className="w-3 h-3" />
+                        AI Generated
+                    </span>
+                )}
             </div>
             <button
                 onClick={onRunAnalysis}
@@ -426,7 +432,11 @@ export const VSMDashboard: React.FC = () => {
             setInternalComments(freshVenture.internal_comments || '');
             setAnalysisResult(freshVenture.ai_analysis || null);
             setSelectedPartner(freshVenture.venture_partner || '');
-            setEditProfileData(freshVenture.growth_target || {});
+            setEditProfileData({
+                product: freshVenture.focus_product || '',
+                segment: freshVenture.focus_segment || '',
+                geography: freshVenture.focus_geography || '',
+            });
 
         } catch (error) {
             console.error('Error fetching venture details:', error);
@@ -494,36 +504,12 @@ export const VSMDashboard: React.FC = () => {
         setAnalyzing(true);
 
         try {
-            // Simulate API delay
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            const result = await api.generateInsights(selectedVenture.id, vsmNotes);
+            const insights = result.insights || result;
 
-            const mockInsights = {
-                strengths: [
-                    "Operating in the high-growth drone technology sector with expanding regulatory support in India through drone policy reforms.",
-                    "Team size of 10-25 employees suggests some operational scale beyond pure ideation stage.",
-                    "Based in Delhi NCR, providing access to capital, talent pool, and potential enterprise customers.",
-                    "Referred by Wadhwani Foundation, indicating some level of external validation or network connection.",
-                    "Multi-dimensional growth focus across product, segment, and geography shows ambition for scaling."
-                ],
-                risks: [
-                    "Complete absence of revenue data prevents assessment of product-market fit, customer validation, or business model viability.",
-                    "Target market fields contain placeholder/gibberish text ('sdfd', 'sdfds', 'dsfds'), indicating lack of strategic clarity or incomplete application.",
-                    "No clear articulation of specific drone use case, customer segment, or differentiation in a competitive market.",
-                    "Missing critical metrics on burn rate, runway, customer acquisition, and unit economics essential for accelerator evaluation.",
-                    "Vague geography expansion plans without defined target markets suggest unfocused growth strategy that could lead to resource dilution."
-                ],
-                questions: [
-                    "What is your current monthly revenue, customer count, and what specific drone applications/use cases are generating traction?",
-                    "Who are your target customers (specific industries/segments), what problem are you solving for them, and what is your competitive advantage?",
-                    "What are your unit economics - customer acquisition cost, lifetime value, gross margins, and current monthly burn rate?",
-                    "What regulatory certifications (DGCA approvals, drone type certificates) do you hold, and what is your IP/technology differentiation?",
-                    "What are your specific 12-month revenue and customer acquisition targets, and what capital do you need to achieve them?"
-                ]
-            };
-
-            setAnalysisResult(mockInsights);
+            setAnalysisResult(insights);
             setVentures(prev => prev.map(v =>
-                v.id === selectedVenture.id ? { ...v, ai_analysis: mockInsights } : v
+                v.id === selectedVenture.id ? { ...v, ai_analysis: insights } : v
             ));
         } catch (error: any) {
             console.error('Error generating AI insights:', error);
@@ -646,7 +632,7 @@ export const VSMDashboard: React.FC = () => {
                                         <div className="col-span-2 flex items-center justify-end gap-3 border-l border-gray-100 pl-4">
                                             <div className="text-right">
                                                 <div className="text-[15px] font-semibold text-gray-800 whitespace-nowrap">
-                                                    {v.revenue_12m || '--'}
+                                                    {v.revenue_12m ? `₹${v.revenue_12m} Cr` : '--'}
                                                 </div>
                                             </div>
                                             <div className="w-9 h-9 rounded-full flex items-center justify-center text-gray-300 group-hover:bg-blue-600 group-hover:text-white transition-all duration-200 flex-shrink-0">
@@ -684,14 +670,14 @@ export const VSMDashboard: React.FC = () => {
                                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Current Revenue</span>
                                 <div className="text-xl font-bold text-gray-900 flex items-center gap-1">
                                     <span className="text-sm text-gray-400">₹</span>
-                                    {selectedVenture.revenue_12m || '0'}
+                                    {selectedVenture.revenue_12m || '0'}<span className="text-sm text-gray-400 ml-0.5">Cr</span>
                                 </div>
                             </div>
                             <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Target Revenue (3Y)</span>
                                 <div className="text-xl font-bold text-gray-900 flex items-center gap-1">
                                     <span className="text-sm text-gray-400">₹</span>
-                                    {selectedVenture.revenue_potential_3y || selectedVenture.commitment?.revenuePotential || '0'}
+                                    {selectedVenture.revenue_potential_3y || selectedVenture.commitment?.revenuePotential || '0'}<span className="text-sm text-gray-400 ml-0.5">Cr</span>
                                 </div>
                             </div>
                             <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
@@ -706,10 +692,16 @@ export const VSMDashboard: React.FC = () => {
                                 <div className="text-xl font-bold text-gray-900 flex items-center gap-1">
                                     <Users className="w-4 h-4 text-gray-400" />
                                     {selectedVenture.target_jobs || (() => {
-                                        const revenuePotential = selectedVenture.revenue_potential_12m;
-                                        if (revenuePotential === '5Cr - 15 Cr') return '5';
-                                        if (revenuePotential === '15Cr - 50Cr') return '20';
-                                        if (revenuePotential === '50Cr+') return '30';
+                                        const rev = String(selectedVenture.revenue_potential_12m || selectedVenture.revenue_potential_3y || '');
+                                        if (rev === '5Cr - 15 Cr') return '5';
+                                        if (rev === '15Cr - 50Cr') return '20';
+                                        if (rev === '50Cr+') return '30';
+                                        const num = parseFloat(rev);
+                                        if (!isNaN(num)) {
+                                            if (num < 15) return '5';
+                                            if (num < 50) return '20';
+                                            return '30';
+                                        }
                                         return '0';
                                     })()}
                                 </div>
@@ -811,7 +803,7 @@ export const VSMDashboard: React.FC = () => {
                                                         onChange={e => setEditProfileData({ ...editProfileData, product: e.target.value })}
                                                     />
                                                 ) : (
-                                                    <p className="text-sm text-gray-800 bg-white p-3 rounded-lg border border-blue-50 min-h-[44px] flex items-center shadow-sm shadow-blue-100/50">{selectedVenture.growth_target?.product || 'N/A'}</p>
+                                                    <p className="text-sm text-gray-800 bg-white p-3 rounded-lg border border-blue-50 min-h-[44px] flex items-center shadow-sm shadow-blue-100/50">{(selectedVenture as any).focus_product || 'N/A'}</p>
                                                 )}
                                             </div>
                                             <div>
@@ -823,7 +815,7 @@ export const VSMDashboard: React.FC = () => {
                                                         onChange={e => setEditProfileData({ ...editProfileData, segment: e.target.value })}
                                                     />
                                                 ) : (
-                                                    <p className="text-sm text-gray-800 bg-white p-3 rounded-lg border border-blue-50 min-h-[44px] flex items-center shadow-sm shadow-blue-100/50">{selectedVenture.growth_target?.segment || 'N/A'}</p>
+                                                    <p className="text-sm text-gray-800 bg-white p-3 rounded-lg border border-blue-50 min-h-[44px] flex items-center shadow-sm shadow-blue-100/50">{(selectedVenture as any).focus_segment || 'N/A'}</p>
                                                 )}
                                             </div>
                                             <div>
@@ -835,7 +827,7 @@ export const VSMDashboard: React.FC = () => {
                                                         onChange={e => setEditProfileData({ ...editProfileData, geography: e.target.value })}
                                                     />
                                                 ) : (
-                                                    <p className="text-sm text-gray-800 bg-white p-3 rounded-lg border border-blue-50 min-h-[44px] flex items-center shadow-sm shadow-blue-100/50">{selectedVenture.growth_target?.geography || 'N/A'}</p>
+                                                    <p className="text-sm text-gray-800 bg-white p-3 rounded-lg border border-blue-50 min-h-[44px] flex items-center shadow-sm shadow-blue-100/50">{(selectedVenture as any).focus_geography || 'N/A'}</p>
                                                 )}
                                             </div>
                                         </div>

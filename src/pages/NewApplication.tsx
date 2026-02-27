@@ -697,21 +697,6 @@ export const NewApplication: React.FC = () => {
                             </select>
                         </div>
 
-                        {/* Target Jobs */}
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">
-                                Target Jobs
-                            </label>
-                            <input
-                                type="text"
-                                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3.5 text-sm text-gray-700 focus:outline-none cursor-not-allowed"
-                                value={formData.targetJobs}
-                                readOnly
-                                disabled
-                                placeholder="Auto-filled based on revenue"
-                            />
-                        </div>
-
                         {/* Funding Plan */}
                         <div className="space-y-2">
                             <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">

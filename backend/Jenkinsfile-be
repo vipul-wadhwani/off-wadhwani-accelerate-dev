@@ -8,7 +8,7 @@ pipeline {
 
     environment {
         AZURE_CREDENTIALS_ID = 'c72037f6-e5d5-46fd-9fa1-8ab164be7696'
-        IMAGE_NAME = 'wen-accelerate-assisted-growth-fe'
+        IMAGE_NAME = 'wen-accelerate-assisted-growth-be'
     }
 
     stages {

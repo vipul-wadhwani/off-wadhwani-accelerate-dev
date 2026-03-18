@@ -5,7 +5,9 @@ import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { InteractionsSection } from '../components/Interactions/InteractionsSection';
+import { PanelGateQuestions } from '../components/PanelGateQuestions';
 import { STATUS_CONFIG } from '../components/StatusSelect';
+import { useToast } from '../components/ui/Toast';
 
 interface Venture {
     id: string;
@@ -17,6 +19,10 @@ interface Venture {
     revenue_12m: number;
     revenue_potential_3y: number;
     full_time_employees: number;
+    target_jobs?: string;
+    financial_condition?: string;
+    time_commitment?: string;
+    second_line_team?: string;
     founder_name?: string;
     growth_current?: any;
     commitment?: any;
@@ -27,10 +33,19 @@ interface Venture {
     vsm_notes?: string;
     internal_comments?: string;
     ai_analysis?: any;
+    panel_ai_analysis?: any;
     growth_target?: any;
     incremental_hiring?: string;
     venture_partner?: string;
     workbench_locked?: boolean;
+}
+
+function displayProgram(rec?: string): string {
+    if (!rec) return '';
+    if (rec.toLowerCase().includes('prime')) return 'Accelerate Prime';
+    if (rec.toLowerCase().includes('core') || rec.toLowerCase().includes('select')) return 'Accelerate Core/Select';
+    if (rec.toLowerCase().includes('selfserve')) return 'Self-Serve';
+    return rec;
 }
 
 const OtherDetailsReadOnlySection: React.FC<{ selectedVenture: any }> = ({ selectedVenture }) => {
@@ -78,35 +93,43 @@ const OtherDetailsReadOnlySection: React.FC<{ selectedVenture: any }> = ({ selec
 export const SelectionCommitteeDashboard: React.FC = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
+    const { toast } = useToast();
     const [ventures, setVentures] = useState<Venture[]>([]);
     const [selectedVenture, setSelectedVenture] = useState<Venture | null>(null);
     const [loading, setLoading] = useState(true);
     const [generatingRoadmap, setGeneratingRoadmap] = useState(false);
     const [roadmapGenerated, setRoadmapGenerated] = useState(false);
-    const [analyzing, setAnalyzing] = useState(false);
-    const [analysisResult, setAnalysisResult] = useState<any | null>(null);
+    const [roadmapData, setRoadmapData] = useState<any>(null);
+    const [panelAnalyzing, setPanelAnalyzing] = useState(false);
+    const [panelAnalysisResult, setPanelAnalysisResult] = useState<any | null>(null);
+    const [panelNotes, setPanelNotes] = useState('');
+    const [interactionCount, setInteractionCount] = useState(0);
+    const [gateQuestions, setGateQuestions] = useState<any | null>(null);
+    const [editedScorecard, setEditedScorecard] = useState<any[] | null>(null);
+    const [savingPanelAssessment, setSavingPanelAssessment] = useState(false);
+    const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
 
     useEffect(() => {
         if (user) {
             fetchVentures();
         }
-    }, [user]);
+    }, [user, sortOrder]);
 
     const fetchVentures = async () => {
         try {
             // Fetch all ventures with program_recommendation = "Accelerate Core" or "Accelerate Select"
-            const { ventures: allVentures } = await api.getVentures({});
+            const { ventures: allVentures } = await api.getVentures({ sortBy: 'created_at', sortOrder });
 
             console.log('🔍 All ventures:', allVentures);
             console.log('🔍 Venture recommendations:', allVentures?.map((v: any) => ({
                 name: v.name,
                 program_recommendation: v.program_recommendation,
-                matches: ['Accelerate Core', 'Accelerate Select'].includes(v.program_recommendation)
+                matches: ['Accelerate Core', 'Accelerate Select', 'Accelerate Core/Select'].includes(v.program_recommendation)
             })));
 
             // Filter for Core and Select programs only
             const accelerateVentures = allVentures?.filter(
-                (v: Venture) => ['Accelerate Core', 'Accelerate Select'].includes(v.program_recommendation || '')
+                (v: Venture) => ['Accelerate Core', 'Accelerate Select', 'Accelerate Core/Select'].includes(v.program_recommendation || '')
             ) || [];
 
             console.log('✅ Filtered Accelerate ventures (Core & Select):', accelerateVentures);
@@ -133,7 +156,11 @@ export const SelectionCommitteeDashboard: React.FC = () => {
         // Optimistically set selected to show UI immediately
         setSelectedVenture(venture);
         setRoadmapGenerated(false); // Reset roadmap when selecting new venture
-        setAnalysisResult(null);
+        setRoadmapData(null);
+        setPanelAnalysisResult(null);
+        setEditedScorecard(null);
+        setInteractionCount(0);
+        setGateQuestions(null);
 
         // Fetch fresh details with streams
         try {
@@ -152,29 +179,77 @@ export const SelectionCommitteeDashboard: React.FC = () => {
             };
 
             setSelectedVenture(fullVenture);
-            setAnalysisResult(freshVenture.ai_analysis || null);
+            setPanelAnalysisResult(freshVenture.panel_ai_analysis || null);
+            setEditedScorecard(freshVenture.panel_ai_analysis?.panel_scorecard ? [...freshVenture.panel_ai_analysis.panel_scorecard] : null);
+            setGateQuestions(freshVenture.gate_questions || null);
+            setPanelNotes('');
+
+            // Fetch existing roadmap
+            try {
+                const { roadmap } = await api.getRoadmap(venture.id);
+                if (roadmap?.roadmap_data) {
+                    setRoadmapData(roadmap.roadmap_data);
+                    setRoadmapGenerated(true);
+                }
+            } catch (e) {
+                // No roadmap yet, that's fine
+            }
         } catch (error) {
             console.error('Error fetching venture details:', error);
         }
     };
 
-    const runAIAnalysis = async () => {
+    const runPanelAIAnalysis = async () => {
         if (!selectedVenture) return;
-        setAnalyzing(true);
+        setPanelAnalyzing(true);
 
         try {
-            const result = await api.generateInsights(selectedVenture.id);
+            const result = await api.generatePanelInsights(selectedVenture.id, panelNotes);
             const insights = result.insights || result;
 
-            setAnalysisResult(insights);
+            setPanelAnalysisResult(insights);
+            setEditedScorecard(insights.panel_scorecard ? [...insights.panel_scorecard] : null);
             setVentures(prev => prev.map(v =>
-                v.id === selectedVenture.id ? { ...v, ai_analysis: insights } : v
+                v.id === selectedVenture.id ? { ...v, panel_ai_analysis: insights } : v
             ));
         } catch (error: any) {
-            console.error('Error generating AI insights:', error);
-            alert(error.message || 'Failed to generate AI insights.');
+            console.error('Error generating panel insights:', error);
+            toast(error.message || 'Failed to generate panel insights.', 'error');
         } finally {
-            setAnalyzing(false);
+            setPanelAnalyzing(false);
+        }
+    };
+
+    const handlePanelRatingChange = (index: number, newRating: string) => {
+        if (!editedScorecard) return;
+        const updated = [...editedScorecard];
+        updated[index] = { ...updated[index], panel_rating: newRating };
+        setEditedScorecard(updated);
+    };
+
+    const handlePanelRemarksChange = (index: number, remarks: string) => {
+        if (!editedScorecard) return;
+        const updated = [...editedScorecard];
+        updated[index] = { ...updated[index], panel_remarks: remarks };
+        setEditedScorecard(updated);
+    };
+
+    const savePanelAssessment = async () => {
+        if (!selectedVenture || !editedScorecard) return;
+        setSavingPanelAssessment(true);
+        try {
+            await api.savePanelAssessment(selectedVenture.id, editedScorecard);
+            const updatedAnalysis = { ...panelAnalysisResult, panel_scorecard: editedScorecard };
+            setPanelAnalysisResult(updatedAnalysis);
+            setVentures(prev => prev.map(v =>
+                v.id === selectedVenture.id ? { ...v, panel_ai_analysis: updatedAnalysis } : v
+            ));
+            toast('Panel assessment saved successfully.', 'success');
+        } catch (error: any) {
+            console.error('Error saving panel assessment:', error);
+            toast(error.message || 'Failed to save panel assessment.', 'error');
+        } finally {
+            setSavingPanelAssessment(false);
         }
     };
 
@@ -183,11 +258,19 @@ export const SelectionCommitteeDashboard: React.FC = () => {
 
         setGeneratingRoadmap(true);
 
-        // Simulate AI roadmap generation (2 seconds)
-        setTimeout(() => {
-            setGeneratingRoadmap(false);
+        try {
+            const result = await api.generateRoadmap(selectedVenture.id);
+            const roadmap = result.roadmap;
+            if (roadmap?.roadmap_data) {
+                setRoadmapData(roadmap.roadmap_data);
+            }
             setRoadmapGenerated(true);
-        }, 2000);
+        } catch (error: any) {
+            console.error('Error generating roadmap:', error);
+            toast(error.message || 'Failed to generate roadmap.', 'error');
+        } finally {
+            setGeneratingRoadmap(false);
+        }
     };
 
 
@@ -195,7 +278,14 @@ export const SelectionCommitteeDashboard: React.FC = () => {
 
     const filteredVentures = ventures.filter(v => {
         if (revenueFilter === 'all') return true;
-        return String(v.revenue_12m) === revenueFilter;
+        const revenue = v.revenue_12m;
+        const num = parseFloat(String(revenue || ''));
+        if (!isNaN(num)) {
+            const [lo, hi] = revenueFilter === '75+' ? [75, Infinity] : revenueFilter.split('-').map(Number);
+            return num >= lo && num < (hi === Infinity ? Infinity : hi === 75 ? 76 : hi);
+        }
+        const legacyMap: Record<string, string[]> = { '0-5': ['1Cr-5Cr'], '5-25': ['5Cr-25Cr'], '25-75': ['25Cr-75Cr'], '75+': ['>75Cr'] };
+        return (legacyMap[revenueFilter] || []).includes(String(revenue));
     });
 
     return (
@@ -210,7 +300,13 @@ export const SelectionCommitteeDashboard: React.FC = () => {
                             <span className="text-[13px] font-semibold text-gray-500 uppercase tracking-wide">Venture</span>
                         </div>
                         <div className="col-span-2 text-center">
-                            <span className="text-[13px] font-semibold text-gray-500 uppercase tracking-wide">Submitted</span>
+                            <button
+                                onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+                                className="text-[13px] font-semibold text-gray-500 uppercase tracking-wide hover:text-gray-700 transition-colors inline-flex items-center gap-1"
+                            >
+                                Submitted
+                                <span className="text-xs">{sortOrder === 'desc' ? '↓' : '↑'}</span>
+                            </button>
                         </div>
                         <div className="col-span-3 text-center">
                             <span className="text-[13px] font-semibold text-gray-500 uppercase tracking-wide">Program</span>
@@ -222,10 +318,10 @@ export const SelectionCommitteeDashboard: React.FC = () => {
                                 className="text-[13px] font-semibold text-gray-500 uppercase tracking-wide border border-gray-200 rounded-lg px-3 py-1.5 bg-white hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500 cursor-pointer appearance-none pr-7 bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%236b7280%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-[length:12px] bg-[right_8px_center] bg-no-repeat"
                             >
                                 <option value="all">Revenue</option>
-                                <option value="1Cr-5Cr">1Cr - 5Cr</option>
-                                <option value="5Cr-25Cr">5Cr - 25Cr</option>
-                                <option value="25Cr-75Cr">25Cr - 75Cr</option>
-                                <option value=">75Cr">&gt;75Cr</option>
+                                <option value="0-5">Below 5 Cr</option>
+                                <option value="5-25">5 - 25 Cr</option>
+                                <option value="25-75">25 - 75 Cr</option>
+                                <option value="75+">Above 75 Cr</option>
                             </select>
                         </div>
                     </div>
@@ -238,7 +334,7 @@ export const SelectionCommitteeDashboard: React.FC = () => {
                     ) : filteredVentures.length === 0 ? (
                         <div className="text-center p-16 bg-white rounded-2xl border border-dashed border-gray-300 text-gray-400">
                             <div className="text-lg font-medium mb-1">No applications found</div>
-                            <div className="text-sm">Ventures recommended for Accelerate Core or Select will appear here.</div>
+                            <div className="text-sm">Ventures recommended for Accelerate Core/Select will appear here.</div>
                         </div>
                     ) : (
                         <div className="space-y-3">
@@ -284,7 +380,7 @@ export const SelectionCommitteeDashboard: React.FC = () => {
                                         <div className="col-span-2 flex items-center justify-end gap-3 border-l border-gray-100 pl-4">
                                             <div className="text-right">
                                                 <div className="text-[15px] font-semibold text-gray-800 whitespace-nowrap">
-                                                    {v.revenue_12m ? `₹${v.revenue_12m} Cr` : '--'}
+                                                    {v.revenue_12m ? (isNaN(Number(v.revenue_12m)) ? v.revenue_12m : `₹${v.revenue_12m} Cr`) : '--'}
                                                 </div>
                                             </div>
                                             <div className="w-9 h-9 rounded-full flex items-center justify-center text-gray-300 group-hover:bg-purple-600 group-hover:text-white transition-all duration-200 flex-shrink-0">
@@ -325,7 +421,7 @@ export const SelectionCommitteeDashboard: React.FC = () => {
                             <div className="flex-1">
                                 <p className="text-sm font-semibold text-indigo-900">Screening Manager Assessment</p>
                                 <p className="text-xs text-indigo-700 mt-1">
-                                    This venture was assessed by the Screening Manager and recommended for {selectedVenture.program_recommendation}.
+                                    This venture was assessed by the Screening Manager and recommended for {displayProgram(selectedVenture.program_recommendation)}.
                                     {selectedVenture.vsm_reviewed_at && ` Reviewed on ${new Date(selectedVenture.vsm_reviewed_at).toLocaleDateString()}.`}
                                 </p>
                             </div>
@@ -336,41 +432,47 @@ export const SelectionCommitteeDashboard: React.FC = () => {
                             <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Current Revenue</span>
                                 <div className="text-xl font-bold text-gray-900 flex items-center gap-1">
-                                    <span className="text-sm text-gray-400">₹</span>
-                                    {selectedVenture.revenue_12m || '0'}<span className="text-sm text-gray-400 ml-0.5">Cr</span>
+                                    {selectedVenture.revenue_12m ? (isNaN(Number(selectedVenture.revenue_12m)) ? selectedVenture.revenue_12m : `₹${selectedVenture.revenue_12m} Cr`) : 'N/A'}
                                 </div>
                             </div>
                             <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Target Revenue (3Y)</span>
+                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Incremental Revenue (3Y)</span>
                                 <div className="text-xl font-bold text-gray-900 flex items-center gap-1">
-                                    <span className="text-sm text-gray-400">₹</span>
-                                    {selectedVenture.revenue_potential_3y || '0'}<span className="text-sm text-gray-400 ml-0.5">Cr</span>
+                                    {selectedVenture.revenue_potential_3y ? (isNaN(Number(selectedVenture.revenue_potential_3y)) ? selectedVenture.revenue_potential_3y : `₹${selectedVenture.revenue_potential_3y} Cr`) : 'N/A'}
                                 </div>
                             </div>
                             <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Current Full Time Employees</span>
                                 <div className="text-xl font-bold text-gray-900 flex items-center gap-1">
                                     <Users className="w-4 h-4 text-gray-400" />
-                                    {selectedVenture.full_time_employees || '0'}
+                                    {selectedVenture.full_time_employees || 'N/A'}
                                 </div>
                             </div>
                             <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Target Jobs</span>
                                 <div className="text-xl font-bold text-gray-900 flex items-center gap-1">
                                     <Users className="w-4 h-4 text-gray-400" />
-                                    {(() => {
-                                        const rev = String(selectedVenture.revenue_potential_3y || '');
-                                        if (rev === '5Cr - 15 Cr') return '5';
-                                        if (rev === '15Cr - 50Cr') return '20';
-                                        if (rev === '50Cr+') return '30';
-                                        const num = parseFloat(rev);
-                                        if (!isNaN(num)) {
-                                            if (num < 15) return '5';
-                                            if (num < 50) return '20';
-                                            return '30';
-                                        }
-                                        return '0';
-                                    })()}
+                                    {selectedVenture.target_jobs || 'N/A'}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-3 gap-4">
+                            <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Financial Condition</span>
+                                <div className="text-sm font-semibold text-gray-900">
+                                    {selectedVenture.financial_condition || 'N/A'}
+                                </div>
+                            </div>
+                            <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Owner Involvement</span>
+                                <div className="text-sm font-semibold text-gray-900">
+                                    {selectedVenture.time_commitment || 'N/A'}
+                                </div>
+                            </div>
+                            <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Leadership Team</span>
+                                <div className="text-sm font-semibold text-gray-900">
+                                    {selectedVenture.second_line_team || 'N/A'}
                                 </div>
                             </div>
                         </div>
@@ -417,47 +519,55 @@ export const SelectionCommitteeDashboard: React.FC = () => {
 
                             {/* Current vs Target Business */}
                             <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                                {/* Header Row */}
                                 <div className="grid grid-cols-2 divide-x divide-gray-100">
-                                    <div className="p-6">
-                                        <div className="flex items-center gap-2 text-gray-900 font-bold border-b border-gray-100 pb-3 mb-4">
+                                    <div className="p-6 pb-3">
+                                        <div className="flex items-center gap-2 text-gray-900 font-bold border-b border-gray-100 pb-3">
                                             <Briefcase className="w-4 h-4 text-gray-400" />
                                             Current Business
                                         </div>
-                                        <div className="space-y-5">
-                                            <div>
-                                                <span className="text-xs font-bold text-gray-400 uppercase block mb-1.5">Product / Service</span>
-                                                <p className="text-sm text-gray-800 bg-gray-50/50 p-3 rounded-lg border border-gray-100 min-h-[44px] flex items-center">{(selectedVenture as any).what_do_you_sell || 'N/A'}</p>
-                                            </div>
-                                            <div>
-                                                <span className="text-xs font-bold text-gray-400 uppercase block mb-1.5">Customer Segment</span>
-                                                <p className="text-sm text-gray-800 bg-gray-50/50 p-3 rounded-lg border border-gray-100 min-h-[44px] flex items-center">{(selectedVenture as any).who_do_you_sell_to || 'N/A'}</p>
-                                            </div>
-                                            <div>
-                                                <span className="text-xs font-bold text-gray-400 uppercase block mb-1.5">Region</span>
-                                                <p className="text-sm text-gray-800 bg-gray-50/50 p-3 rounded-lg border border-gray-100 min-h-[44px] flex items-center">{(selectedVenture as any).which_regions || 'N/A'}</p>
-                                            </div>
-                                        </div>
                                     </div>
-
-                                    <div className="p-6 bg-white">
-                                        <div className="flex items-center gap-2 text-blue-900 font-bold border-b border-blue-100 pb-3 mb-4">
+                                    <div className="p-6 pb-3 bg-white">
+                                        <div className="flex items-center gap-2 text-blue-900 font-bold border-b border-blue-100 pb-3">
                                             <TrendingUp className="w-4 h-4 text-blue-600" />
                                             New Venture
                                         </div>
-                                        <div className="space-y-5">
-                                            <div>
-                                                <span className="text-xs font-bold text-blue-400 uppercase block mb-1.5">New Product</span>
-                                                <p className="text-sm text-gray-800 bg-white p-3 rounded-lg border border-blue-50 min-h-[44px] flex items-center shadow-sm shadow-blue-100/50">{(selectedVenture as any).focus_product || 'N/A'}</p>
-                                            </div>
-                                            <div>
-                                                <span className="text-xs font-bold text-blue-400 uppercase block mb-1.5">New Segment</span>
-                                                <p className="text-sm text-gray-800 bg-white p-3 rounded-lg border border-blue-50 min-h-[44px] flex items-center shadow-sm shadow-blue-100/50">{(selectedVenture as any).focus_segment || 'N/A'}</p>
-                                            </div>
-                                            <div>
-                                                <span className="text-xs font-bold text-blue-400 uppercase block mb-1.5">New Region</span>
-                                                <p className="text-sm text-gray-800 bg-white p-3 rounded-lg border border-blue-50 min-h-[44px] flex items-center shadow-sm shadow-blue-100/50">{(selectedVenture as any).focus_geography || 'N/A'}</p>
-                                            </div>
-                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Row 1: Product */}
+                                <div className="grid grid-cols-2 divide-x divide-gray-100">
+                                    <div className="px-6 py-3">
+                                        <span className="text-xs font-bold text-gray-400 uppercase block mb-1.5">Product / Service</span>
+                                        <p className="text-sm text-gray-800 bg-gray-50/50 p-3 rounded-lg border border-gray-100 min-h-[44px] flex items-center">{(selectedVenture as any).what_do_you_sell || 'N/A'}</p>
+                                    </div>
+                                    <div className="px-6 py-3 bg-white">
+                                        <span className="text-xs font-bold text-blue-400 uppercase block mb-1.5">New Product</span>
+                                        <p className="text-sm text-gray-800 bg-white p-3 rounded-lg border border-blue-50 min-h-[44px] flex items-center shadow-sm shadow-blue-100/50">{(selectedVenture as any).focus_product || 'N/A'}</p>
+                                    </div>
+                                </div>
+
+                                {/* Row 2: Segment */}
+                                <div className="grid grid-cols-2 divide-x divide-gray-100">
+                                    <div className="px-6 py-3">
+                                        <span className="text-xs font-bold text-gray-400 uppercase block mb-1.5">Customer Segment</span>
+                                        <p className="text-sm text-gray-800 bg-gray-50/50 p-3 rounded-lg border border-gray-100 min-h-[44px] flex items-center">{(selectedVenture as any).who_do_you_sell_to || 'N/A'}</p>
+                                    </div>
+                                    <div className="px-6 py-3 bg-white">
+                                        <span className="text-xs font-bold text-blue-400 uppercase block mb-1.5">New Segment</span>
+                                        <p className="text-sm text-gray-800 bg-white p-3 rounded-lg border border-blue-50 min-h-[44px] flex items-center shadow-sm shadow-blue-100/50">{(selectedVenture as any).focus_segment || 'N/A'}</p>
+                                    </div>
+                                </div>
+
+                                {/* Row 3: Region */}
+                                <div className="grid grid-cols-2 divide-x divide-gray-100">
+                                    <div className="px-6 py-3 pb-6">
+                                        <span className="text-xs font-bold text-gray-400 uppercase block mb-1.5">Region</span>
+                                        <p className="text-sm text-gray-800 bg-gray-50/50 p-3 rounded-lg border border-gray-100 min-h-[44px] flex items-center">{(selectedVenture as any).which_regions || 'N/A'}</p>
+                                    </div>
+                                    <div className="px-6 py-3 pb-6 bg-white">
+                                        <span className="text-xs font-bold text-blue-400 uppercase block mb-1.5">New Region</span>
+                                        <p className="text-sm text-gray-800 bg-white p-3 rounded-lg border border-blue-50 min-h-[44px] flex items-center shadow-sm shadow-blue-100/50">{(selectedVenture as any).focus_geography || 'N/A'}</p>
                                     </div>
                                 </div>
                             </div>
@@ -568,24 +678,31 @@ export const SelectionCommitteeDashboard: React.FC = () => {
                                 <p className="text-sm text-gray-600 mb-4">
                                     Corporate presentation uploaded by the venture (screening manager can download)
                                 </p>
-                                {(selectedVenture as any).document_url || (selectedVenture as any).corporate_presentation_url ? (
+                                {(selectedVenture as any).corporate_presentation_url ? (
                                     <div className="flex items-center gap-4">
                                         <div className="flex-1 flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
                                             <FileText className="w-5 h-5 text-blue-600" />
                                             <span className="text-sm font-medium text-gray-900">
-                                                {(selectedVenture as any).document_name || 'Corporate Presentation.pdf'}
+                                                {(selectedVenture as any).corporate_presentation_url.split('/').pop()?.replace(/^\d+_/, '') || 'Corporate Presentation'}
                                             </span>
                                         </div>
-                                        <a
-                                            href={(selectedVenture as any).document_url || (selectedVenture as any).corporate_presentation_url}
-                                            download
+                                        <button
+                                            onClick={async () => {
+                                                try {
+                                                    const url = await api.getVentureDocumentUrl((selectedVenture as any).corporate_presentation_url);
+                                                    window.open(url, '_blank');
+                                                } catch (err) {
+                                                    console.error('Failed to get document URL:', err);
+                                                    toast('Failed to download document. Please try again.', 'error');
+                                                }
+                                            }}
                                             className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors text-sm font-semibold"
                                         >
                                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                             </svg>
                                             Download
-                                        </a>
+                                        </button>
                                     </div>
                                 ) : (
                                     <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200 text-gray-500">
@@ -602,83 +719,172 @@ export const SelectionCommitteeDashboard: React.FC = () => {
                         {/* Other Support Details */}
                         <OtherDetailsReadOnlySection selectedVenture={selectedVenture} />
 
-                        {/* AI Analysis */}
+                        {/* Interactions Section */}
+                        <InteractionsSection ventureId={selectedVenture.id} onInteractionsLoaded={setInteractionCount} />
+
+                        {/* Panel Interview Insights - V2 Scorecard */}
                         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
                                 <div className="flex items-center gap-2">
-                                    <Sparkles className="w-5 h-5 text-indigo-500" />
-                                    <span className="text-base font-bold text-gray-700">Generate AI insights</span>
-                                    {analysisResult && !analyzing && (
-                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-xs font-medium text-indigo-600">
+                                    <Target className="w-5 h-5 text-teal-500" />
+                                    <span className="text-base font-bold text-gray-700">Panel SCALE Scorecard</span>
+                                    {panelAnalysisResult && !panelAnalyzing && (
+                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-50 border border-teal-200 text-xs font-medium text-teal-600">
                                             <Sparkles className="w-3 h-3" />
                                             AI Generated
                                         </span>
                                     )}
                                 </div>
                                 <button
-                                    onClick={runAIAnalysis}
-                                    disabled={analyzing}
-                                    className="flex items-center gap-2 px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold transition-colors shadow-sm"
+                                    onClick={runPanelAIAnalysis}
+                                    disabled={panelAnalyzing || !!panelAnalysisResult || interactionCount === 0}
+                                    title={interactionCount === 0 ? 'Add at least one interaction before generating panel insights' : ''}
+                                    className="flex items-center gap-2 px-5 py-2 rounded-lg bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white text-sm font-semibold transition-colors shadow-sm"
                                 >
-                                    {analyzing ? (<><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</>) : (<><Sparkles className="w-4 h-4" /> Generate insights</>)}
+                                    {panelAnalyzing ? (<><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</>) : panelAnalysisResult ? (<><Sparkles className="w-4 h-4" /> Insights Generated</>) : (<><Target className="w-4 h-4" /> Generate Panel Insights</>)}
                                 </button>
                             </div>
-                            {!analysisResult && !analyzing && (
+
+                            {/* No interactions warning */}
+                            {!panelAnalysisResult && !panelAnalyzing && interactionCount === 0 && (
+                                <div className="px-6 py-3 bg-amber-50 border-b border-amber-100">
+                                    <p className="text-sm text-amber-700 font-medium">Add at least one interaction (call transcript, meeting notes, etc.) before generating panel insights.</p>
+                                </div>
+                            )}
+
+                            {/* Panel Notes Input */}
+                            {!panelAnalysisResult && !panelAnalyzing && interactionCount > 0 && (
+                                <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+                                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">Additional Panel Notes (optional)</label>
+                                    <textarea
+                                        value={panelNotes}
+                                        onChange={(e) => setPanelNotes(e.target.value)}
+                                        placeholder="Add any additional panel discussion notes, observations, or focus areas for the AI analysis..."
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-300 resize-none"
+                                        rows={3}
+                                    />
+                                </div>
+                            )}
+
+                            {!panelAnalysisResult && !panelAnalyzing && (
                                 <div className="py-10 flex flex-col items-center gap-2 text-gray-300">
-                                    <Sparkles className="w-10 h-10" />
-                                    <p className="text-sm">Click "Generate insights" to analyse this venture</p>
+                                    <Target className="w-10 h-10" />
+                                    <p className="text-sm">{interactionCount === 0 ? 'Add interactions above, then generate panel insights' : 'Click "Generate Panel Insights" to create a dual-column scorecard'}</p>
                                 </div>
                             )}
-                            {analyzing && (
-                                <div className="py-10 flex flex-col items-center gap-2 text-indigo-400">
+
+                            {panelAnalyzing && (
+                                <div className="py-10 flex flex-col items-center gap-2 text-teal-400">
                                     <Loader2 className="w-8 h-8 animate-spin" />
-                                    <p className="text-sm font-medium">Analysing venture data...</p>
+                                    <p className="text-sm font-medium">Generating panel scorecard...</p>
                                 </div>
                             )}
-                            {analysisResult && !analyzing && (
-                                <div className="grid grid-cols-3 divide-x divide-gray-100">
-                                    <div className="p-6">
-                                        <div className="flex items-center gap-2 mb-4">
-                                            <TrendingUp className="w-4 h-4 text-green-500" />
-                                            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">PROS</span>
+
+                            {panelAnalysisResult && !panelAnalyzing && (
+                                panelAnalysisResult.panel_scorecard && editedScorecard ? (
+                                    <div>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-sm">
+                                                <thead>
+                                                    <tr className="border-b border-gray-200">
+                                                        <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Dimension</th>
+                                                        <th className="text-center px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">App Rating</th>
+                                                        <th className="text-center px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Panel Rating</th>
+                                                        <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Panel Brief</th>
+                                                        <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Remarks</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-100">
+                                                    {editedScorecard.map((item: any, i: number) => {
+                                                        const panelStyle = item.panel_rating === 'Green' ? { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-500' } :
+                                                            item.panel_rating === 'Red' ? { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500' } :
+                                                            { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500' };
+                                                        const appStyle = item.application_rating === 'Green' ? { text: 'text-green-700', dot: 'bg-green-500' } :
+                                                            item.application_rating === 'Red' ? { text: 'text-red-700', dot: 'bg-red-500' } :
+                                                            { text: 'text-amber-700', dot: 'bg-amber-500' };
+                                                        return (
+                                                            <tr key={i} className={`${panelStyle.bg} hover:opacity-90 transition-opacity`}>
+                                                                <td className="px-4 py-4 font-semibold text-gray-800 whitespace-nowrap">{item.dimension}</td>
+                                                                <td className="px-3 py-4 text-center">
+                                                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-white/80 ${appStyle.text}`}>
+                                                                        <span className={`w-2 h-2 rounded-full ${appStyle.dot}`} />
+                                                                        {item.application_rating}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-3 py-4 text-center">
+                                                                    <select
+                                                                        value={item.panel_rating}
+                                                                        onChange={(e) => handlePanelRatingChange(i, e.target.value)}
+                                                                        className={`px-2 py-1 rounded-md text-xs font-bold border ${panelStyle.text} bg-white cursor-pointer`}
+                                                                    >
+                                                                        <option value="Green">Green</option>
+                                                                        <option value="Yellow">Yellow</option>
+                                                                        <option value="Red">Red</option>
+                                                                    </select>
+                                                                </td>
+                                                                <td className="px-4 py-4 text-gray-700">{item.panel_brief}</td>
+                                                                <td className="px-4 py-4">
+                                                                    <textarea
+                                                                        value={item.panel_remarks || ''}
+                                                                        onChange={(e) => handlePanelRemarksChange(i, e.target.value)}
+                                                                        placeholder="Add remarks..."
+                                                                        className="w-full min-w-[150px] text-xs border border-gray-200 rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-teal-400 resize-y"
+                                                                        rows={2}
+                                                                    />
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
                                         </div>
-                                        <ul className="space-y-2">
-                                            {(analysisResult.strengths || []).map((s: string, i: number) => (
-                                                <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                                                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
-                                                    {s}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </div>
-                                    <div className="p-6">
-                                        <div className="flex items-center gap-2 mb-4">
-                                            <AlertTriangle className="w-4 h-4 text-amber-500" />
-                                            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">CONS</span>
+                                        <div className="flex justify-end px-4 py-3 border-t border-gray-100">
+                                            <Button
+                                                onClick={savePanelAssessment}
+                                                disabled={savingPanelAssessment}
+                                                className="bg-teal-600 hover:bg-teal-700 text-white text-sm px-4 py-2 rounded-lg"
+                                            >
+                                                {savingPanelAssessment ? (<><Loader2 className="w-4 h-4 animate-spin" /> Saving...</>) : 'Save Panel Assessment'}
+                                            </Button>
                                         </div>
-                                        <ul className="space-y-2">
-                                            {(analysisResult.risks || []).map((r: string, i: number) => (
-                                                <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                                                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
-                                                    {r}
-                                                </li>
-                                            ))}
-                                        </ul>
                                     </div>
-                                    <div className="p-6">
-                                        <div className="flex items-center gap-2 mb-4">
-                                            <HelpCircle className="w-4 h-4 text-blue-500" />
-                                            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Probing Questions</span>
+                                ) : (
+                                    /* Legacy panel insights - backward compat */
+                                    <div className="space-y-0 divide-y divide-gray-100">
+                                        <div className="p-6">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Panel Recommendation</span>
+                                                <span className={`px-4 py-1.5 rounded-full text-sm font-bold ${
+                                                    panelAnalysisResult.panel_recommendation === 'Accept' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
+                                                    panelAnalysisResult.panel_recommendation === 'Accept with Conditions' ? 'bg-amber-100 text-amber-700 border border-amber-200' :
+                                                    panelAnalysisResult.panel_recommendation === 'Defer' ? 'bg-blue-100 text-blue-700 border border-blue-200' :
+                                                    'bg-red-100 text-red-700 border border-red-200'
+                                                }`}>
+                                                    {panelAnalysisResult.panel_recommendation}
+                                                </span>
+                                            </div>
                                         </div>
-                                        <ol className="space-y-2 list-decimal list-inside">
-                                            {(analysisResult.questions || []).map((q: string, i: number) => (
-                                                <li key={i} className="text-sm text-gray-700">{q}</li>
-                                            ))}
-                                        </ol>
+                                        <div className="p-6">
+                                            <span className="text-xs font-semibold text-gray-400 uppercase">Executive Summary</span>
+                                            <p className="text-sm text-gray-700 mt-2 leading-relaxed">{panelAnalysisResult.executive_summary}</p>
+                                        </div>
+                                        {panelAnalysisResult.market_context && (
+                                            <div className="p-6">
+                                                <span className="text-xs font-semibold text-gray-400 uppercase">Market Context</span>
+                                                <p className="text-sm text-gray-700 mt-2 leading-relaxed">{panelAnalysisResult.market_context}</p>
+                                            </div>
+                                        )}
                                     </div>
-                                </div>
+                                )
                             )}
                         </div>
+
+                        {/* Panel Gate Questions */}
+                        <PanelGateQuestions
+                            ventureId={selectedVenture.id}
+                            savedGateQuestions={gateQuestions}
+                            onSaved={setGateQuestions}
+                        />
 
                         {/* Program Recommendation */}
                         <div className="bg-white rounded-xl border border-gray-200 p-6">
@@ -689,7 +895,7 @@ export const SelectionCommitteeDashboard: React.FC = () => {
                             <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
                                 <div className="flex items-center gap-2">
                                     <span className="text-sm font-medium text-indigo-700">Recommended Program:</span>
-                                    <span className="text-lg font-bold text-indigo-900">{selectedVenture.program_recommendation}</span>
+                                    <span className="text-lg font-bold text-indigo-900">{displayProgram(selectedVenture.program_recommendation)}</span>
                                 </div>
                                 {selectedVenture.internal_comments && (
                                     <div className="mt-3 pt-3 border-t border-indigo-200">
@@ -699,9 +905,6 @@ export const SelectionCommitteeDashboard: React.FC = () => {
                                 )}
                             </div>
                         </div>
-
-                        {/* Interactions Section */}
-                        <InteractionsSection ventureId={selectedVenture.id} />
 
                         {/* Journey Roadmap */}
                         <div className="bg-gradient-to-br from-indigo-50 to-white rounded-2xl border border-indigo-200 p-8 shadow-sm">
@@ -763,319 +966,53 @@ export const SelectionCommitteeDashboard: React.FC = () => {
                                 </div>
                             )}
 
-                            {roadmapGenerated && (
+                            {roadmapGenerated && roadmapData && (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                    {/* Product */}
-                                    <div className="bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-lg transition-shadow">
-                                        <div className="flex items-center justify-between mb-6">
-                                            <h3 className="text-sm font-bold text-blue-600 uppercase tracking-wider">Product</h3>
-                                            <ChevronRight className="w-5 h-5 text-gray-300" />
-                                        </div>
-                                        <div className="space-y-4">
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">Core API Specs</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">Technical specifications for public and internal endpoints.</p>
-                                                </div>
+                                    {([
+                                        { key: 'product', label: 'Product' },
+                                        { key: 'gtm', label: 'GTM' },
+                                        { key: 'capital_planning', label: 'Capital Planning' },
+                                        { key: 'supply_chain', label: 'Supply Chain' },
+                                        { key: 'operations', label: 'Operations' },
+                                        { key: 'team', label: 'Team' },
+                                    ] as { key: string; label: string }[]).map(({ key, label }) => {
+                                        const area = (roadmapData as any)[key];
+                                        const actions = Array.isArray(area) ? area : area?.actions || [];
+                                        const relevance = area?.relevance;
+                                        const supportPriority = area?.support_priority;
+                                        return (
+                                        <div key={key} className="bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-lg transition-shadow">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <h3 className="text-sm font-bold text-blue-600 uppercase tracking-wider">{label}</h3>
+                                                {supportPriority && (
+                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                                        supportPriority === 'Need deep support' || supportPriority === 'High' ? 'bg-red-100 text-red-700' :
+                                                        supportPriority === 'Need some guidance' || supportPriority === 'Medium' ? 'bg-amber-100 text-amber-700' :
+                                                        'bg-green-100 text-green-700'
+                                                    }`}>{supportPriority}</span>
+                                                )}
                                             </div>
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">UI Design System</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">Global Figma library and component standards.</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-orange-500 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">V1.2 Integration</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">Middleware bridge for legacy data retrofitting.</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">Infrastructure</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">Multi-region cloud deployment strategy.</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">Unit Testing</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">Standardized QA suite for core services.</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-gray-400 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">Security Audit</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">Third-party penetration testing and compliance.</p>
-                                                </div>
+                                            {relevance && <p className="text-xs text-gray-400 mb-4">{relevance}</p>}
+                                            <div className="space-y-4">
+                                                {actions.map((item: any) => (
+                                                    <div key={item.id} className="flex items-start gap-3">
+                                                        <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-2 ${
+                                                            item.priority === 'Need deep support' || item.priority === 'high' ? 'bg-red-500' :
+                                                            item.priority === 'Need some guidance' || item.priority === 'medium' ? 'bg-orange-500' :
+                                                            'bg-green-500'
+                                                        }`} />
+                                                        <div>
+                                                            <p className="text-sm font-semibold text-gray-900">{item.title}</p>
+                                                            <p className="text-xs text-gray-500 italic mt-0.5">{item.description}</p>
+                                                            <span className="text-[10px] text-gray-400 font-medium">{item.timeline}</span>
+                                                            {item.success_metric && <p className="text-[10px] text-green-600 mt-0.5">✓ {item.success_metric}</p>}
+                                                        </div>
+                                                    </div>
+                                                ))}
                                             </div>
                                         </div>
-                                    </div>
-
-                                    {/* GTM */}
-                                    <div className="bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-lg transition-shadow">
-                                        <div className="flex items-center justify-between mb-6">
-                                            <h3 className="text-sm font-bold text-blue-600 uppercase tracking-wider">GTM</h3>
-                                            <ChevronRight className="w-5 h-5 text-gray-300" />
-                                        </div>
-                                        <div className="space-y-4">
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">ICP Definition</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">Detailed profile of high-value manufacturing clients.</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">Distribution</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">Partner channel mapping and commission structures.</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">Referral Program</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">Incentive model for existing customer advocacy.</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-orange-500 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">Partner Ecosystem</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">Integration directory for third-party providers.</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">Pricing Strategy</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">Tiered subscription and volume discount model.</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-gray-400 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">Sales Launch</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">Regional enablement kit for direct sales teams.</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Funding */}
-                                    <div className="bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-lg transition-shadow">
-                                        <div className="flex items-center justify-between mb-6">
-                                            <h3 className="text-sm font-bold text-blue-600 uppercase tracking-wider">Funding</h3>
-                                            <ChevronRight className="w-5 h-5 text-gray-300" />
-                                        </div>
-                                        <div className="space-y-4">
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">Series A Pitch</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">Updated narrative for institutional growth rounds.</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-orange-500 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">Financial Metrics</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">Historical performance and 24-month projections.</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">Data Room</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">Encrypted document repository for due diligence.</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">Investor Outreach</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">CRM tracking for potential VC partners.</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">Financial Model</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">Excel-based dynamic budget and burn calculator.</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-gray-400 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">Exit Strategy</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">M&A landscape analysis and valuation benchmarks.</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Supply Chain */}
-                                    <div className="bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-lg transition-shadow">
-                                        <div className="flex items-center justify-between mb-6">
-                                            <h3 className="text-sm font-bold text-blue-600 uppercase tracking-wider">Supply Chain</h3>
-                                            <ChevronRight className="w-5 h-5 text-gray-300" />
-                                        </div>
-                                        <div className="space-y-4">
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">Lead Time Gap</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">Analysis of hardware delays vs scaling targets.</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-orange-500 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">Vendor Review</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">Quarterly performance scorecard for key suppliers.</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">Inventory Forecast</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">AI-driven predictive stock requirements.</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">Logistics Audit</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">Freight cost optimization and route analysis.</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">Compliance Review</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">Regulatory certification status for global trade.</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-gray-400 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">Safety Stock</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">Buffering strategy for mission-critical components.</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Operations */}
-                                    <div className="bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-lg transition-shadow">
-                                        <div className="flex items-center justify-between mb-6">
-                                            <h3 className="text-sm font-bold text-blue-600 uppercase tracking-wider">Operations</h3>
-                                            <ChevronRight className="w-5 h-5 text-gray-300" />
-                                        </div>
-                                        <div className="space-y-4">
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">ERP Integration</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">Centralized management of ops and finance.</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">Team Training</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">Internal platform for onboarding new staff.</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">Automation</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">Standardization of routine warehouse tasks.</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-orange-500 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">Office Expansion</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">Real estate planning for the EMEA headquarters.</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">Compliance Audit</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">Internal review of data privacy and safety.</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-gray-400 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">Disaster Recovery</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">Backup protocols and emergency business plan.</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Team */}
-                                    <div className="bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-lg transition-shadow">
-                                        <div className="flex items-center justify-between mb-6">
-                                            <h3 className="text-sm font-bold text-blue-600 uppercase tracking-wider">Team</h3>
-                                            <ChevronRight className="w-5 h-5 text-gray-300" />
-                                        </div>
-                                        <div className="space-y-4">
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">Hiring Handbook</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">Standardized interview and offer procedures.</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-orange-500 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">Appraisal Framework</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">Semi-annual performance review methodology.</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">Individual Metrics</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">KPI dashboards for all department leads.</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">Equity Program</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">Option pool allocation and vesting schedules.</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">Culture Workshop</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">Mission alignment for remote global teams.</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-gray-400 flex-shrink-0 mt-2" />
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">Benefits Overhaul</p>
-                                                    <p className="text-xs text-gray-500 italic mt-0.5">Comparison study of regional health plans.</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Rocket, Mail, Lock, ArrowRight, AlertCircle, Briefcase, Users } from 'lucide-react';
+import { Rocket, Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { useAuth } from '../context/AuthContext';
+import { logger } from '../utils/logger';
 
 export const Login: React.FC = () => {
     const navigate = useNavigate();
@@ -15,73 +16,36 @@ export const Login: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    const navigateByRole = (role?: string) => {
+        let target = '/dashboard';
+        if (isApply) {
+            target = '/dashboard/new-application';
+        } else if (role === 'venture_mgr') {
+            target = '/vmanager/dashboard';
+        } else if (role === 'committee_member') {
+            target = '/committee/dashboard';
+        } else if (role === 'ops_manager') {
+            target = '/ops/dashboard';
+        } else if (role === 'admin') {
+            target = '/admin/dashboard';
+        } else if (role === 'success_mgr') {
+            target = '/vsm/dashboard';
+        }
+        logger.info('Login', `Navigating to ${target} for role: ${role}`);
+        navigate(target);
+    };
+
     const handleLogin = async (e?: React.FormEvent) => {
         e?.preventDefault();
         setLoading(true);
         setError(null);
 
         try {
-            await signIn(email, password);
-
-            // If coming from Apply button, go straight to the application form
-            if (isApply) {
-                navigate('/dashboard/new-application');
-            } else if (email.includes('ravi') || email === 'ravi@wadhwani.com') {
-                navigate('/vmanager/dashboard');
-            } else if (email.includes('meetul') || email.includes('committee')) {
-                navigate('/committee/dashboard');
-            } else if (email.includes('admin') || email.includes('rajesh')) {
-                navigate('/vsm/dashboard');
-            } else {
-                navigate('/dashboard');
-            }
+            const signedInUser = await signIn(email, password);
+            navigateByRole(signedInUser?.user_metadata?.role);
         } catch (err: any) {
+            logger.error('Login', `Login failed for ${email}`, err);
             setError(err.message || 'Login failed. Please check your credentials.');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleDemoLogin = async (role: string) => {
-        let demoEmail = '';
-        let demoPassword = '';
-
-        if (role === 'entrepreneur') {
-            demoEmail = 'vipul@wadhwani.com';
-            demoPassword = 'password';
-        } else if (role === 'success_mgr') {
-            demoEmail = 'rajesh@wadhwani.com';
-            demoPassword = 'password';
-        } else if (role === 'venture_mgr') {
-            demoEmail = 'ravi@wadhwani.com';
-            demoPassword = 'password';
-        } else if (role === 'committee_member') {
-            demoEmail = 'meetul@wadhwani.com';
-            demoPassword = 'password';
-        }
-
-        setEmail(demoEmail);
-        setPassword(demoPassword);
-
-        // Trigger auto-login
-        setLoading(true);
-        setError(null);
-
-        try {
-            await signIn(demoEmail, demoPassword);
-
-            // Navigation based on role
-            if (role === 'success_mgr') {
-                navigate('/vsm/dashboard');
-            } else if (role === 'venture_mgr') {
-                navigate('/vmanager/dashboard');
-            } else if (role === 'committee_member') {
-                navigate('/committee/dashboard');
-            } else {
-                navigate('/dashboard');
-            }
-        } catch (err: any) {
-            setError(err.message || 'Demo login failed.');
         } finally {
             setLoading(false);
         }
@@ -136,54 +100,6 @@ export const Login: React.FC = () => {
                     </Button>
                 </div>
 
-                {/* Demo Accounts */}
-                <div className="pt-2 space-y-4">
-                    <div className="relative">
-                        <div className="absolute inset-0 flex items-center">
-                            <span className="w-full border-t border-gray-200" />
-                        </div>
-                        <div className="relative flex justify-center text-sm">
-                            <span className="bg-white px-2 text-gray-500">Demo Accounts</span>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                        <button
-                            onClick={() => handleDemoLogin('entrepreneur')}
-                            className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:border-red-600 hover:text-red-600 hover:bg-red-50 transition-all"
-                        >
-                            Business
-                        </button>
-                        <button
-                            onClick={() => handleDemoLogin('success_mgr')}
-                            className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:border-red-600 hover:text-red-600 hover:bg-red-50 transition-all"
-                        >
-                            Screening Manager
-                        </button>
-                        <button
-                            onClick={() => handleDemoLogin('venture_mgr')}
-                            className="w-full bg-white border border-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-50 font-medium transition-colors flex items-center justify-center gap-2"
-                        >
-                            <Briefcase className="w-4 h-4 text-purple-600" />
-                            Panel (Prime)
-                        </button>
-                        <button
-                            onClick={() => handleDemoLogin('committee_member')}
-                            className="w-full bg-white border border-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-50 font-medium transition-colors flex items-center justify-center gap-2"
-                        >
-                            <Users className="w-4 h-4 text-indigo-600" />
-                            Panel (Core, Select)
-                        </button>
-
-                    </div>
-
-                    <div className="text-center text-xs text-gray-400 space-y-1">
-                        <div>Venture: vipul@wadhwani.com / password</div>
-                        <div>Screening Mgr: rajesh@wadhwani.com / password</div>
-                        <div>Panel (Prime): ravi@wadhwani.com / password</div>
-                        <div>Panel (Core, Select): meetul@wadhwani.com / password</div>
-                    </div>
-                </div>
 
             </div>
         </div>

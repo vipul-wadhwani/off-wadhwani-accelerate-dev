@@ -7,6 +7,118 @@ import {
     CreateStreamRequest,
     VentureQueryParams
 } from '../types';
+import { createServiceRoleClient } from '../config/supabase';
+
+// Revenue tiers for screening manager assignment
+// Legacy text ranges (backward compat for old data)
+const BELOW_25CR_REVENUES = ['Pre Revenue', '1Cr-5Cr', '5Cr-25Cr'];
+const ABOVE_25CR_REVENUES = ['25Cr-75Cr', '>75Cr'];
+
+// Screening managers by revenue tier (looked up by full_name in profiles)
+const SCREENING_MANAGER_TIERS: Record<string, string[]> = {
+    below_25cr: ['Sanghamitra', 'Shweta Singh'],
+    above_25cr: ['Shruti TS', 'Anuradha Nirwan'],
+};
+
+/**
+ * Auto-assign a screening manager based on venture's current revenue.
+ * Uses round-robin (least loaded) within the appropriate tier.
+ */
+export async function autoAssignScreeningManager(
+    ventureId: string
+): Promise<{ assignedTo: string | null; error?: string }> {
+    const adminClient = createServiceRoleClient();
+
+    try {
+        // 1. Get the venture's revenue_12m from venture_applications
+        const { data: app, error: appError } = await adminClient
+            .from('venture_applications')
+            .select('revenue_12m')
+            .eq('venture_id', ventureId)
+            .maybeSingle();
+
+        if (appError) {
+            console.error('[AutoAssign] Error fetching application:', appError);
+            return { assignedTo: null, error: appError.message };
+        }
+
+        const revenue = app?.revenue_12m;
+        if (!revenue) {
+            console.warn(`[AutoAssign] No revenue_12m for venture ${ventureId}, skipping assignment`);
+            return { assignedTo: null, error: 'No revenue data' };
+        }
+
+        // 2. Determine tier — supports both numeric values (new) and text ranges (legacy)
+        let tier: 'below_25cr' | 'above_25cr';
+        const numericRevenue = parseFloat(revenue);
+        if (!isNaN(numericRevenue)) {
+            // New numeric format (in Cr)
+            tier = numericRevenue < 25 ? 'below_25cr' : 'above_25cr';
+        } else if (BELOW_25CR_REVENUES.includes(revenue)) {
+            tier = 'below_25cr';
+        } else if (ABOVE_25CR_REVENUES.includes(revenue)) {
+            tier = 'above_25cr';
+        } else {
+            console.warn(`[AutoAssign] Unknown revenue value "${revenue}" for venture ${ventureId}`);
+            return { assignedTo: null, error: `Unknown revenue value: ${revenue}` };
+        }
+
+        const managerNames = SCREENING_MANAGER_TIERS[tier];
+
+        // 3. Look up manager profiles by name and role
+        const { data: managers, error: profileError } = await adminClient
+            .from('profiles')
+            .select('id, full_name')
+            .eq('role', 'success_mgr')
+            .in('full_name', managerNames);
+
+        if (profileError || !managers || managers.length === 0) {
+            console.error('[AutoAssign] Could not find screening managers for tier:', tier, profileError);
+            return { assignedTo: null, error: 'No matching managers found' };
+        }
+
+        // 4. Round-robin: pick the manager with fewest current assignments
+        const managerIds = managers.map(m => m.id);
+        const { data: assignmentCounts } = await adminClient
+            .from('ventures')
+            .select('assigned_vsm_id')
+            .in('assigned_vsm_id', managerIds);
+
+        const countMap: Record<string, number> = {};
+        for (const mid of managerIds) {
+            countMap[mid] = 0;
+        }
+        if (assignmentCounts) {
+            for (const row of assignmentCounts) {
+                if (row.assigned_vsm_id && countMap[row.assigned_vsm_id] !== undefined) {
+                    countMap[row.assigned_vsm_id]++;
+                }
+            }
+        }
+
+        // Pick manager with least assignments
+        const selectedManager = managers.reduce((best, m) =>
+            countMap[m.id] < countMap[best.id] ? m : best
+        );
+
+        // 5. Assign
+        const { error: updateError } = await adminClient
+            .from('ventures')
+            .update({ assigned_vsm_id: selectedManager.id })
+            .eq('id', ventureId);
+
+        if (updateError) {
+            console.error('[AutoAssign] Error assigning VSM:', updateError);
+            return { assignedTo: null, error: updateError.message };
+        }
+
+        console.log(`[AutoAssign] Venture ${ventureId} (revenue: ${revenue}, tier: ${tier}) → assigned to ${selectedManager.full_name}`);
+        return { assignedTo: selectedManager.full_name };
+    } catch (err: any) {
+        console.error('[AutoAssign] Unexpected error:', err);
+        return { assignedTo: null, error: err.message };
+    }
+}
 
 /**
  * Get all ventures for a user (with optional filters)
@@ -17,13 +129,17 @@ export async function getVentures(
     userRole: string,
     filters?: VentureQueryParams
 ) {
-    let query = client.from('ventures').select('*', { count: 'exact' });
+    let query = client.from('ventures').select('*, streams:venture_streams(*), application:venture_applications(*), assessments:venture_assessments(*)', { count: 'exact' });
 
     // Entrepreneurs can only see their own ventures
     if (userRole === 'entrepreneur') {
         query = query.eq('user_id', userId);
     }
-    // VSM and committee can see all ventures
+    // Screening managers can only see ventures assigned to them
+    if (userRole === 'success_mgr') {
+        query = query.eq('assigned_vsm_id', userId);
+    }
+    // Other roles (committee, ops_manager, admin, venture_mgr) can see all ventures
 
     // Apply filters
     if (filters?.status) {
@@ -109,6 +225,10 @@ export async function getVentureById(
             revenuePotential: application.revenue_potential_3y,
             investment: application.min_investment,
             incrementalHiring: application.incremental_hiring,
+            financialCondition: application.financial_condition,
+            targetJobs: application.target_jobs,
+            timeCommitment: application.time_commitment,
+            secondLineTeam: application.second_line_team,
         } : null,
         blockers: application?.blockers || null,
         support_request: application?.support_request || null,
@@ -192,14 +312,18 @@ export async function createVenture(
         founder_phone: growthCurrent.phone || null,
         founder_designation: growthCurrent.role || null,
 
-        // Financial metrics (convert to numeric)
-        revenue_12m: commitment.lastYearRevenue ? parseFloat(commitment.lastYearRevenue.toString().replace(/,/g, '')) : null,
-        revenue_potential_3y: commitment.revenuePotential ? parseFloat(commitment.revenuePotential.toString().replace(/,/g, '')) : null,
+        // Financial metrics (store as original string values)
+        revenue_12m: commitment.lastYearRevenue ? commitment.lastYearRevenue.toString() : null,
+        revenue_potential_3y: commitment.revenuePotential ? commitment.revenuePotential.toString() : null,
         min_investment: commitment.investment ? parseFloat(commitment.investment.toString().replace(/,/g, '')) : null,
 
-        // Team metrics (convert to integer)
-        full_time_employees: growthCurrent.employees ? parseInt(growthCurrent.employees.toString()) : null,
+        // Team metrics (store as original string value)
+        full_time_employees: growthCurrent.employees ? growthCurrent.employees.toString() : null,
+        financial_condition: commitment.financialCondition || null,
         incremental_hiring: commitment.incrementalHiring ? parseInt(commitment.incrementalHiring.toString()) : null,
+        target_jobs: commitment.targetJobs ? parseInt(commitment.targetJobs.toString()) : null,
+        time_commitment: commitment.timeCommitment || null,
+        second_line_team: commitment.secondLineTeam || null,
 
         // Growth focus (convert to array)
         growth_focus: data.growth_focus ? (Array.isArray(data.growth_focus) ? data.growth_focus : data.growth_focus.split(',').filter(Boolean)) : [],
@@ -290,7 +414,6 @@ export async function updateVenture(
     if (updateData.vsm_notes !== undefined) ventureUpdates.vsm_notes = updateData.vsm_notes;
     if (updateData.program_recommendation !== undefined) ventureUpdates.program_recommendation = updateData.program_recommendation;
     if (updateData.internal_comments !== undefined) ventureUpdates.internal_comments = updateData.internal_comments;
-    if (updateData.ai_analysis !== undefined) ventureUpdates.ai_analysis = updateData.ai_analysis;
     if (updateData.vsm_reviewed_at !== undefined) ventureUpdates.vsm_reviewed_at = updateData.vsm_reviewed_at;
 
     // Committee fields
@@ -326,7 +449,7 @@ export async function updateVenture(
     if (growthCurrent.email !== undefined) applicationUpdates.founder_email = growthCurrent.email;
     if (growthCurrent.phone !== undefined) applicationUpdates.founder_phone = growthCurrent.phone;
     if (growthCurrent.role !== undefined) applicationUpdates.founder_designation = growthCurrent.role;
-    if (growthCurrent.employees !== undefined) applicationUpdates.full_time_employees = parseInt(growthCurrent.employees.toString());
+    if (growthCurrent.employees !== undefined) applicationUpdates.full_time_employees = growthCurrent.employees.toString();
     if (growthCurrent.referred_by !== undefined) applicationUpdates.referred_by = growthCurrent.referred_by;
     if (growthCurrent.state !== undefined) applicationUpdates.state = growthCurrent.state;
 
@@ -344,10 +467,10 @@ export async function updateVenture(
 
     // Commitment fields
     if (commitment.lastYearRevenue !== undefined) {
-        applicationUpdates.revenue_12m = parseFloat(commitment.lastYearRevenue.toString().replace(/,/g, ''));
+        applicationUpdates.revenue_12m = commitment.lastYearRevenue.toString();
     }
     if (commitment.revenuePotential !== undefined) {
-        applicationUpdates.revenue_potential_3y = parseFloat(commitment.revenuePotential.toString().replace(/,/g, ''));
+        applicationUpdates.revenue_potential_3y = commitment.revenuePotential.toString();
     }
     if (commitment.investment !== undefined) {
         applicationUpdates.min_investment = parseFloat(commitment.investment.toString().replace(/,/g, ''));
@@ -355,13 +478,25 @@ export async function updateVenture(
     if (commitment.incrementalHiring !== undefined) {
         applicationUpdates.incremental_hiring = parseInt(commitment.incrementalHiring.toString());
     }
+    if (commitment.financialCondition !== undefined) {
+        applicationUpdates.financial_condition = commitment.financialCondition;
+    }
+    if (commitment.targetJobs !== undefined) {
+        applicationUpdates.target_jobs = parseInt(commitment.targetJobs.toString());
+    }
+    if (commitment.timeCommitment !== undefined) {
+        applicationUpdates.time_commitment = commitment.timeCommitment;
+    }
+    if (commitment.secondLineTeam !== undefined) {
+        applicationUpdates.second_line_team = commitment.secondLineTeam;
+    }
 
     // Direct field mappings
-    if (updateData.revenue_12m !== undefined) applicationUpdates.revenue_12m = parseFloat(updateData.revenue_12m.toString().replace(/,/g, ''));
-    if (updateData.revenue_potential_3y !== undefined) applicationUpdates.revenue_potential_3y = parseFloat(updateData.revenue_potential_3y.toString().replace(/,/g, ''));
+    if (updateData.revenue_12m !== undefined) applicationUpdates.revenue_12m = updateData.revenue_12m.toString();
+    if (updateData.revenue_potential_3y !== undefined) applicationUpdates.revenue_potential_3y = updateData.revenue_potential_3y.toString();
     if (updateData.min_investment !== undefined) applicationUpdates.min_investment = parseFloat(updateData.min_investment.toString().replace(/,/g, ''));
     if (updateData.incremental_hiring !== undefined) applicationUpdates.incremental_hiring = parseInt(updateData.incremental_hiring.toString());
-    if (updateData.full_time_employees !== undefined) applicationUpdates.full_time_employees = parseInt(updateData.full_time_employees.toString());
+    if (updateData.full_time_employees !== undefined) applicationUpdates.full_time_employees = updateData.full_time_employees.toString();
     if (updateData.blockers !== undefined) applicationUpdates.blockers = updateData.blockers;
     if (updateData.support_request !== undefined) applicationUpdates.support_request = updateData.support_request;
 

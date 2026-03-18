@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { Sentry } from '../config/sentry';
 
 /**
  * Global error handler middleware
@@ -10,6 +11,7 @@ export function errorHandler(
     next: NextFunction
 ) {
     console.error('Error:', err);
+    Sentry.captureException(err);
 
     // Default error
     let statusCode = 500;

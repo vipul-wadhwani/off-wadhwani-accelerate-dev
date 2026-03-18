@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, Loader2, Mic, Info, CheckCircle2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
+import { logger } from '../utils/logger';
 import { StatusSelect } from '../components/StatusSelect';
 import { PhoneInput } from '../components/PhoneInput';
+import { useToast } from '../components/ui/Toast';
 
 // Steps configuration - matching the reference screens exactly
 const STEPS = [
@@ -38,6 +40,7 @@ type GrowthType = 'product' | 'segment' | 'geography';
 export const NewApplication: React.FC = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
+    const { toast } = useToast();
     const [currentStep, setCurrentStep] = useState(1);
     const [isSubmitted, setIsSubmitted] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -71,10 +74,13 @@ export const NewApplication: React.FC = () => {
         companyType: '',
         referredBy: '',
         numberOfEmployees: '',
+        financialCondition: '',
 
         // Step 3: Support
         workstreamStatuses: WORKSTREAMS.map(w => ({ stream: w, status: 'Don\'t need help' })),
         supportDescription: '',
+        timeCommitment: '',
+        secondLineTeam: '',
         corporatePresentation: null as File | null,
     });
 
@@ -145,27 +151,6 @@ export const NewApplication: React.FC = () => {
         setFormData(prev => ({ ...prev, growthFocus: updated }));
     };
 
-    // Auto-update target jobs based on revenue selection
-    useEffect(() => {
-        let jobs = '';
-        switch (formData.revenuePotential12m) {
-            case '5Cr - 15 Cr':
-                jobs = '5';
-                break;
-            case '15Cr - 50Cr':
-                jobs = '20';
-                break;
-            case '50Cr+':
-                jobs = '30';
-                break;
-            default:
-                jobs = '';
-        }
-        if (formData.targetJobs !== jobs) {
-            setFormData(prev => ({ ...prev, targetJobs: jobs }));
-        }
-    }, [formData.revenuePotential12m]);
-
     const handleSubmit = async () => {
         if (!user) return;
         setIsSubmitting(true);
@@ -201,12 +186,27 @@ export const NewApplication: React.FC = () => {
                     lastYearRevenue: formData.lastYearRevenue,
                     revenuePotential: formData.revenuePotential12m, // Question asks "next 3 years"
                     targetJobs: formData.targetJobs,
+                    financialCondition: formData.financialCondition,
+                    timeCommitment: formData.timeCommitment,
+                    secondLineTeam: formData.secondLineTeam,
                 },
                 blockers: '',
                 support_request: formData.supportDescription,
             });
 
-            // 2. Create Venture Streams via API
+            logger.info('Application', `Venture created: ${venture.id}`);
+
+            // 2. Upload corporate presentation (non-blocking)
+            if (formData.corporatePresentation) {
+                try {
+                    await api.uploadVentureDocument(venture.id, formData.corporatePresentation);
+                    logger.info('Application', `Document uploaded for venture ${venture.id}`);
+                } catch (uploadErr) {
+                    logger.error('Application', 'Document upload failed (non-blocking)', uploadErr);
+                }
+            }
+
+            // 3. Create Venture Streams via API
             // Map frontend status values to database constraint values
             const statusMapping: Record<string, string> = {
                 "Don't need help": "Not started",
@@ -222,13 +222,14 @@ export const NewApplication: React.FC = () => {
                 });
             }
 
-            // 3. Submit the venture
+            // 4. Submit the venture
             await api.submitVenture(venture.id);
+            logger.info('Application', `Venture submitted: ${venture.id}`);
 
             setIsSubmitted(true);
         } catch (err) {
-            console.error('Error submitting application:', err);
-            alert('Failed to submit application. Please try again.');
+            logger.error('Application', 'Error submitting application', err);
+            toast('Failed to submit application. Please try again.', 'error');
         } finally {
             setIsSubmitting(false);
         }
@@ -239,7 +240,7 @@ export const NewApplication: React.FC = () => {
         const hasErrors = Object.values(validationErrors).some(error => error !== '');
 
         if (hasErrors) {
-            alert('Please fix the validation errors before proceeding.');
+            toast('Please fix the validation errors before proceeding.', 'warning');
             return;
         }
 
@@ -264,7 +265,7 @@ export const NewApplication: React.FC = () => {
                     </div>
                     <h2 className="text-2xl font-bold text-gray-900">Application Submitted!</h2>
                     <p className="text-gray-500">
-                        Thank you for applying. Your venture details are now with our Venture Success Managers. We will review your application and get back to you shortly.
+                        Thanks for applying, we will get back to you shortly.
                     </p>
                     <button
                         onClick={() => navigate('/dashboard')}
@@ -287,15 +288,12 @@ export const NewApplication: React.FC = () => {
     return (
         <div className="max-w-2xl mx-auto space-y-6 pb-16">
 
-            {/* ── Page Header (Step 2+ shows title + Save Draft) */}
+            {/* ── Page Header (Step 2+) */}
             {currentStep >= 2 && (
                 <div className="flex items-center justify-between">
                     <h1 className="text-2xl font-black text-gray-900 tracking-tight uppercase">
                         Accelerate Application
                     </h1>
-                    <button className="px-5 py-2 rounded-xl border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
-                        SAVE DRAFT
-                    </button>
                 </div>
             )}
 
@@ -578,23 +576,38 @@ export const NewApplication: React.FC = () => {
                             </select>
                         </div>
 
-                        {/* 14. What was your company's revenue in the last 12 months */}
+                        {/* Financial Condition */}
                         <div className="space-y-2">
                             <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">
-                                What was your company's revenue in the last 12 months
+                                What is your company's current financial condition?
                             </label>
                             <select
                                 className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-gray-700 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none cursor-pointer"
+                                value={formData.financialCondition}
+                                onChange={e => updateField('financialCondition', e.target.value)}
+                            >
+                                <option value="" disabled>Select financial condition...</option>
+                                <option value="PAT profitable and cash positive">PAT profitable and cash positive</option>
+                                <option value="Not yet profitable but have 12+ months runway">Not yet profitable but have 12+ months runway</option>
+                                <option value="6-12 months runway available">6–12 months runway available</option>
+                                <option value="Less than 6 months runway">Less than 6 months runway</option>
+                            </select>
+                        </div>
+
+                        {/* 14. What was your company's revenue in the last 12 months */}
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">
+                                What was your company's revenue in the last 12 months (in Cr)
+                            </label>
+                            <input
+                                type="number"
+                                min="0"
+                                step="any"
+                                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all"
+                                placeholder="Enter revenue in Cr (e.g. 10)"
                                 value={formData.lastYearRevenue}
                                 onChange={e => updateField('lastYearRevenue', e.target.value)}
-                            >
-                                <option value="" disabled>Select revenue range...</option>
-                                <option value="Pre Revenue">Pre Revenue</option>
-                                <option value="1Cr-5Cr">1Cr - 5Cr</option>
-                                <option value="5Cr-25Cr">5Cr - 25Cr</option>
-                                <option value="25Cr-75Cr">25Cr - 75Cr</option>
-                                <option value=">75Cr">&gt;75Cr</option>
-                            </select>
+                            />
                         </div>
                     </div>
                 )}
@@ -680,21 +693,35 @@ export const NewApplication: React.FC = () => {
                             )}
                         </div>
 
+                        {/* Planned Hires */}
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">
+                                How many people do you plan to hire for this growth idea?
+                            </label>
+                            <input
+                                type="number"
+                                min="0"
+                                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all"
+                                placeholder="Enter number of planned hires"
+                                value={formData.targetJobs}
+                                onChange={e => updateField('targetJobs', e.target.value)}
+                            />
+                        </div>
+
                         {/* Incremental Revenue */}
                         <div className="space-y-2">
                             <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">
-                                How much incremental revenue are you expecting from this growth idea in the next 3 years
+                                Expected incremental revenue from this growth idea over the next 3 years (Enter amount in ₹ Crore)
                             </label>
-                            <select
-                                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-gray-700 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none cursor-pointer"
+                            <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                placeholder="e.g., 25"
+                                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-gray-700 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all"
                                 value={formData.revenuePotential12m}
                                 onChange={e => updateField('revenuePotential12m', e.target.value)}
-                            >
-                                <option value="" disabled>Choose</option>
-                                <option value="5Cr - 15 Cr">5Cr - 15 Cr</option>
-                                <option value="15Cr - 50Cr">15Cr - 50Cr</option>
-                                <option value="50Cr+">50Cr+</option>
-                            </select>
+                            />
                         </div>
 
                         {/* Funding Plan */}
@@ -775,18 +802,59 @@ export const NewApplication: React.FC = () => {
                             />
                         </div>
 
+                        {/* Owner Involvement */}
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">
+                                As the business owner/promoter, how involved will you be in this new venture?
+                            </label>
+                            <select
+                                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-gray-700 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none cursor-pointer"
+                                value={formData.timeCommitment}
+                                onChange={e => updateField('timeCommitment', e.target.value)}
+                            >
+                                <option value="" disabled>Select your level of involvement...</option>
+                                <option value="Fully involved — Day-to-day involvement">Fully involved — Day-to-day involvement</option>
+                                <option value="Actively involved — Not on a daily basis">Actively involved — Not on a daily basis</option>
+                                <option value="Partially involved — Limited time alongside other responsibilities">Partially involved — Limited time alongside other responsibilities</option>
+                                <option value="Not involved — Will delegate entirely to my team">Not involved — Will delegate entirely to my team</option>
+                            </select>
+                        </div>
+
+                        {/* Leadership Team */}
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">
+                                Do you have a leadership/management team to run the day-to-day operations of this venture?
+                            </label>
+                            <select
+                                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-gray-700 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none cursor-pointer"
+                                value={formData.secondLineTeam}
+                                onChange={e => updateField('secondLineTeam', e.target.value)}
+                            >
+                                <option value="" disabled>Select...</option>
+                                <option value="Yes — Experienced team already in place">Yes — Experienced team already in place</option>
+                                <option value="Partially — Some team members identified, still building the team">Partially — Some team members identified, still building the team</option>
+                                <option value="No — Dedicated team not yet identified">No — Dedicated team not yet identified</option>
+                            </select>
+                        </div>
+
                         {/* Corporate Presentation Upload */}
                         <div className="space-y-2">
                             <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">
                                 Please upload your corporate presentation to help us understand your business better
                             </label>
+                            <p className="text-xs text-gray-400">Accepted: PDF, PPT, PPTX, DOC, DOCX (max 5MB)</p>
                             <div className="flex items-center gap-3">
                                 <input
                                     type="file"
                                     id="corporatePresentation"
-                                    accept=".pdf,.ppt,.pptx"
+                                    accept=".pdf,.ppt,.pptx,.doc,.docx"
                                     onChange={e => {
                                         const file = e.target.files?.[0] || null;
+                                        if (file && file.size > 5 * 1024 * 1024) {
+                                            toast('File size exceeds 5MB limit.', 'warning');
+                                            e.target.value = '';
+                                            return;
+                                        }
                                         setFormData(prev => ({ ...prev, corporatePresentation: file }));
                                     }}
                                     className="hidden"
@@ -801,9 +869,27 @@ export const NewApplication: React.FC = () => {
                                     Choose File
                                 </label>
                                 {formData.corporatePresentation && (
-                                    <span className="text-sm text-gray-600">
-                                        {formData.corporatePresentation.name}
-                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm text-gray-600">
+                                            {formData.corporatePresentation.name}
+                                            <span className="text-gray-400 ml-1">
+                                                ({(formData.corporatePresentation.size / 1024 / 1024).toFixed(1)}MB)
+                                            </span>
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setFormData(prev => ({ ...prev, corporatePresentation: null }));
+                                                const input = document.getElementById('corporatePresentation') as HTMLInputElement;
+                                                if (input) input.value = '';
+                                            }}
+                                            className="text-gray-400 hover:text-red-500 transition-colors"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </button>
+                                    </div>
                                 )}
                             </div>
                         </div>

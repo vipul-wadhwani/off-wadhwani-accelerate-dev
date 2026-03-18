@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { api } from '../lib/api';
+import { logger } from '../utils/logger';
 
 interface User {
     id: string;
@@ -13,7 +14,7 @@ interface User {
 interface AuthContextType {
     user: User | null;
     loading: boolean;
-    signIn: (email: string, password: string) => Promise<void>;
+    signIn: (email: string, password: string) => Promise<User | null>;
     signUp: (email: string, password: string, fullName: string) => Promise<void>;
     signOut: () => Promise<void>;
 }
@@ -28,9 +29,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Check if user is logged in (has access token)
         const token = localStorage.getItem('access_token');
         if (token) {
-            // Fetch user profile
+            logger.info('Auth', 'Restoring session from token');
             api.getMe()
                 .then(({ profile }) => {
+                    logger.info('Auth', `Session restored for ${profile.email} (${profile.role})`);
                     setUser({
                         id: profile.id || '',
                         email: profile.email,
@@ -41,8 +43,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     });
                 })
                 .catch((error) => {
-                    console.error('Failed to fetch user:', error);
-                    // Clear invalid token
+                    logger.error('Auth', 'Failed to restore session', error);
                     localStorage.removeItem('access_token');
                     localStorage.removeItem('refresh_token');
                 })
@@ -50,21 +51,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     setLoading(false);
                 });
         } else {
+            logger.info('Auth', 'No token found, user not authenticated');
             setLoading(false);
         }
     }, []);
 
-    const signIn = async (email: string, password: string) => {
+    const signIn = async (email: string, password: string): Promise<User | null> => {
+        logger.info('Auth', `Sign in attempt for ${email}`);
         const { user: apiUser, session } = await api.login(email, password);
 
-        // Store tokens if session exists
         if (session) {
             localStorage.setItem('access_token', session.access_token);
             localStorage.setItem('refresh_token', session.refresh_token);
         }
 
-        // Set user state
         setUser(apiUser);
+        logger.info('Auth', `Sign in successful for ${email} (role: ${apiUser?.user_metadata?.role})`);
+        return apiUser;
     };
 
     const signUp = async (email: string, password: string, fullName: string) => {
@@ -86,12 +89,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const signOut = async () => {
+        logger.info('Auth', `Sign out for ${user?.email}`);
         try {
             await api.logout();
         } catch (error) {
-            console.error('Logout error:', error);
+            logger.error('Auth', 'Logout error', error);
         } finally {
-            // Clear tokens and user state
             localStorage.removeItem('access_token');
             localStorage.removeItem('refresh_token');
             setUser(null);

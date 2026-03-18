@@ -1,12 +1,18 @@
 import React from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { Rocket, Grid, FileText, LogOut, Bell } from 'lucide-react';
+import { Rocket, Grid, LogOut, Bell } from 'lucide-react';
 
 import { useAuth } from '../context/AuthContext';
 
 export const DashboardLayout: React.FC = () => {
     const navigate = useNavigate();
-    const { signOut, user } = useAuth();
+    const { signOut, user, loading } = useAuth();
+
+    React.useEffect(() => {
+        if (!loading && !user) {
+            navigate('/login');
+        }
+    }, [user, loading, navigate]);
 
     return (
 
@@ -36,18 +42,6 @@ export const DashboardLayout: React.FC = () => {
                     >
                         <Grid className="w-5 h-5" />
                         My Ventures
-                    </NavLink>
-                    <NavLink
-                        to="/dashboard/new-application"
-                        className={({ isActive }) =>
-                            `flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${isActive
-                                ? 'bg-blue-50 text-blue-700'
-                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                            }`
-                        }
-                    >
-                        <FileText className="w-5 h-5" />
-                        New Application
                     </NavLink>
                 </nav>
 

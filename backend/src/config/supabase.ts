@@ -12,6 +12,18 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+export function createServiceRoleClient() {
+    if (!supabaseServiceRoleKey) {
+        console.warn('SUPABASE_SERVICE_ROLE_KEY not set — falling back to anon client');
+        return supabase;
+    }
+    return createClient(supabaseUrl!, supabaseServiceRoleKey, {
+        auth: { autoRefreshToken: false, persistSession: false },
+    });
+}
+
 export function createAuthenticatedClient(token: string) {
     if (!token) return supabase;
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Plus, User, Loader2 } from 'lucide-react';
+import { FileText, Plus, User, Loader2, AlertCircle } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { VentureCard, type Venture } from '../components/VentureCard';
 import { api } from '../lib/api';
@@ -11,6 +11,7 @@ export const MyVentures: React.FC = () => {
     const { user } = useAuth();
     const [ventures, setVentures] = useState<Venture[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         if (user) {
@@ -20,9 +21,10 @@ export const MyVentures: React.FC = () => {
 
     const fetchVentures = async () => {
         try {
+            setError(null);
             const { ventures: data } = await api.getVentures();
 
-            // Transform data if needed to match Venture type, 
+            // Transform data if needed to match Venture type,
             // but if table schema matches interface mostly, straightforward:
             const transformed: Venture[] = (data || []).map((v: any) => ({
                 id: v.id,
@@ -32,12 +34,14 @@ export const MyVentures: React.FC = () => {
                 program: v.program,
                 location: v.location,
                 submittedAt: new Date(v.created_at).toISOString().split('T')[0],
-                agreement_status: v.agreement_status
+                agreement_status: v.agreement_status,
+                workbench_locked: v.workbench_locked,
             }));
 
             setVentures(transformed);
         } catch (err) {
             console.error('Error fetching ventures:', err);
+            setError('Failed to load your ventures. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -72,6 +76,17 @@ export const MyVentures: React.FC = () => {
             {loading ? (
                 <div className="flex justify-center py-20">
                     <Loader2 className="w-8 h-8 animate-spin text-brand-500" />
+                </div>
+            ) : error ? (
+                <div className="bg-white rounded-2xl p-12 text-center border border-red-200 shadow-sm min-h-[300px] flex flex-col items-center justify-center space-y-4">
+                    <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4">
+                        <AlertCircle className="w-8 h-8 text-red-500" />
+                    </div>
+                    <h2 className="text-xl font-bold text-gray-900">Something went wrong</h2>
+                    <p className="text-gray-500 max-w-sm">{error}</p>
+                    <Button onClick={() => { setLoading(true); fetchVentures(); }} variant="outline" className="mt-4">
+                        Retry
+                    </Button>
                 </div>
             ) : ventures.length === 0 ? (
                 <div className="bg-white rounded-2xl p-12 text-center border border-gray-200 shadow-sm min-h-[400px] flex flex-col items-center justify-center space-y-4">

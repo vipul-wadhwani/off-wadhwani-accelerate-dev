@@ -1,3 +1,4 @@
+import { Sentry } from './config/sentry';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -13,7 +14,13 @@ app.use(helmet());
 
 // CORS configuration
 app.use(cors({
-    origin: config.frontendUrl,
+    origin: [
+        config.frontendUrl,
+        'http://localhost:5173',
+        'http://localhost:5174',
+        'https://wadhwani-accelerate-dev01.netlify.app',
+        'https://devaccelerate.wadhwaniliftoff.ai',
+    ].filter(Boolean),
     credentials: true,
 }));
 
@@ -54,6 +61,9 @@ app.get('/', (req: Request, res: Response) => {
 
 // 404 handler
 app.use(notFoundHandler);
+
+// Sentry error handler (must be before custom error handler)
+Sentry.setupExpressErrorHandler(app);
 
 // Error handler (must be last)
 app.use(errorHandler);

@@ -14,11 +14,13 @@ import {
     AlertTriangle,
     HelpCircle,
     Plus,
-    FileText
+    FileText,
+    Pencil
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
 import { STATUS_CONFIG } from '../components/StatusSelect';
+import { useToast } from '../components/ui/Toast';
 
 // Types
 interface Venture {
@@ -41,6 +43,9 @@ interface Venture {
     commitment?: any; // Added commitment object
     needs: { id?: string; stream: string; status: string }[]; // mapped from streams
     target_jobs?: number;
+    financial_condition?: string;
+    time_commitment?: string;
+    second_line_team?: string;
     revenue_potential_12m?: string;
     status: string;
     program_recommendation?: string;
@@ -52,6 +57,35 @@ interface Venture {
     internal_comments?: string;
     ai_analysis?: any;
     vsm_reviewed_at?: string; // Timestamp when VSM reviewed
+    assigned_panelist_id?: string;
+}
+
+function getVentureDisplayStatus(venture: Venture): { label: string; color: string; bg: string } {
+    const status = venture.status;
+    const rec = venture.program_recommendation;
+
+    if (status === 'Panel Review' && rec?.includes('Prime')) {
+        return { label: 'Pending with Panel (Prime)', color: 'text-purple-700', bg: 'bg-purple-50' };
+    }
+    if (status === 'Panel Review') {
+        return { label: 'Pending with Panel (Core/Select)', color: 'text-indigo-700', bg: 'bg-indigo-50' };
+    }
+    if (status === 'Approved') {
+        return { label: 'Accepted by Business', color: 'text-green-700', bg: 'bg-green-50' };
+    }
+    if (status === 'Rejected') {
+        return { label: 'Declined by Business', color: 'text-red-700', bg: 'bg-red-50' };
+    }
+    if (status === 'Under Review') {
+        return { label: 'Under Review', color: 'text-blue-700', bg: 'bg-blue-50' };
+    }
+    if (status === 'Submitted') {
+        return { label: 'Pending with Screening Manager', color: 'text-amber-700', bg: 'bg-amber-50' };
+    }
+    if (status === 'Draft') {
+        return { label: 'Draft', color: 'text-gray-600', bg: 'bg-gray-50' };
+    }
+    return { label: status, color: 'text-gray-700', bg: 'bg-gray-50' };
 }
 
 const OtherDetailsSection: React.FC<{ selectedVenture: any; vsmNotes: string; setVsmNotes: (v: string) => void }> = ({ selectedVenture, vsmNotes, setVsmNotes }) => {
@@ -94,12 +128,112 @@ const OtherDetailsSection: React.FC<{ selectedVenture: any; vsmNotes: string; se
     );
 };
 
+const RATING_STYLES: Record<string, { bg: string; text: string; dot: string }> = {
+    Green: { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-500' },
+    Yellow: { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500' },
+    Red: { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500' },
+};
+
+const RatingBadge: React.FC<{ rating: string }> = ({ rating }) => {
+    const style = RATING_STYLES[rating] || RATING_STYLES.Yellow;
+    return (
+        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${style.bg} ${style.text}`}>
+            <span className={`w-2 h-2 rounded-full ${style.dot}`} />
+            {rating}
+        </span>
+    );
+};
+
+const LegacyInsights: React.FC<{ analysisResult: any }> = ({ analysisResult }) => (
+    <div className="space-y-0 divide-y divide-gray-100">
+        <div className="p-6">
+            <div className="flex items-center gap-2 mb-4">
+                <TrendingUp className="w-4 h-4 text-green-500" />
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Existing Venture Profile</span>
+            </div>
+            <div className="space-y-3">
+                <div>
+                    <span className="text-xs font-semibold text-gray-400 uppercase">Profile Summary</span>
+                    <p className="text-sm text-gray-700 mt-1">{analysisResult.existing_venture_profile?.profile_summary || 'Not available'}</p>
+                </div>
+                <div>
+                    <span className="text-xs font-semibold text-gray-400 uppercase">Product & Growth History</span>
+                    <p className="text-sm text-gray-700 mt-1">{analysisResult.existing_venture_profile?.current_product_growth_history || 'Not available'}</p>
+                </div>
+            </div>
+        </div>
+        <div className="p-6">
+            <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-500" />
+                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">New Venture Definition Clarity</span>
+                </div>
+                {analysisResult.new_venture_clarity?.definition_clarity_flag && (
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                        analysisResult.new_venture_clarity.definition_clarity_flag === 'Well Defined' ? 'bg-green-100 text-green-700' :
+                        analysisResult.new_venture_clarity.definition_clarity_flag === 'Partially Defined' ? 'bg-amber-100 text-amber-700' :
+                        'bg-red-100 text-red-700'
+                    }`}>
+                        {analysisResult.new_venture_clarity.definition_clarity_flag}
+                    </span>
+                )}
+            </div>
+            <div className="grid grid-cols-3 gap-4 mb-4">
+                <div>
+                    <span className="text-xs font-semibold text-gray-400 uppercase">New Product/Service</span>
+                    <p className="text-sm text-gray-700 mt-1">{analysisResult.new_venture_clarity?.new_product_or_service || 'Not assessed'}</p>
+                </div>
+                <div>
+                    <span className="text-xs font-semibold text-gray-400 uppercase">New Segment/Market</span>
+                    <p className="text-sm text-gray-700 mt-1">{analysisResult.new_venture_clarity?.new_segment_or_market || 'Not assessed'}</p>
+                </div>
+                <div>
+                    <span className="text-xs font-semibold text-gray-400 uppercase">New Geography</span>
+                    <p className="text-sm text-gray-700 mt-1">{analysisResult.new_venture_clarity?.new_geography || 'Not assessed'}</p>
+                </div>
+            </div>
+            <div className="mb-4">
+                <span className="text-xs font-semibold text-gray-400 uppercase">Clarity Summary</span>
+                <p className="text-sm text-gray-700 mt-1">{analysisResult.new_venture_clarity?.clarity_summary || 'Not available'}</p>
+            </div>
+        </div>
+    </div>
+);
+
+const ScorecardTable: React.FC<{ scorecard: any[] }> = ({ scorecard }) => (
+    <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+            <thead>
+                <tr className="border-b border-gray-200">
+                    <th className="text-left px-6 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Dimension</th>
+                    <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Assessment</th>
+                    <th className="text-center px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Rating</th>
+                    <th className="text-left px-6 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Brief</th>
+                </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+                {scorecard.map((item: any, i: number) => {
+                    const style = RATING_STYLES[item.rating] || RATING_STYLES.Yellow;
+                    return (
+                        <tr key={i} className={`${style.bg} hover:opacity-90 transition-opacity`}>
+                            <td className="px-6 py-4 font-semibold text-gray-800 whitespace-nowrap">{item.dimension}</td>
+                            <td className="px-4 py-4 text-gray-600 whitespace-nowrap">{item.assessment}</td>
+                            <td className="px-4 py-4 text-center"><RatingBadge rating={item.rating} /></td>
+                            <td className="px-6 py-4 text-gray-700">{item.brief}</td>
+                        </tr>
+                    );
+                })}
+            </tbody>
+        </table>
+    </div>
+);
+
 const AIInsightsSection: React.FC<{ selectedVenture: any; vsmNotes: string; analyzing: boolean; analysisResult: any; onRunAnalysis: () => void }> = ({ analyzing, analysisResult, onRunAnalysis }) => (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
             <div className="flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-indigo-500" />
-                <span className="text-base font-bold text-gray-700">Generate AI insights</span>
+                <span className="text-base font-bold text-gray-700">SCALE Scorecard</span>
                 {analysisResult && !analyzing && (
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-xs font-medium text-indigo-600">
                         <Sparkles className="w-3 h-3" />
@@ -109,16 +243,16 @@ const AIInsightsSection: React.FC<{ selectedVenture: any; vsmNotes: string; anal
             </div>
             <button
                 onClick={onRunAnalysis}
-                disabled={analyzing}
+                disabled={analyzing || !!analysisResult}
                 className="flex items-center gap-2 px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold transition-colors shadow-sm"
             >
-                {analyzing ? (<><Loader2 className="w-4 h-4 animate-spin" /> Analyzing…</>) : (<><Sparkles className="w-4 h-4" /> Generate insights</>)}
+                {analyzing ? (<><Loader2 className="w-4 h-4 animate-spin" /> Analyzing…</>) : analysisResult ? (<><Sparkles className="w-4 h-4" /> Insights Generated</>) : (<><Sparkles className="w-4 h-4" /> Generate insights</>)}
             </button>
         </div>
         {!analysisResult && !analyzing && (
             <div className="py-10 flex flex-col items-center gap-2 text-gray-300">
                 <Sparkles className="w-10 h-10" />
-                <p className="text-sm">Click “Generate insights” to analyse this venture</p>
+                <p className="text-sm">Click "Generate insights" to analyse this venture</p>
             </div>
         )}
         {analyzing && (
@@ -128,47 +262,9 @@ const AIInsightsSection: React.FC<{ selectedVenture: any; vsmNotes: string; anal
             </div>
         )}
         {analysisResult && !analyzing && (
-            <div className="grid grid-cols-3 divide-x divide-gray-100">
-                <div className="p-6">
-                    <div className="flex items-center gap-2 mb-4">
-                        <TrendingUp className="w-4 h-4 text-green-500" />
-                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">PROS</span>
-                    </div>
-                    <ul className="space-y-2">
-                        {(analysisResult.strengths || []).map((s: string, i: number) => (
-                            <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                                <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
-                                {s}
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-                <div className="p-6">
-                    <div className="flex items-center gap-2 mb-4">
-                        <AlertTriangle className="w-4 h-4 text-amber-500" />
-                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">CONS</span>
-                    </div>
-                    <ul className="space-y-2">
-                        {(analysisResult.risks || []).map((r: string, i: number) => (
-                            <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                                <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
-                                {r}
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-                <div className="p-6">
-                    <div className="flex items-center gap-2 mb-4">
-                        <HelpCircle className="w-4 h-4 text-blue-500" />
-                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Probing questions</span>
-                    </div>
-                    <ol className="space-y-2 list-decimal list-inside">
-                        {(analysisResult.questions || []).map((q: string, i: number) => (
-                            <li key={i} className="text-sm text-gray-700">{q}</li>
-                        ))}
-                    </ol>
-                </div>
-            </div>
+            analysisResult.scorecard
+                ? <ScorecardTable scorecard={analysisResult.scorecard} />
+                : <LegacyInsights analysisResult={analysisResult} />
         )}
     </div>
 );
@@ -188,7 +284,12 @@ const RecommendProgramSection: React.FC<{
     onSave: () => void;
     isAlreadySubmitted: boolean;
     reviewedAt?: string;
-}> = ({ program, setProgram, internalComments, setInternalComments, userRole, selectedPartner, setSelectedPartner, panelists, selectedPanelist, setSelectedPanelist, saving, onSave, isAlreadySubmitted, reviewedAt }) => (
+    venture?: Venture;
+}> = ({ program, setProgram, internalComments, setInternalComments, userRole, selectedPartner, setSelectedPartner, panelists, selectedPanelist, setSelectedPanelist, saving, onSave, isAlreadySubmitted, reviewedAt, venture }) => {
+    const [editing, setEditing] = useState(!isAlreadySubmitted);
+    const locked = isAlreadySubmitted && !editing;
+
+    return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -203,25 +304,65 @@ const RecommendProgramSection: React.FC<{
         </div>
         <div className="p-6 space-y-5">
             {isAlreadySubmitted && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
-                    <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <div className={`${locked ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'} border rounded-lg p-4 flex items-start gap-3`}>
+                    <div className={`w-5 h-5 rounded-full ${locked ? 'bg-green-500' : 'bg-blue-500'} flex items-center justify-center flex-shrink-0 mt-0.5`}>
                         <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
                     </div>
                     <div className="flex-1">
-                        <p className="text-sm font-semibold text-blue-900">Already Reviewed</p>
-                        <p className="text-xs text-blue-700 mt-1">You can update your recommendation below if needed.</p>
+                        <p className={`text-sm font-semibold ${locked ? 'text-green-900' : 'text-blue-900'}`}>Already Reviewed</p>
+                        <p className={`text-xs ${locked ? 'text-green-700' : 'text-blue-700'} mt-1`}>
+                            {locked ? 'Click "Edit Recommendation" below to make changes.' : 'You are now editing. Make changes and click "Update Recommendation" to save.'}
+                        </p>
                     </div>
+                </div>
+            )}
+            {venture && isAlreadySubmitted && (
+                <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
+                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Current Status:</span>
+                    {(() => {
+                        const ds = getVentureDisplayStatus(venture);
+                        return (
+                            <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${ds.bg} ${ds.color}`}>
+                                {ds.label}
+                            </span>
+                        );
+                    })()}
+                    {venture.assigned_panelist_id && (() => {
+                        const assignedP = panelists.find(p => p.id === venture.assigned_panelist_id);
+                        return assignedP ? (
+                            <>
+                                <span className="text-xs text-gray-400">|</span>
+                                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Assigned To:</span>
+                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700">
+                                    {assignedP.name}
+                                </span>
+                            </>
+                        ) : null;
+                    })()}
+                    {venture.status === 'Panel Review' && venture.program_recommendation && venture.program_recommendation !== 'Not Recommended' && venture.program_recommendation !== 'Selfserve' && (
+                        <>
+                            <span className="text-xs text-gray-400">|</span>
+                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                                Email Sent
+                            </span>
+                        </>
+                    )}
                 </div>
             )}
             <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Select a program</label>
-                <select className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-300 outline-none text-sm text-gray-800" value={program} onChange={e => setProgram(e.target.value)}>
+                <select
+                    className={`w-full p-3 border border-gray-200 rounded-lg outline-none text-sm ${locked ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white text-gray-800 focus:ring-2 focus:ring-blue-100 focus:border-blue-300'}`}
+                    value={program}
+                    onChange={e => setProgram(e.target.value)}
+                    disabled={locked}
+                >
                     <option value="">Select a program…</option>
                     <option value="Selfserve">Self-Serve</option>
-                    <option value="Accelerate Core">Accelerate Core</option>
-                    <option value="Accelerate Select">Accelerate Select</option>
+                    <option value="Accelerate Core/Select">Accelerate Core/Select</option>
                     <option value="Accelerate Prime">Accelerate Prime</option>
                 </select>
             </div>
@@ -229,9 +370,10 @@ const RecommendProgramSection: React.FC<{
                 <div>
                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Select Panelist</label>
                     <select
-                        className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-100 focus:border-green-300 outline-none text-sm text-gray-800"
+                        className={`w-full p-3 border border-gray-200 rounded-lg outline-none text-sm ${locked ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white text-gray-800 focus:ring-2 focus:ring-green-100 focus:border-green-300'}`}
                         value={selectedPanelist}
                         onChange={e => setSelectedPanelist(e.target.value)}
+                        disabled={locked}
                     >
                         <option value="">Select a panelist…</option>
                         {panelists.map((panelist) => (
@@ -248,7 +390,12 @@ const RecommendProgramSection: React.FC<{
             {userRole === 'committee' && (
                 <div>
                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Assign Venture Partner</label>
-                    <select className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-100 focus:border-purple-300 outline-none text-sm text-gray-800" value={selectedPartner} onChange={e => setSelectedPartner(e.target.value)}>
+                    <select
+                        className={`w-full p-3 border border-gray-200 rounded-lg outline-none text-sm ${locked ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white text-gray-800 focus:ring-2 focus:ring-purple-100 focus:border-purple-300'}`}
+                        value={selectedPartner}
+                        onChange={e => setSelectedPartner(e.target.value)}
+                        disabled={locked}
+                    >
                         <option value="">Select Partner…</option>
                         <option value="Arun Kumar">Arun Kumar</option>
                         <option value="Meetul Patel">Meetul Patel</option>
@@ -258,20 +405,48 @@ const RecommendProgramSection: React.FC<{
             )}
             <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Comments</label>
-                <textarea className="w-full h-24 p-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-300 outline-none text-sm text-gray-700 placeholder:text-gray-400 resize-none" placeholder="Add any internal notes or comments…" value={internalComments} onChange={e => setInternalComments(e.target.value)} />
+                <textarea
+                    className={`w-full h-24 p-3 border border-gray-200 rounded-lg outline-none text-sm placeholder:text-gray-400 resize-none ${locked ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-gray-50 text-gray-700 focus:ring-2 focus:ring-blue-100 focus:border-blue-300'}`}
+                    placeholder="Add any internal notes or comments…"
+                    value={internalComments}
+                    onChange={e => setInternalComments(e.target.value)}
+                    disabled={locked}
+                />
             </div>
-            <div className="flex justify-end pt-2 border-t border-gray-100">
-                <button onClick={onSave} disabled={saving || !program} className="flex items-center gap-2 px-8 py-3 rounded-lg bg-gray-900 hover:bg-black disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm transition-colors shadow-md">
-                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                    {isAlreadySubmitted ? 'Update Recommendation' : 'Submit'}
-                </button>
+            <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
+                {locked ? (
+                    <button
+                        onClick={() => setEditing(true)}
+                        className="flex items-center gap-2 px-8 py-3 rounded-lg bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-semibold text-sm transition-colors"
+                    >
+                        <Pencil className="w-4 h-4" />
+                        Edit Recommendation
+                    </button>
+                ) : (
+                    <>
+                        {isAlreadySubmitted && (
+                            <button
+                                onClick={() => setEditing(false)}
+                                className="flex items-center gap-2 px-6 py-3 rounded-lg bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-semibold text-sm transition-colors"
+                            >
+                                Cancel
+                            </button>
+                        )}
+                        <button onClick={onSave} disabled={saving || !program} className="flex items-center gap-2 px-8 py-3 rounded-lg bg-gray-900 hover:bg-black disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm transition-colors shadow-md">
+                            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                            {isAlreadySubmitted ? 'Update Recommendation' : 'Submit'}
+                        </button>
+                    </>
+                )}
             </div>
         </div>
     </div>
-);
+    );
+};
 
 export const VSMDashboard: React.FC = () => {
     const { user } = useAuth();
+    const { toast } = useToast();
     const [ventures, setVentures] = useState<Venture[]>([]);
     const [selectedVenture, setSelectedVenture] = useState<Venture | null>(null);
     const [loading, setLoading] = useState(true);
@@ -284,8 +459,9 @@ export const VSMDashboard: React.FC = () => {
     const [internalComments, setInternalComments] = useState('');
     const [saving, setSaving] = useState(false);
 
-    // Filter State
+    // Filter & Sort State
     const [revenueFilter, setRevenueFilter] = useState<string>('all');
+    const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
 
     // Venture Partner State
     const [selectedPartner, setSelectedPartner] = useState('');
@@ -310,7 +486,7 @@ export const VSMDashboard: React.FC = () => {
         if (userRole) {
             fetchVentures();
         }
-    }, [userRole]);
+    }, [userRole, sortOrder]);
 
     // Fetch panelists when program changes
     useEffect(() => {
@@ -322,10 +498,9 @@ export const VSMDashboard: React.FC = () => {
             }
 
             // Map program names to panelist program types
-            let programType = '';
-            if (program === 'Accelerate Prime') programType = 'Prime';
-            else if (program === 'Accelerate Core') programType = 'Core';
-            else if (program === 'Accelerate Select') programType = 'Select';
+            let programTypes: string[] = [];
+            if (program === 'Accelerate Prime') programTypes = ['Prime'];
+            else if (program === 'Accelerate Core/Select') programTypes = ['Core', 'Select'];
             else {
                 setPanelists([]);
                 setSelectedPanelist('');
@@ -333,8 +508,8 @@ export const VSMDashboard: React.FC = () => {
             }
 
             try {
-                const data = await api.getPanelistsByProgram(programType);
-                setPanelists(data);
+                const results = await Promise.all(programTypes.map(pt => api.getPanelistsByProgram(pt)));
+                setPanelists(results.flat());
             } catch (error) {
                 console.error('Error fetching panelists:', error);
                 setPanelists([]);
@@ -374,7 +549,7 @@ export const VSMDashboard: React.FC = () => {
     const fetchVentures = async () => {
         setLoading(true);
         try {
-            const { ventures: data } = await api.getVentures();
+            const { ventures: data } = await api.getVentures({ sortBy: 'created_at', sortOrder });
 
             let filteredData = data || [];
 
@@ -382,7 +557,7 @@ export const VSMDashboard: React.FC = () => {
             if (userRole === 'venture_mgr') {
                 filteredData = filteredData.filter((v: any) => v.program_recommendation === 'Accelerate Prime');
             } else if (userRole === 'committee') {
-                filteredData = filteredData.filter((v: any) => ['Accelerate Core', 'Accelerate Select'].includes(v.program_recommendation || ''));
+                filteredData = filteredData.filter((v: any) => ['Accelerate Core', 'Accelerate Select', 'Accelerate Core/Select'].includes(v.program_recommendation || ''));
             }
 
             // Map data to ensure needs array exists and streams are mapped to needs
@@ -429,6 +604,7 @@ export const VSMDashboard: React.FC = () => {
             // Setup form state
             setVsmNotes(freshVenture.vsm_notes || '');
             setProgram(freshVenture.program_recommendation || 'Selfserve');
+            setSelectedPanelist(freshVenture.assigned_panelist_id || '');
             setInternalComments(freshVenture.internal_comments || '');
             setAnalysisResult(freshVenture.ai_analysis || null);
             setSelectedPartner(freshVenture.venture_partner || '');
@@ -448,7 +624,7 @@ export const VSMDashboard: React.FC = () => {
 
         // VALIDATION
         if (!program) {
-            alert("Please select a Recommended Program before submitting.");
+            toast('Please select a Recommended Program before submitting.', 'warning');
             return;
         }
 
@@ -458,14 +634,17 @@ export const VSMDashboard: React.FC = () => {
                 vsm_notes: vsmNotes,
                 program_recommendation: program,
                 internal_comments: internalComments,
-                status: 'Under Review', // Always update status to Under Review when VSM submits
+                status: 'Panel Review', // Recommending to panel moves status to Panel Review
                 ai_analysis: analysisResult || selectedVenture.ai_analysis, // Persist AI analysis if generated
                 vsm_reviewed_at: new Date().toISOString() // Track when VSM reviewed
             };
 
+            if (selectedPanelist) {
+                updatePayload.assigned_panelist_id = selectedPanelist;
+            }
+
             if (userRole === 'committee') {
                 updatePayload.venture_partner = selectedPartner;
-                updatePayload.status = 'Committee Review'; // Committee changes status to Committee Review
             }
 
             // Save to database
@@ -482,7 +661,7 @@ export const VSMDashboard: React.FC = () => {
             setSelectedVenture(prev => prev ? { ...prev, ...updatePayload } : null);
 
             // Success feedback
-            alert('✓ Recommendation submitted successfully!\n\nStatus: ' + updatePayload.status + '\nProgram: ' + program);
+            toast('Recommendation submitted. Status: Pending with Panel — ' + program, 'success');
 
             // Navigate back to list after 1 second
             setTimeout(() => {
@@ -493,7 +672,7 @@ export const VSMDashboard: React.FC = () => {
 
         } catch (error: any) {
             console.error('Error saving:', error);
-            alert('Failed to save assessment: ' + error.message);
+            toast('Failed to save assessment: ' + error.message, 'error');
         } finally {
             setSaving(false);
         }
@@ -513,7 +692,7 @@ export const VSMDashboard: React.FC = () => {
             ));
         } catch (error: any) {
             console.error('Error generating AI insights:', error);
-            alert(error.message || 'Failed to generate AI insights. Please check if the API key is configured.');
+            toast(error.message || 'Failed to generate AI insights.', 'error');
         } finally {
             setAnalyzing(false);
         }
@@ -531,11 +710,11 @@ export const VSMDashboard: React.FC = () => {
 
             setSelectedVenture(prev => prev ? { ...prev, growth_target: editProfileData } : null);
             setIsEditingProfile(false);
-            alert("Venture profile updated.");
+            toast('Venture profile updated.', 'success');
 
         } catch (e) {
             console.error("Error updating profile", e);
-            alert("Failed to update profile");
+            toast('Failed to update profile.', 'error');
         }
     };
 
@@ -552,7 +731,13 @@ export const VSMDashboard: React.FC = () => {
                             <span className="text-[13px] font-semibold text-gray-500 uppercase tracking-wide">Venture</span>
                         </div>
                         <div className="col-span-2 text-center">
-                            <span className="text-[13px] font-semibold text-gray-500 uppercase tracking-wide">Submitted</span>
+                            <button
+                                onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+                                className="text-[13px] font-semibold text-gray-500 uppercase tracking-wide hover:text-gray-700 transition-colors inline-flex items-center gap-1"
+                            >
+                                Submitted
+                                <span className="text-xs">{sortOrder === 'desc' ? '↓' : '↑'}</span>
+                            </button>
                         </div>
                         <div className="col-span-3 text-center">
                             <span className="text-[13px] font-semibold text-gray-500 uppercase tracking-wide">Program</span>
@@ -564,10 +749,10 @@ export const VSMDashboard: React.FC = () => {
                                 className="text-[13px] font-semibold text-gray-500 uppercase tracking-wide border border-gray-200 rounded-lg px-3 py-1.5 bg-white hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer appearance-none pr-7 bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%236b7280%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-[length:12px] bg-[right_8px_center] bg-no-repeat"
                             >
                                 <option value="all">Revenue</option>
-                                <option value="1Cr-5Cr">1Cr - 5Cr</option>
-                                <option value="5Cr-25Cr">5Cr - 25Cr</option>
-                                <option value="25Cr-75Cr">25Cr - 75Cr</option>
-                                <option value=">75Cr">&gt;75Cr</option>
+                                <option value="0-5">Below 5 Cr</option>
+                                <option value="5-25">5 - 25 Cr</option>
+                                <option value="25-75">25 - 75 Cr</option>
+                                <option value="75+">Above 75 Cr</option>
                             </select>
                         </div>
                     </div>
@@ -578,17 +763,42 @@ export const VSMDashboard: React.FC = () => {
                             <span className="text-sm text-gray-400">Loading applications...</span>
                         </div>
                     ) : ventures.length === 0 ? (
-                        <div className="text-center p-16 bg-white rounded-2xl border border-dashed border-gray-300 text-gray-400">
-                            <div className="text-lg font-medium mb-1">No applications yet</div>
-                            <div className="text-sm">New venture applications will appear here once submitted.</div>
+                        <div className="text-center py-16 text-gray-400">
+                            <p className="text-lg font-medium">No ventures assigned</p>
+                            <p className="text-sm mt-1">Ventures will appear here once assigned to you.</p>
                         </div>
                     ) : (
                         <div className="space-y-3">
                                 {ventures
                                     .filter(v => {
                                         if (revenueFilter === 'all') return true;
-                                        const revenue = String(v.revenue_12m || v.commitment?.lastYearRevenue || '');
-                                        return revenue === revenueFilter;
+                                        const revenue = v.revenue_12m || v.commitment?.lastYearRevenue || '';
+                                        const num = parseFloat(String(revenue));
+                                        if (!isNaN(num)) {
+                                            const [lo, hi] = revenueFilter === '75+' ? [75, Infinity] : revenueFilter.split('-').map(Number);
+                                            return num >= lo && num < (hi === Infinity ? Infinity : hi === 75 ? 76 : hi);
+                                        }
+                                        // Legacy text ranges
+                                        const legacyMap: Record<string, string[]> = { '0-5': ['1Cr-5Cr'], '5-25': ['5Cr-25Cr'], '25-75': ['25Cr-75Cr'], '75+': ['>75Cr'] };
+                                        return (legacyMap[revenueFilter] || []).includes(String(revenue));
+                                    }).length === 0 && revenueFilter !== 'all' && (
+                                    <div className="text-center py-16 text-gray-400">
+                                        <p className="text-lg font-medium">No ventures match this filter</p>
+                                        <p className="text-sm mt-1">Try selecting a different revenue range.</p>
+                                    </div>
+                                )}
+                                {ventures
+                                    .filter(v => {
+                                        if (revenueFilter === 'all') return true;
+                                        const revenue = v.revenue_12m || v.commitment?.lastYearRevenue || '';
+                                        const num = parseFloat(String(revenue));
+                                        if (!isNaN(num)) {
+                                            const [lo, hi] = revenueFilter === '75+' ? [75, Infinity] : revenueFilter.split('-').map(Number);
+                                            return num >= lo && num < (hi === Infinity ? Infinity : hi === 75 ? 76 : hi);
+                                        }
+                                        // Legacy text ranges
+                                        const legacyMap: Record<string, string[]> = { '0-5': ['1Cr-5Cr'], '5-25': ['5Cr-25Cr'], '25-75': ['25Cr-75Cr'], '75+': ['>75Cr'] };
+                                        return (legacyMap[revenueFilter] || []).includes(String(revenue));
                                     })
                                     .map(v => (
                                     <div
@@ -618,7 +828,7 @@ export const VSMDashboard: React.FC = () => {
                                             </div>
                                         </div>
 
-                                        {/* Status */}
+                                        {/* Program */}
                                         <div className="col-span-3 text-center border-l border-gray-100 pl-4">
                                             <span className={`inline-block px-4 py-1.5 rounded-full text-[13px] font-semibold ${v.program_recommendation
                                                 ? 'bg-blue-50 text-blue-700'
@@ -632,7 +842,7 @@ export const VSMDashboard: React.FC = () => {
                                         <div className="col-span-2 flex items-center justify-end gap-3 border-l border-gray-100 pl-4">
                                             <div className="text-right">
                                                 <div className="text-[15px] font-semibold text-gray-800 whitespace-nowrap">
-                                                    {v.revenue_12m ? `₹${v.revenue_12m} Cr` : '--'}
+                                                    {v.revenue_12m ? (isNaN(Number(v.revenue_12m)) ? v.revenue_12m : `₹${v.revenue_12m} Cr`) : '--'}
                                                 </div>
                                             </div>
                                             <div className="w-9 h-9 rounded-full flex items-center justify-center text-gray-300 group-hover:bg-blue-600 group-hover:text-white transition-all duration-200 flex-shrink-0">
@@ -658,9 +868,14 @@ export const VSMDashboard: React.FC = () => {
                     {/* Header: Company Name Left, Status Right */}
                     <div className="border-b border-gray-100 px-6 py-5 bg-white flex items-center justify-between sticky top-0 z-20">
                         <h2 className="text-2xl font-bold text-gray-900">{selectedVenture.name}</h2>
-                        <span className="px-4 py-1.5 rounded-full bg-gray-100 text-gray-700 text-sm font-bold">
-                            {selectedVenture.status}
-                        </span>
+                        {(() => {
+                            const ds = getVentureDisplayStatus(selectedVenture);
+                            return (
+                                <span className={`px-4 py-1.5 rounded-full text-sm font-bold ${ds.bg} ${ds.color}`}>
+                                    {ds.label}
+                                </span>
+                            );
+                        })()}
                     </div>
 
                     <div className="p-8 space-y-8">
@@ -669,41 +884,47 @@ export const VSMDashboard: React.FC = () => {
                             <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Current Revenue</span>
                                 <div className="text-xl font-bold text-gray-900 flex items-center gap-1">
-                                    <span className="text-sm text-gray-400">₹</span>
-                                    {selectedVenture.revenue_12m || '0'}<span className="text-sm text-gray-400 ml-0.5">Cr</span>
+                                    {selectedVenture.revenue_12m ? (isNaN(Number(selectedVenture.revenue_12m)) ? selectedVenture.revenue_12m : `₹${selectedVenture.revenue_12m} Cr`) : 'N/A'}
                                 </div>
                             </div>
                             <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Target Revenue (3Y)</span>
+                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Incremental Revenue (3Y)</span>
                                 <div className="text-xl font-bold text-gray-900 flex items-center gap-1">
-                                    <span className="text-sm text-gray-400">₹</span>
-                                    {selectedVenture.revenue_potential_3y || selectedVenture.commitment?.revenuePotential || '0'}<span className="text-sm text-gray-400 ml-0.5">Cr</span>
+                                    {(() => { const val = selectedVenture.revenue_potential_3y || selectedVenture.commitment?.revenuePotential; return val ? (isNaN(Number(val)) ? val : `₹${val} Cr`) : 'N/A'; })()}
                                 </div>
                             </div>
                             <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Current Full Time Employees</span>
                                 <div className="text-xl font-bold text-gray-900 flex items-center gap-1">
                                     <Users className="w-4 h-4 text-gray-400" />
-                                    {selectedVenture.full_time_employees || '0'}
+                                    {selectedVenture.full_time_employees || 'N/A'}
                                 </div>
                             </div>
                             <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Target Jobs</span>
                                 <div className="text-xl font-bold text-gray-900 flex items-center gap-1">
                                     <Users className="w-4 h-4 text-gray-400" />
-                                    {selectedVenture.target_jobs || (() => {
-                                        const rev = String(selectedVenture.revenue_potential_12m || selectedVenture.revenue_potential_3y || '');
-                                        if (rev === '5Cr - 15 Cr') return '5';
-                                        if (rev === '15Cr - 50Cr') return '20';
-                                        if (rev === '50Cr+') return '30';
-                                        const num = parseFloat(rev);
-                                        if (!isNaN(num)) {
-                                            if (num < 15) return '5';
-                                            if (num < 50) return '20';
-                                            return '30';
-                                        }
-                                        return '0';
-                                    })()}
+                                    {selectedVenture.target_jobs || 'N/A'}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-3 gap-4">
+                            <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Financial Condition</span>
+                                <div className="text-sm font-semibold text-gray-900">
+                                    {selectedVenture.financial_condition || 'N/A'}
+                                </div>
+                            </div>
+                            <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Owner Involvement</span>
+                                <div className="text-sm font-semibold text-gray-900">
+                                    {selectedVenture.time_commitment || 'N/A'}
+                                </div>
+                            </div>
+                            <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Leadership Team</span>
+                                <div className="text-sm font-semibold text-gray-900">
+                                    {selectedVenture.second_line_team || 'N/A'}
                                 </div>
                             </div>
                         </div>
@@ -763,74 +984,80 @@ export const VSMDashboard: React.FC = () => {
 
 
                             {/* Comparison Card */}
-                            <div className="bg-white border boundary-gray-200 rounded-xl overflow-hidden shadow-sm">
+                            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                                {/* Header Row */}
                                 <div className="grid grid-cols-2 divide-x divide-gray-100">
-                                    {/* Current Business Column */}
-                                    <div className="p-6">
-                                        <div className="flex items-center gap-2 text-gray-900 font-bold border-b border-gray-100 pb-3 mb-4">
+                                    <div className="p-6 pb-3">
+                                        <div className="flex items-center gap-2 text-gray-900 font-bold border-b border-gray-100 pb-3">
                                             <Briefcase className="w-4 h-4 text-gray-400" />
                                             Current Business
                                         </div>
-                                        <div className="space-y-5">
-                                            <div>
-                                                <span className="text-xs font-bold text-gray-400 uppercase block mb-1.5">Product / Service</span>
-                                                <p className="text-sm text-gray-800 bg-gray-50/50 p-3 rounded-lg border border-gray-100 min-h-[44px] flex items-center">{(selectedVenture as any).what_do_you_sell || 'N/A'}</p>
-                                            </div>
-                                            <div>
-                                                <span className="text-xs font-bold text-gray-400 uppercase block mb-1.5">Customer Segment</span>
-                                                <p className="text-sm text-gray-800 bg-gray-50/50 p-3 rounded-lg border border-gray-100 min-h-[44px] flex items-center">{(selectedVenture as any).who_do_you_sell_to || 'N/A'}</p>
-                                            </div>
-                                            <div>
-                                                <span className="text-xs font-bold text-gray-400 uppercase block mb-1.5">Region</span>
-                                                <p className="text-sm text-gray-800 bg-gray-50/50 p-3 rounded-lg border border-gray-100 min-h-[44px] flex items-center">{(selectedVenture as any).which_regions || 'N/A'}</p>
-                                            </div>
-                                        </div>
                                     </div>
-
-                                    {/* New Venture Column */}
-                                    <div className={`p-6 ${isEditingProfile ? 'bg-blue-50/30' : 'bg-white'}`}>
-                                        <div className="flex items-center gap-2 text-blue-900 font-bold border-b border-blue-100 pb-3 mb-4">
+                                    <div className={`p-6 pb-3 ${isEditingProfile ? 'bg-blue-50/30' : 'bg-white'}`}>
+                                        <div className="flex items-center gap-2 text-blue-900 font-bold border-b border-blue-100 pb-3">
                                             <TrendingUp className="w-4 h-4 text-blue-600" />
                                             New Venture
                                         </div>
-                                        <div className="space-y-5">
-                                            <div>
-                                                <span className="text-xs font-bold text-blue-400 uppercase block mb-1.5">New Product</span>
-                                                {isEditingProfile ? (
-                                                    <input
-                                                        className="w-full p-2.5 text-sm border border-blue-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-300 outline-none"
-                                                        value={editProfileData.product || ''}
-                                                        onChange={e => setEditProfileData({ ...editProfileData, product: e.target.value })}
-                                                    />
-                                                ) : (
-                                                    <p className="text-sm text-gray-800 bg-white p-3 rounded-lg border border-blue-50 min-h-[44px] flex items-center shadow-sm shadow-blue-100/50">{(selectedVenture as any).focus_product || 'N/A'}</p>
-                                                )}
-                                            </div>
-                                            <div>
-                                                <span className="text-xs font-bold text-blue-400 uppercase block mb-1.5">New Segment</span>
-                                                {isEditingProfile ? (
-                                                    <input
-                                                        className="w-full p-2.5 text-sm border border-blue-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-300 outline-none"
-                                                        value={editProfileData.segment || ''}
-                                                        onChange={e => setEditProfileData({ ...editProfileData, segment: e.target.value })}
-                                                    />
-                                                ) : (
-                                                    <p className="text-sm text-gray-800 bg-white p-3 rounded-lg border border-blue-50 min-h-[44px] flex items-center shadow-sm shadow-blue-100/50">{(selectedVenture as any).focus_segment || 'N/A'}</p>
-                                                )}
-                                            </div>
-                                            <div>
-                                                <span className="text-xs font-bold text-blue-400 uppercase block mb-1.5">New Region</span>
-                                                {isEditingProfile ? (
-                                                    <input
-                                                        className="w-full p-2.5 text-sm border border-blue-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-300 outline-none"
-                                                        value={editProfileData.geography || ''}
-                                                        onChange={e => setEditProfileData({ ...editProfileData, geography: e.target.value })}
-                                                    />
-                                                ) : (
-                                                    <p className="text-sm text-gray-800 bg-white p-3 rounded-lg border border-blue-50 min-h-[44px] flex items-center shadow-sm shadow-blue-100/50">{(selectedVenture as any).focus_geography || 'N/A'}</p>
-                                                )}
-                                            </div>
-                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Row 1: Product */}
+                                <div className="grid grid-cols-2 divide-x divide-gray-100">
+                                    <div className="px-6 py-3">
+                                        <span className="text-xs font-bold text-gray-400 uppercase block mb-1.5">Product / Service</span>
+                                        <p className="text-sm text-gray-800 bg-gray-50/50 p-3 rounded-lg border border-gray-100 min-h-[44px] flex items-center">{(selectedVenture as any).what_do_you_sell || 'N/A'}</p>
+                                    </div>
+                                    <div className={`px-6 py-3 ${isEditingProfile ? 'bg-blue-50/30' : 'bg-white'}`}>
+                                        <span className="text-xs font-bold text-blue-400 uppercase block mb-1.5">New Product</span>
+                                        {isEditingProfile ? (
+                                            <input
+                                                className="w-full p-2.5 text-sm border border-blue-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-300 outline-none"
+                                                value={editProfileData.product || ''}
+                                                onChange={e => setEditProfileData({ ...editProfileData, product: e.target.value })}
+                                            />
+                                        ) : (
+                                            <p className="text-sm text-gray-800 bg-white p-3 rounded-lg border border-blue-50 min-h-[44px] flex items-center shadow-sm shadow-blue-100/50">{(selectedVenture as any).focus_product || 'N/A'}</p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Row 2: Segment */}
+                                <div className="grid grid-cols-2 divide-x divide-gray-100">
+                                    <div className="px-6 py-3">
+                                        <span className="text-xs font-bold text-gray-400 uppercase block mb-1.5">Customer Segment</span>
+                                        <p className="text-sm text-gray-800 bg-gray-50/50 p-3 rounded-lg border border-gray-100 min-h-[44px] flex items-center">{(selectedVenture as any).who_do_you_sell_to || 'N/A'}</p>
+                                    </div>
+                                    <div className={`px-6 py-3 ${isEditingProfile ? 'bg-blue-50/30' : 'bg-white'}`}>
+                                        <span className="text-xs font-bold text-blue-400 uppercase block mb-1.5">New Segment</span>
+                                        {isEditingProfile ? (
+                                            <input
+                                                className="w-full p-2.5 text-sm border border-blue-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-300 outline-none"
+                                                value={editProfileData.segment || ''}
+                                                onChange={e => setEditProfileData({ ...editProfileData, segment: e.target.value })}
+                                            />
+                                        ) : (
+                                            <p className="text-sm text-gray-800 bg-white p-3 rounded-lg border border-blue-50 min-h-[44px] flex items-center shadow-sm shadow-blue-100/50">{(selectedVenture as any).focus_segment || 'N/A'}</p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Row 3: Region */}
+                                <div className="grid grid-cols-2 divide-x divide-gray-100">
+                                    <div className="px-6 py-3 pb-6">
+                                        <span className="text-xs font-bold text-gray-400 uppercase block mb-1.5">Region</span>
+                                        <p className="text-sm text-gray-800 bg-gray-50/50 p-3 rounded-lg border border-gray-100 min-h-[44px] flex items-center">{(selectedVenture as any).which_regions || 'N/A'}</p>
+                                    </div>
+                                    <div className={`px-6 py-3 pb-6 ${isEditingProfile ? 'bg-blue-50/30' : 'bg-white'}`}>
+                                        <span className="text-xs font-bold text-blue-400 uppercase block mb-1.5">New Region</span>
+                                        {isEditingProfile ? (
+                                            <input
+                                                className="w-full p-2.5 text-sm border border-blue-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-300 outline-none"
+                                                value={editProfileData.geography || ''}
+                                                onChange={e => setEditProfileData({ ...editProfileData, geography: e.target.value })}
+                                            />
+                                        ) : (
+                                            <p className="text-sm text-gray-800 bg-white p-3 rounded-lg border border-blue-50 min-h-[44px] flex items-center shadow-sm shadow-blue-100/50">{(selectedVenture as any).focus_geography || 'N/A'}</p>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -844,7 +1071,7 @@ export const VSMDashboard: React.FC = () => {
                             <div className="grid grid-cols-3 gap-4">
                                 {/* Row 1 */}
                                 {['Product', 'Go-To-Market (GTM)', 'Capital Planning'].map(stream => {
-                                    const rawStatus = selectedVenture.needs.find((n: any) =>
+                                    const rawStatus = (selectedVenture.needs || []).find((n: any) =>
                                         n.stream === stream ||
                                         (stream === 'Go-To-Market (GTM)' && n.stream === 'GTM') ||
                                         (stream === 'Capital Planning' && n.stream === 'Funding')
@@ -887,7 +1114,7 @@ export const VSMDashboard: React.FC = () => {
                                 })}
                                 {/* Row 2 */}
                                 {['Supply Chain', 'Operations', 'Team'].map(stream => {
-                                    const rawStatus = selectedVenture.needs.find((n: any) =>
+                                    const rawStatus = (selectedVenture.needs || []).find((n: any) =>
                                         n.stream === stream ||
                                         (stream === 'Supply Chain' && n.stream === 'SupplyChain')
                                     )?.status || 'N/A';
@@ -939,24 +1166,31 @@ export const VSMDashboard: React.FC = () => {
                                 <p className="text-sm text-gray-600 mb-4">
                                     Corporate presentation uploaded by the venture (screening manager can download)
                                 </p>
-                                {(selectedVenture as any).document_url || (selectedVenture as any).corporate_presentation_url ? (
+                                {(selectedVenture as any).corporate_presentation_url ? (
                                     <div className="flex items-center gap-4">
                                         <div className="flex-1 flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
                                             <FileText className="w-5 h-5 text-blue-600" />
                                             <span className="text-sm font-medium text-gray-900">
-                                                {(selectedVenture as any).document_name || 'Corporate Presentation.pdf'}
+                                                {(selectedVenture as any).corporate_presentation_url.split('/').pop()?.replace(/^\d+_/, '') || 'Corporate Presentation'}
                                             </span>
                                         </div>
-                                        <a
-                                            href={(selectedVenture as any).document_url || (selectedVenture as any).corporate_presentation_url}
-                                            download
+                                        <button
+                                            onClick={async () => {
+                                                try {
+                                                    const url = await api.getVentureDocumentUrl((selectedVenture as any).corporate_presentation_url);
+                                                    window.open(url, '_blank');
+                                                } catch (err) {
+                                                    console.error('Failed to get document URL:', err);
+                                                    toast('Failed to download document. Please try again.', 'error');
+                                                }
+                                            }}
                                             className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors text-sm font-semibold"
                                         >
                                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                             </svg>
                                             Download
-                                        </a>
+                                        </button>
                                     </div>
                                 ) : (
                                     <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200 text-gray-500">
@@ -998,6 +1232,7 @@ export const VSMDashboard: React.FC = () => {
                             onSave={handleSave}
                             isAlreadySubmitted={!!selectedVenture?.program_recommendation}
                             reviewedAt={(selectedVenture as any)?.vsm_reviewed_at}
+                            venture={selectedVenture || undefined}
                         />
                     </div>
                 </div>

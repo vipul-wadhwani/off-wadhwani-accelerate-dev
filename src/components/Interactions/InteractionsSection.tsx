@@ -7,9 +7,10 @@ import { AddInteractionModal } from './AddInteractionModal';
 
 interface InteractionsSectionProps {
     ventureId: string;
+    onInteractionsLoaded?: (count: number) => void;
 }
 
-export const InteractionsSection: React.FC<InteractionsSectionProps> = ({ ventureId }) => {
+export const InteractionsSection: React.FC<InteractionsSectionProps> = ({ ventureId, onInteractionsLoaded }) => {
     const [interactions, setInteractions] = useState<Interaction[]>([]);
     const [loading, setLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState(false);
@@ -23,7 +24,9 @@ export const InteractionsSection: React.FC<InteractionsSectionProps> = ({ ventur
         try {
             setLoading(true);
             const response = await api.getInteractions(ventureId);
-            setInteractions(response.interactions || []);
+            const list = response.interactions || [];
+            setInteractions(list);
+            onInteractionsLoaded?.(list.length);
         } catch (error) {
             console.error('Error fetching interactions:', error);
         } finally {

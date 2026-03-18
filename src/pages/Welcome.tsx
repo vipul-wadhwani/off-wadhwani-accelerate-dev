@@ -1,26 +1,13 @@
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
-import { FileText, Loader2 } from 'lucide-react';
-import React, { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { FileText } from 'lucide-react';
+import React from 'react';
 
 export const Welcome: React.FC = () => {
     const navigate = useNavigate();
-    const { signIn } = useAuth();
-    const [applying, setApplying] = useState(false);
 
-    const handleApply = async () => {
-        setApplying(true);
-        try {
-            // Auto-login with demo entrepreneur account → go straight to application form
-            await signIn('vipul@wadhwani.com', 'password');
-            navigate('/dashboard/new-application');
-        } catch {
-            // If auto-login fails, fall back to login page
-            navigate('/login?apply=true');
-        } finally {
-            setApplying(false);
-        }
+    const handleApply = () => {
+        navigate('/apply');
     };
 
     return (
@@ -42,8 +29,7 @@ export const Welcome: React.FC = () => {
                         {/* Apply CTA on left panel */}
                         <button
                             onClick={handleApply}
-                            disabled={applying}
-                            className="inline-flex items-center gap-2 text-white/80 hover:text-white text-sm font-medium transition-colors group disabled:opacity-60"
+                            className="inline-flex items-center gap-2 text-white/80 hover:text-white text-sm font-medium transition-colors group"
                         >
                             <FileText className="w-4 h-4" />
                             Apply to the Accelerate Program
@@ -80,15 +66,10 @@ export const Welcome: React.FC = () => {
                         {/* Apply Button */}
                         <button
                             onClick={handleApply}
-                            disabled={applying}
-                            className="w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl border-2 border-dashed border-orange-300 text-orange-600 font-semibold text-sm hover:bg-orange-50 hover:border-orange-400 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                            className="w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl border-2 border-dashed border-orange-300 text-orange-600 font-semibold text-sm hover:bg-orange-50 hover:border-orange-400 transition-all"
                         >
-                            {applying ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                                <FileText className="w-4 h-4" />
-                            )}
-                            {applying ? 'Opening Application...' : 'Apply to Accelerate Program'}
+                            <FileText className="w-4 h-4" />
+                            Apply to Accelerate Program
                         </button>
                     </div>
                 </div>

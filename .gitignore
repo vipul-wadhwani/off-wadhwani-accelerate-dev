@@ -20,6 +20,9 @@ dist-ssr
 backend/.env
 backend/.env.local
 
+# Secrets / credentials exports
+docs/keyvault-secrets*
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

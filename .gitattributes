@@ -1,0 +1,13 @@
+# Protect deployment files from being overwritten during merges from dev-render
+# These files differ between dev and prod and should always keep the branch's own version
+Jenkinsfile-fe merge=ours
+Jenkinsfile-fe-prod merge=ours
+backend/Jenkinsfile-be merge=ours
+backend/Jenkinsfile-be-prod merge=ours
+Dockerfile merge=ours
+Dockerfile.frontend merge=ours
+Dockerfile.render merge=ours
+backend/Dockerfile merge=ours
+docker-compose.yml merge=ours
+.dockerignore merge=ours
+backend/.dockerignore merge=ours

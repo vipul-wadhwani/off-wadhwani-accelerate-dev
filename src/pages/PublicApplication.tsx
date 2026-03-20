@@ -43,6 +43,7 @@ export const PublicApplication: React.FC = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [selectedGrowthTypes, setSelectedGrowthTypes] = useState<GrowthType[]>([]);
     const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+    const [touchedSteps, setTouchedSteps] = useState<Set<number>>(new Set());
 
     // Form State - matching all fields from the 4 screens
     const [formData, setFormData] = useState({
@@ -148,9 +149,48 @@ export const PublicApplication: React.FC = () => {
         setFormData(prev => ({ ...prev, growthFocus: updated }));
     };
 
+    // Step-level validation for critical fields
+    const validateStep = (step: number): string[] => {
+        const errors: string[] = [];
+        if (step === 1) {
+            if (!formData.managingDirector.trim()) errors.push('Name is required');
+            if (!formData.email.trim()) errors.push('Email is required');
+            if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errors.push('Please enter a valid email');
+            if (!formData.businessName.trim()) errors.push('Business name is required');
+            if (!formData.lastYearRevenue || Number(formData.lastYearRevenue) < 0) errors.push('Revenue in last 12 months is required (must be 0 or above)');
+            if (!formData.financialCondition) errors.push('Financial condition is required');
+        }
+        if (step === 2) {
+            if (selectedGrowthTypes.length === 0) errors.push('Please select at least one growth type');
+            if (selectedGrowthTypes.includes('product') && !formData.focusProduct.trim()) errors.push('Please describe your new product/service');
+            if (selectedGrowthTypes.includes('segment') && !formData.focusSegment.trim()) errors.push('Please describe your new target customer');
+            if (selectedGrowthTypes.includes('geography') && !formData.focusGeography.trim()) errors.push('Please describe the new geography');
+            if (!formData.revenuePotential12m || Number(formData.revenuePotential12m) <= 0) errors.push('Expected incremental revenue is required (must be greater than 0)');
+            if (!formData.targetJobs || Number(formData.targetJobs) < 0) errors.push('Planned hires count is required');
+        }
+        if (step === 3) {
+            if (!formData.timeCommitment) errors.push('Owner involvement level is required');
+            if (!formData.secondLineTeam) errors.push('Leadership team status is required');
+        }
+        return errors;
+    };
+
+    // Helper: returns true if a required field is empty and the step has been touched
+    const showFieldError = (step: number, isEmpty: boolean) => touchedSteps.has(step) && isEmpty;
+
+    // Common classes for error/normal input borders
+    const inputClass = (step: number, isEmpty: boolean) =>
+        `w-full rounded-xl border ${showFieldError(step, isEmpty) ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-white'} px-4 py-3.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all`;
+
+    const selectClass = (step: number, isEmpty: boolean) =>
+        `w-full rounded-xl border ${showFieldError(step, isEmpty) ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-white'} px-4 py-3.5 text-sm text-gray-700 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none cursor-pointer`;
+
     const handleSubmit = async () => {
-        if (!formData.email || !formData.businessName || !formData.managingDirector) {
-            toast('Please fill in your name, email, and business name.', 'warning');
+        // Final validation across all steps
+        const allErrors = [...validateStep(1), ...validateStep(2), ...validateStep(3)];
+        if (allErrors.length > 0) {
+            setTouchedSteps(new Set([1, 2, 3]));
+            toast(allErrors[0], 'warning');
             return;
         }
         setIsSubmitting(true);
@@ -244,10 +284,16 @@ export const PublicApplication: React.FC = () => {
 
     const handleNext = () => {
         // Validate current step before proceeding
-        const hasErrors = Object.values(validationErrors).some(error => error !== '');
-
-        if (hasErrors) {
+        const hasFieldErrors = Object.values(validationErrors).some(error => error !== '');
+        if (hasFieldErrors) {
             toast('Please fix the validation errors before proceeding.', 'warning');
+            return;
+        }
+
+        const stepErrors = validateStep(currentStep);
+        if (stepErrors.length > 0) {
+            setTouchedSteps(prev => new Set(prev).add(currentStep));
+            toast(stepErrors[0], 'warning');
             return;
         }
 
@@ -398,13 +444,13 @@ export const PublicApplication: React.FC = () => {
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
                                 <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">
-                                    Name
+                                    Name <span className="text-red-500">*</span>
                                 </label>
                                 <Mic className="w-4 h-4 text-gray-300" />
                             </div>
                             <input
                                 type="text"
-                                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all"
+                                className={inputClass(1, !formData.managingDirector.trim())}
                                 placeholder="E.g., Rajesh Kumar"
                                 value={formData.managingDirector}
                                 onChange={e => updateField('managingDirector', e.target.value)}
@@ -414,11 +460,11 @@ export const PublicApplication: React.FC = () => {
                         {/* 3. Email */}
                         <div className="space-y-2">
                             <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">
-                                Email
+                                Email <span className="text-red-500">*</span>
                             </label>
                             <input
                                 type="email"
-                                className={`w-full rounded-xl border ${validationErrors.email ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-white'} px-4 py-3.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all`}
+                                className={`w-full rounded-xl border ${validationErrors.email || showFieldError(1, !formData.email.trim()) ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-white'} px-4 py-3.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all`}
                                 placeholder="E.g., yourname@company.com"
                                 value={formData.email}
                                 onChange={e => updateField('email', e.target.value)}
@@ -447,13 +493,13 @@ export const PublicApplication: React.FC = () => {
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
                                 <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">
-                                    Registered company name
+                                    Registered company name <span className="text-red-500">*</span>
                                 </label>
                                 <Mic className="w-4 h-4 text-gray-300" />
                             </div>
                             <input
                                 type="text"
-                                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all"
+                                className={inputClass(1, !formData.businessName.trim())}
                                 placeholder="Enter registered business name"
                                 value={formData.businessName}
                                 onChange={e => updateField('businessName', e.target.value)}
@@ -596,10 +642,10 @@ export const PublicApplication: React.FC = () => {
                         {/* Financial Condition */}
                         <div className="space-y-2">
                             <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">
-                                What is your company's current financial condition?
+                                What is your company's current financial condition? <span className="text-red-500">*</span>
                             </label>
                             <select
-                                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-gray-700 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none cursor-pointer"
+                                className={selectClass(1, !formData.financialCondition)}
                                 value={formData.financialCondition}
                                 onChange={e => updateField('financialCondition', e.target.value)}
                             >
@@ -614,13 +660,13 @@ export const PublicApplication: React.FC = () => {
                         {/* 14. What was your company's revenue in the last 12 months */}
                         <div className="space-y-2">
                             <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">
-                                What was your company's revenue in the last 12 months (in Cr)
+                                What was your company's revenue in the last 12 months (in Cr) <span className="text-red-500">*</span>
                             </label>
                             <input
                                 type="number"
                                 min="0"
                                 step="any"
-                                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all"
+                                className={inputClass(1, !formData.lastYearRevenue || Number(formData.lastYearRevenue) < 0)}
                                 placeholder="Enter revenue in Cr (e.g. 10)"
                                 value={formData.lastYearRevenue}
                                 onChange={e => updateField('lastYearRevenue', e.target.value)}
@@ -635,9 +681,9 @@ export const PublicApplication: React.FC = () => {
                         {/* Growth type question */}
                         <div className="space-y-4">
                             <p className="text-sm text-gray-600">
-                                Is your growth idea delivering a new product/service or targeting a new segment or looking to enter a new geography?
+                                Is your growth idea delivering a new product/service or targeting a new segment or looking to enter a new geography? <span className="text-red-500">*</span>
                             </p>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+                            <div className={`grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 ${showFieldError(2, selectedGrowthTypes.length === 0) ? 'ring-2 ring-red-300 rounded-xl p-1' : ''}`}>
                                 {([
                                     { key: 'product' as GrowthType, label: 'NEW PRODUCT OR SERVICE' },
                                     { key: 'segment' as GrowthType, label: 'NEW TYPE OF CUSTOMER' },
@@ -662,12 +708,12 @@ export const PublicApplication: React.FC = () => {
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between">
                                         <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">
-                                            Describe your new Product or Service
+                                            Describe your new Product or Service <span className="text-red-500">*</span>
                                         </label>
                                         <Mic className="w-4 h-4 text-gray-300" />
                                     </div>
                                     <textarea
-                                        className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all min-h-[110px] resize-none"
+                                        className={`${inputClass(2, !formData.focusProduct.trim())} min-h-[110px] resize-none`}
                                         placeholder="What is your new Product or Service&#10;Example: Launching a new ready-to-eat poha snack."
                                         value={formData.focusProduct}
                                         onChange={e => updateField('focusProduct', e.target.value)}
@@ -679,12 +725,12 @@ export const PublicApplication: React.FC = () => {
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between">
                                         <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">
-                                            Describe your new Target Customer (who and how you sell)
+                                            Describe your new Target Customer (who and how you sell) <span className="text-red-500">*</span>
                                         </label>
                                         <Mic className="w-4 h-4 text-gray-300" />
                                     </div>
                                     <textarea
-                                        className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all min-h-[110px] resize-none"
+                                        className={`${inputClass(2, !formData.focusSegment.trim())} min-h-[110px] resize-none`}
                                         placeholder="Who is this product for, and how will you sell it (online and in stores)&#10;Example: Sell this ready-to-eat poha snack to small kirana stores and local retailers through distributors."
                                         value={formData.focusSegment}
                                         onChange={e => updateField('focusSegment', e.target.value)}
@@ -696,12 +742,12 @@ export const PublicApplication: React.FC = () => {
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between">
                                         <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">
-                                            Describe the new place you want to expand to (city, state, or country)
+                                            Describe the new place you want to expand to (city, state, or country) <span className="text-red-500">*</span>
                                         </label>
                                         <Mic className="w-4 h-4 text-gray-300" />
                                     </div>
                                     <textarea
-                                        className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all min-h-[110px] resize-none"
+                                        className={`${inputClass(2, !formData.focusGeography.trim())} min-h-[110px] resize-none`}
                                         placeholder="Which city, state or country are you expanding into?&#10;Example: Start in Pune, then expand across Maharashtra."
                                         value={formData.focusGeography}
                                         onChange={e => updateField('focusGeography', e.target.value)}
@@ -713,12 +759,12 @@ export const PublicApplication: React.FC = () => {
                         {/* Planned Hires */}
                         <div className="space-y-2">
                             <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">
-                                How many people do you plan to hire for this growth idea?
+                                How many people do you plan to hire for this growth idea? <span className="text-red-500">*</span>
                             </label>
                             <input
                                 type="number"
                                 min="0"
-                                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all"
+                                className={inputClass(2, !formData.targetJobs || Number(formData.targetJobs) < 0)}
                                 placeholder="Enter number of planned hires"
                                 value={formData.targetJobs}
                                 onChange={e => updateField('targetJobs', e.target.value)}
@@ -728,14 +774,14 @@ export const PublicApplication: React.FC = () => {
                         {/* Incremental Revenue */}
                         <div className="space-y-2">
                             <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">
-                                Expected incremental revenue from this growth idea over the next 3 years (Enter amount in ₹ Crore)
+                                Expected incremental revenue from this growth idea over the next 3 years (Enter amount in ₹ Crore) <span className="text-red-500">*</span>
                             </label>
                             <input
                                 type="number"
                                 min="0"
                                 step="0.01"
                                 placeholder="e.g., 25"
-                                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-gray-700 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all"
+                                className={inputClass(2, !formData.revenuePotential12m || Number(formData.revenuePotential12m) <= 0)}
                                 value={formData.revenuePotential12m}
                                 onChange={e => updateField('revenuePotential12m', e.target.value)}
                             />
@@ -822,10 +868,10 @@ export const PublicApplication: React.FC = () => {
                         {/* Owner Involvement */}
                         <div className="space-y-2">
                             <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">
-                                As the business owner/promoter, how involved will you be in this new venture?
+                                As the business owner/promoter, how involved will you be in this new venture? <span className="text-red-500">*</span>
                             </label>
                             <select
-                                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-gray-700 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none cursor-pointer"
+                                className={selectClass(3, !formData.timeCommitment)}
                                 value={formData.timeCommitment}
                                 onChange={e => updateField('timeCommitment', e.target.value)}
                             >
@@ -840,10 +886,10 @@ export const PublicApplication: React.FC = () => {
                         {/* Leadership Team */}
                         <div className="space-y-2">
                             <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">
-                                Do you have a leadership/management team to run the day-to-day operations of this venture?
+                                Do you have a leadership/management team to run the day-to-day operations of this venture? <span className="text-red-500">*</span>
                             </label>
                             <select
-                                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-gray-700 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none cursor-pointer"
+                                className={selectClass(3, !formData.secondLineTeam)}
                                 value={formData.secondLineTeam}
                                 onChange={e => updateField('secondLineTeam', e.target.value)}
                             >

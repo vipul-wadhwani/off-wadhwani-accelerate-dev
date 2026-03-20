@@ -75,7 +75,7 @@ export const StatusSelect: React.FC<StatusSelectProps> = ({ status, onChange, lo
             <button
                 onClick={() => !loading && setIsOpen(!isOpen)}
                 disabled={loading}
-                className={`flex items-center justify-between w-full min-w-[180px] px-3 py-2 rounded-lg border transition-all duration-200 ${currentConfig.bg} ${currentConfig.border} hover:bg-white hover:shadow-sm`}
+                className={`flex items-center justify-between w-full px-3 py-2.5 sm:py-2 rounded-lg border transition-all duration-200 ${currentConfig.bg} ${currentConfig.border} hover:bg-white hover:shadow-sm`}
             >
                 <div className="flex items-center gap-2">
                     {loading ? (

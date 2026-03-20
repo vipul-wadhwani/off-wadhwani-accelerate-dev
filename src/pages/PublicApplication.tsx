@@ -265,13 +265,13 @@ export const PublicApplication: React.FC = () => {
     // ─── Success Screen ───────────────────────────────────────────────────────
     if (isSubmitted) {
         return (
-            <div className="min-h-screen bg-orange-50 flex items-center justify-center p-4">
-                <div className="max-w-xl w-full bg-white rounded-2xl shadow-xl p-8 text-center space-y-6">
-                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
-                        <Check className="w-8 h-8 text-green-600" />
+            <div className="min-h-screen bg-orange-50 flex items-center justify-center p-3 sm:p-4">
+                <div className="max-w-xl w-full bg-white rounded-2xl shadow-xl p-6 sm:p-8 text-center space-y-5 sm:space-y-6">
+                    <div className="w-14 h-14 sm:w-16 sm:h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+                        <Check className="w-7 h-7 sm:w-8 sm:h-8 text-green-600" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">Application Submitted!</h2>
-                    <p className="text-gray-500">
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Application Submitted!</h2>
+                    <p className="text-sm sm:text-base text-gray-500">
                         Thank you for applying to the Wadhwani Accelerate Program! We've sent a confirmation to <strong>{formData.email}</strong>. We'll review your details and get back to you shortly.
                     </p>
                     <button
@@ -293,29 +293,29 @@ export const PublicApplication: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-orange-50 py-8 px-4">
-        <div className="max-w-2xl mx-auto space-y-6 pb-16">
+        <div className="min-h-screen bg-orange-50 py-4 px-3 sm:py-8 sm:px-4">
+        <div className="max-w-2xl mx-auto space-y-4 sm:space-y-6 pb-20 sm:pb-16">
 
             {/* Branding Header */}
             <div className="text-center mb-4">
-                <div className="inline-flex items-center justify-center p-3 bg-red-600 rounded-xl mb-3 shadow-lg shadow-red-600/20">
-                    <Rocket className="w-6 h-6 text-white" />
+                <div className="inline-flex items-center justify-center p-2.5 sm:p-3 bg-red-600 rounded-xl mb-3 shadow-lg shadow-red-600/20">
+                    <Rocket className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </div>
-                <h1 className="text-2xl font-bold text-gray-900">Accelerate Program by Wadhwani Foundation</h1>
-                <p className="text-sm text-gray-500 mt-2 max-w-lg mx-auto">This program is designed for founders with ₹5Cr+ Revenue who are ready to actively work on growing their business through a structured, execution-driven engagement</p>
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 px-2">Accelerate Program by Wadhwani Foundation</h1>
+                <p className="text-xs sm:text-sm text-gray-500 mt-2 max-w-lg mx-auto px-2">This program is designed for founders with ₹5Cr+ Revenue who are ready to actively work on growing their business through a structured, execution-driven engagement</p>
             </div>
 
             {/* ── Page Header (Step 2+) */}
             {currentStep >= 2 && (
                 <div className="flex items-center justify-between">
-                    <h1 className="text-2xl font-black text-gray-900 tracking-tight uppercase">
+                    <h1 className="text-lg sm:text-2xl font-black text-gray-900 tracking-tight uppercase">
                         Accelerate Application
                     </h1>
                 </div>
             )}
 
             {/* ── Step Progress Bar ─────────────────────────────────────────── */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 sm:p-4">
                 <div className="flex items-center">
                     {STEPS.map((step, idx) => {
                         const isCompleted = step.id < currentStep;
@@ -323,20 +323,20 @@ export const PublicApplication: React.FC = () => {
                         return (
                             <React.Fragment key={step.id}>
                                 <div
-                                    className={`flex flex-col items-center gap-1.5 flex-1 py-2 px-3 rounded-xl transition-colors ${isActive ? 'bg-blue-50' : ''}`}
+                                    className={`flex flex-col items-center gap-1 sm:gap-1.5 flex-1 py-2 px-1.5 sm:px-3 rounded-xl transition-colors ${isActive ? 'bg-blue-50' : ''}`}
                                 >
                                     <div
-                                        className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all ${isCompleted
+                                        className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold transition-all ${isCompleted
                                             ? 'bg-green-500 text-white'
                                             : isActive
                                                 ? 'bg-blue-600 text-white'
                                                 : 'bg-white border-2 border-gray-200 text-gray-400'
                                             }`}
                                     >
-                                        {isCompleted ? <CheckCircle2 className="w-4 h-4" /> : step.id}
+                                        {isCompleted ? <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : step.id}
                                     </div>
                                     <span
-                                        className={`text-[10px] font-bold tracking-widest ${isCompleted
+                                        className={`text-[9px] sm:text-[10px] font-bold tracking-wider sm:tracking-widest ${isCompleted
                                             ? 'text-green-600'
                                             : isActive
                                                 ? 'text-blue-600'
@@ -347,7 +347,7 @@ export const PublicApplication: React.FC = () => {
                                     </span>
                                 </div>
                                 {idx < STEPS.length - 1 && (
-                                    <div className="w-px h-8 bg-gray-200 mx-1" />
+                                    <div className="w-px h-6 sm:h-8 bg-gray-200 mx-0.5 sm:mx-1" />
                                 )}
                             </React.Fragment>
                         );
@@ -356,23 +356,23 @@ export const PublicApplication: React.FC = () => {
             </div>
 
             {/* ── Step Content Card ─────────────────────────────────────────── */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-8">
 
                 {/* Foundation support message - Step 2 only */}
                 {currentStep === 2 && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 mb-6">
-                        <p className="text-sm text-gray-700 leading-relaxed">
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-3.5 sm:p-5 mb-5 sm:mb-6">
+                        <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
                             The Foundation offers deeper support to businesses working on growth initiatives with meaningful incremental revenue potential - like launching or improving a product, entering a new customer segment, or expanding into a new market, etc <span className="font-bold text-blue-700">at NO COST</span>
                         </p>
                     </div>
                 )}
 
                 {/* Step Header */}
-                <div className="flex items-center gap-3 mb-8">
-                    <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                <div className="flex items-center gap-2.5 sm:gap-3 mb-5 sm:mb-8">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs sm:text-sm font-bold flex-shrink-0">
                         {currentStep}
                     </div>
-                    <h2 className="text-base font-black text-gray-900 tracking-tight uppercase">
+                    <h2 className="text-sm sm:text-base font-black text-gray-900 tracking-tight uppercase">
                         {stepTitles[currentStep]}
                     </h2>
                 </div>
@@ -637,7 +637,7 @@ export const PublicApplication: React.FC = () => {
                             <p className="text-sm text-gray-600">
                                 Is your growth idea delivering a new product/service or targeting a new segment or looking to enter a new geography?
                             </p>
-                            <div className="grid grid-cols-3 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
                                 {([
                                     { key: 'product' as GrowthType, label: 'NEW PRODUCT OR SERVICE' },
                                     { key: 'segment' as GrowthType, label: 'NEW TYPE OF CUSTOMER' },
@@ -647,7 +647,7 @@ export const PublicApplication: React.FC = () => {
                                         key={key}
                                         type="button"
                                         onClick={() => toggleGrowthType(key)}
-                                        className={`px-2.5 py-3.5 rounded-xl text-[10px] font-bold tracking-wide transition-all border whitespace-nowrap ${selectedGrowthTypes.includes(key)
+                                        className={`px-3 py-3 sm:px-2.5 sm:py-3.5 rounded-xl text-xs sm:text-[10px] font-bold tracking-wide transition-all border ${selectedGrowthTypes.includes(key)
                                             ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/25'
                                             : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
                                             }`}
@@ -767,8 +767,8 @@ export const PublicApplication: React.FC = () => {
                     <div className="space-y-6">
                         {/* Functional Areas table */}
                         <div>
-                            {/* Header row */}
-                            <div className="grid grid-cols-2 gap-4 pb-3 border-b border-gray-100">
+                            {/* Header row - hidden on mobile since we stack */}
+                            <div className="hidden sm:grid grid-cols-2 gap-4 pb-3 border-b border-gray-100">
                                 <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Functional Area</span>
                                 <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Current Status</span>
                             </div>
@@ -776,20 +776,20 @@ export const PublicApplication: React.FC = () => {
                             {/* Rows */}
                             <div className="divide-y divide-gray-100">
                                 {formData.workstreamStatuses.map((ws, idx) => (
-                                    <div key={ws.stream} className="grid grid-cols-2 gap-4 items-center py-4">
+                                    <div key={ws.stream} className="flex flex-col gap-2 py-3 sm:grid sm:grid-cols-2 sm:gap-4 sm:items-center sm:py-4">
                                         {/* Functional Area name + info tooltip */}
                                         <div className="flex items-center gap-2">
                                             <span className="text-sm font-semibold text-gray-800">{ws.stream}</span>
                                             <div className="relative group">
                                                 <Info className="w-3.5 h-3.5 text-gray-300 hover:text-blue-500 cursor-help transition-colors" />
-                                                {/* Tooltip */}
-                                                <div className="absolute left-5 top-1/2 -translate-y-1/2 z-50 hidden group-hover:block w-72 pointer-events-none">
-                                                    <div className="bg-gray-900 text-white rounded-xl p-3.5 shadow-2xl">
+                                                {/* Tooltip - positioned below on mobile, right on desktop */}
+                                                <div className="absolute left-0 top-6 sm:left-5 sm:top-1/2 sm:-translate-y-1/2 z-50 hidden group-hover:block w-60 sm:w-72 pointer-events-none">
+                                                    <div className="bg-gray-900 text-white rounded-xl p-3 sm:p-3.5 shadow-2xl">
                                                         <p className="text-xs text-gray-200 leading-relaxed">
                                                             {WORKSTREAM_INFO[ws.stream]}
                                                         </p>
-                                                        {/* Arrow */}
-                                                        <div className="absolute left-[-5px] top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-gray-900 rotate-45" />
+                                                        {/* Arrow - hidden on mobile */}
+                                                        <div className="hidden sm:block absolute left-[-5px] top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-gray-900 rotate-45" />
                                                     </div>
                                                 </div>
                                             </div>
@@ -860,7 +860,7 @@ export const PublicApplication: React.FC = () => {
                                 Please upload your corporate presentation to help us understand your business better
                             </label>
                             <p className="text-xs text-gray-400">Accepted: PDF, PPT, PPTX, DOC, DOCX (max 5MB)</p>
-                            <div className="flex items-center gap-3">
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                                 <input
                                     type="file"
                                     id="corporatePresentation"
@@ -878,7 +878,7 @@ export const PublicApplication: React.FC = () => {
                                 />
                                 <label
                                     htmlFor="corporatePresentation"
-                                    className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 cursor-pointer transition-colors text-sm font-medium text-gray-700"
+                                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 cursor-pointer transition-colors text-sm font-medium text-gray-700"
                                 >
                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -886,8 +886,8 @@ export const PublicApplication: React.FC = () => {
                                     Choose File
                                 </label>
                                 {formData.corporatePresentation && (
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm text-gray-600">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        <span className="text-sm text-gray-600 truncate">
                                             {formData.corporatePresentation.name}
                                             <span className="text-gray-400 ml-1">
                                                 ({(formData.corporatePresentation.size / 1024 / 1024).toFixed(1)}MB)
@@ -916,48 +916,54 @@ export const PublicApplication: React.FC = () => {
             </div>
 
             {/* ── Footer Navigation ─────────────────────────────────────────── */}
-            <div className="flex items-center justify-between px-1">
-                {/* Previous Step */}
-                <button
-                    onClick={handleBack}
-                    disabled={currentStep === 1 || isSubmitting}
-                    className="flex items-center gap-2 text-sm font-semibold text-gray-500 hover:text-gray-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                >
-                    <ArrowLeft className="w-4 h-4" />
-                    PREVIOUS STEP
-                </button>
+            <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-3 py-3 sm:static sm:bg-transparent sm:border-0 sm:px-1 sm:py-0 z-40">
+                <div className="max-w-2xl mx-auto flex items-center justify-between gap-2">
+                    {/* Previous Step */}
+                    <button
+                        onClick={handleBack}
+                        disabled={currentStep === 1 || isSubmitting}
+                        className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm font-semibold text-gray-500 hover:text-gray-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                        <ArrowLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        <span className="hidden sm:inline">PREVIOUS STEP</span>
+                        <span className="sm:hidden">BACK</span>
+                    </button>
 
-                {/* Cancel */}
-                <button
-                    onClick={() => navigate('/')}
-                    className="text-sm font-semibold text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                    CANCEL
-                </button>
+                    {/* Cancel */}
+                    <button
+                        onClick={() => navigate('/')}
+                        className="text-xs sm:text-sm font-semibold text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                        CANCEL
+                    </button>
 
-                {/* Next / Submit */}
-                <button
-                    onClick={handleNext}
-                    disabled={isSubmitting}
-                    className="flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 text-white text-sm font-bold uppercase tracking-wider hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-blue-500/25"
-                >
-                    {isSubmitting ? (
-                        <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            Submitting...
-                        </>
-                    ) : currentStep === 3 ? (
-                        <>
-                            SUBMIT APPLICATION
-                            <Check className="w-4 h-4" />
-                        </>
-                    ) : (
-                        <>
-                            NEXT: {STEPS[currentStep].label}
-                            <ArrowRight className="w-4 h-4" />
-                        </>
-                    )}
-                </button>
+                    {/* Next / Submit */}
+                    <button
+                        onClick={handleNext}
+                        disabled={isSubmitting}
+                        className="flex items-center gap-1.5 sm:gap-2 px-4 py-2.5 sm:px-6 sm:py-3 rounded-xl bg-blue-600 text-white text-xs sm:text-sm font-bold uppercase tracking-wider hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-blue-500/25"
+                    >
+                        {isSubmitting ? (
+                            <>
+                                <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" />
+                                <span className="hidden sm:inline">Submitting...</span>
+                                <span className="sm:hidden">Wait...</span>
+                            </>
+                        ) : currentStep === 3 ? (
+                            <>
+                                <span className="hidden sm:inline">SUBMIT APPLICATION</span>
+                                <span className="sm:hidden">SUBMIT</span>
+                                <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                            </>
+                        ) : (
+                            <>
+                                <span className="hidden sm:inline">NEXT: {STEPS[currentStep].label}</span>
+                                <span className="sm:hidden">NEXT</span>
+                                <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                            </>
+                        )}
+                    </button>
+                </div>
             </div>
         </div>
         </div>

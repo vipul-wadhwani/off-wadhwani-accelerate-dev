@@ -89,7 +89,7 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
                     <button
                         type="button"
                         onClick={() => setIsOpen(!isOpen)}
-                        className="flex items-center gap-2 px-3 py-3.5 border-r border-gray-200 hover:bg-gray-50 transition-colors min-w-[100px]"
+                        className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-3.5 border-r border-gray-200 hover:bg-gray-50 transition-colors min-w-[90px] sm:min-w-[100px]"
                     >
                         <span className="text-xl">{selectedCountry.flag}</span>
                         <span className="text-sm font-medium text-gray-700">{selectedCountry.code}</span>

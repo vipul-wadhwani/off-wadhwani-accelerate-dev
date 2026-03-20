@@ -13,8 +13,6 @@ export const VentureWorkbench = () => {
     const [loading, setLoading] = useState(true);
     const [signing, setSigning] = useState(false);
     const [accepted, setAccepted] = useState(false);
-    const [milestones, setMilestones] = useState<any[]>([]);
-    const [roadmapData, setRoadmapData] = useState<any>(null);
     const [showJoinedModal, setShowJoinedModal] = useState(false);
     const [declining, setDeclining] = useState(false);
 
@@ -26,21 +24,9 @@ export const VentureWorkbench = () => {
         try {
             if (!id) return;
             // Fetch All Venture Data in one call
-            const { venture, milestones } = await api.getVenture(id);
+            const { venture } = await api.getVenture(id);
 
             setVenture(venture);
-            setMilestones(milestones || []);
-
-            // Fetch roadmap data from venture_roadmaps
-            try {
-                const roadmapResult = await api.getRoadmap(id);
-                const rmData = roadmapResult?.roadmap?.roadmap_data;
-                if (rmData) {
-                    setRoadmapData(rmData);
-                }
-            } catch (err) {
-                console.log('No roadmap available yet');
-            }
 
         } catch (error) {
             console.error('Error fetching venture data:', error);
@@ -111,13 +97,6 @@ export const VentureWorkbench = () => {
     const isSigned = venture.agreement_status === 'Signed';
     const isDeclined = venture.status === 'Rejected' || venture.agreement_status === 'Declined';
 
-    // Group milestones by category for display
-    const milestonesByCategory = milestones.reduce((acc: any, curr: any) => {
-        if (!acc[curr.category]) acc[curr.category] = [];
-        acc[curr.category].push(curr.description);
-        return acc;
-    }, {});
-
     return (
         <div className="min-h-screen bg-gray-50 p-8">
             {/* Header */}
@@ -161,66 +140,10 @@ export const VentureWorkbench = () => {
                 ) : !isSigned ? (
                     // SIGNING VIEW
                     <div className="max-w-5xl mx-auto">
-                        <h1 className="text-2xl font-bold text-gray-900 mb-4">Review the Journey Roadmap</h1>
+                        <h1 className="text-2xl font-bold text-gray-900 mb-4">Program Details</h1>
                     <div id="growth-plan-section" className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                        <div className="p-6 border-b border-gray-200">
-                            <h2 className="text-xl font-bold text-gray-900">Journey Roadmap</h2>
-                        </div>
 
                         <div className="divide-y divide-gray-200">
-                            {/* Roadmap */}
-                            <div>
-                                <div className="p-6">
-                                    {roadmapData ? (
-                                        <div className="space-y-4">
-                                            {Object.entries(roadmapData).map(([key, area]: [string, any]) => {
-                                                const actions = Array.isArray(area) ? area : area?.actions || [];
-                                                const label = key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-                                                const priority = area?.support_priority || 'Need some guidance';
-                                                const priorityColor = (priority === 'Need deep support' || priority === 'High') ? 'bg-red-100 text-red-700' : (priority === "Don't need help" || priority === 'Low') ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700';
-                                                if (actions.length === 0) return null;
-                                                return (
-                                                    <div key={key} className="border border-gray-100 rounded-lg p-4 bg-gray-50/50">
-                                                        <div className="flex items-center justify-between mb-2">
-                                                            <h4 className="font-bold text-gray-800 uppercase text-sm">{label}</h4>
-                                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${priorityColor}`}>{priority}</span>
-                                                        </div>
-                                                        {area?.relevance && <p className="text-xs text-gray-500 mb-3">{area.relevance}</p>}
-                                                        <ul className="space-y-2">
-                                                            {actions.map((action: any, i: number) => (
-                                                                <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                                                                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-brand-500 flex-shrink-0" />
-                                                                    <div>
-                                                                        <span className="font-semibold">{action.title}</span>
-                                                                        {action.timeline && <span className="text-gray-400 ml-2 text-xs">({action.timeline})</span>}
-                                                                        {action.description && <p className="text-xs text-gray-500 mt-0.5">{action.description}</p>}
-                                                                    </div>
-                                                                </li>
-                                                            ))}
-                                                        </ul>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    ) : Object.keys(milestonesByCategory).length > 0 ? (
-                                        <div className="space-y-4">
-                                            {Object.entries(milestonesByCategory).map(([category, items]: [string, any]) => (
-                                                <div key={category} className="border border-gray-100 rounded-lg p-4 bg-gray-50/50">
-                                                    <h4 className="font-bold text-gray-800 mb-2">{category}</h4>
-                                                    <ul className="list-disc pl-5 space-y-1">
-                                                        {(items as string[]).map((item, i) => (
-                                                            <li key={i} className="text-gray-600 text-sm">{item}</li>
-                                                        ))}
-                                                    </ul>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <p className="italic text-gray-400">No specific roadmap milestones defined yet.</p>
-                                    )}
-                                </div>
-                            </div>
-
                             {/* Support provided */}
                             <div className="border-t border-gray-200">
                                 <div className="p-6">
@@ -410,72 +333,15 @@ export const VentureWorkbench = () => {
                 ) : (
                     // READ-ONLY WORKBENCH VIEW (Signed / Joined Program)
                     <div className="max-w-5xl mx-auto">
-                        <h1 className="text-2xl font-bold text-gray-900 mb-4">Review the Journey Roadmap</h1>
+                        <h1 className="text-2xl font-bold text-gray-900 mb-4">Program Details</h1>
                     <div id="growth-plan-section" className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                         {/* Joined Program badge */}
                         <div className="p-4 bg-emerald-50 border-b border-emerald-200 flex items-center gap-3">
                             <CheckCircle className="w-5 h-5 text-emerald-600" />
-                            <span className="text-sm font-bold text-emerald-800">You have joined the program. Here is your journey plan.</span>
-                        </div>
-
-                        <div className="p-6 border-b border-gray-200">
-                            <h2 className="text-xl font-bold text-gray-900">Journey Roadmap</h2>
+                            <span className="text-sm font-bold text-emerald-800">You have joined the program.</span>
                         </div>
 
                         <div className="divide-y divide-gray-200">
-                            {/* Roadmap */}
-                            <div>
-                                <div className="p-6">
-                                    {roadmapData ? (
-                                        <div className="space-y-4">
-                                            {Object.entries(roadmapData).map(([key, area]: [string, any]) => {
-                                                const actions = Array.isArray(area) ? area : area?.actions || [];
-                                                const label = key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-                                                const priority = area?.support_priority || 'Need some guidance';
-                                                const priorityColor = (priority === 'Need deep support' || priority === 'High') ? 'bg-red-100 text-red-700' : (priority === "Don't need help" || priority === 'Low') ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700';
-                                                if (actions.length === 0) return null;
-                                                return (
-                                                    <div key={key} className="border border-gray-100 rounded-lg p-4 bg-gray-50/50">
-                                                        <div className="flex items-center justify-between mb-2">
-                                                            <h4 className="font-bold text-gray-800 uppercase text-sm">{label}</h4>
-                                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${priorityColor}`}>{priority}</span>
-                                                        </div>
-                                                        {area?.relevance && <p className="text-xs text-gray-500 mb-3">{area.relevance}</p>}
-                                                        <ul className="space-y-2">
-                                                            {actions.map((action: any, i: number) => (
-                                                                <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                                                                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-brand-500 flex-shrink-0" />
-                                                                    <div>
-                                                                        <span className="font-semibold">{action.title}</span>
-                                                                        {action.timeline && <span className="text-gray-400 ml-2 text-xs">({action.timeline})</span>}
-                                                                        {action.description && <p className="text-xs text-gray-500 mt-0.5">{action.description}</p>}
-                                                                    </div>
-                                                                </li>
-                                                            ))}
-                                                        </ul>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    ) : Object.keys(milestonesByCategory).length > 0 ? (
-                                        <div className="space-y-4">
-                                            {Object.entries(milestonesByCategory).map(([category, items]: [string, any]) => (
-                                                <div key={category} className="border border-gray-100 rounded-lg p-4 bg-gray-50/50">
-                                                    <h4 className="font-bold text-gray-800 mb-2">{category}</h4>
-                                                    <ul className="list-disc pl-5 space-y-1">
-                                                        {(items as string[]).map((item, i) => (
-                                                            <li key={i} className="text-gray-600 text-sm">{item}</li>
-                                                        ))}
-                                                    </ul>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <p className="italic text-gray-400">No specific roadmap milestones defined yet.</p>
-                                    )}
-                                </div>
-                            </div>
-
                             {/* Support provided */}
                             <div className="border-t border-gray-200">
                                 <div className="p-6">

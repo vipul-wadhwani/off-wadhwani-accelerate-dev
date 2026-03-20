@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, TrendingUp, Loader2, Briefcase, Users, Target, AlertTriangle, HelpCircle, Map, ChevronRight, Zap, FileText, ChevronUp, Plus } from 'lucide-react';
+import { Sparkles, TrendingUp, Loader2, Briefcase, Users, Target, AlertTriangle, HelpCircle, ChevronRight, FileText, ChevronUp, Plus } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
@@ -97,9 +97,6 @@ export const SelectionCommitteeDashboard: React.FC = () => {
     const [ventures, setVentures] = useState<Venture[]>([]);
     const [selectedVenture, setSelectedVenture] = useState<Venture | null>(null);
     const [loading, setLoading] = useState(true);
-    const [generatingRoadmap, setGeneratingRoadmap] = useState(false);
-    const [roadmapGenerated, setRoadmapGenerated] = useState(false);
-    const [roadmapData, setRoadmapData] = useState<any>(null);
     const [panelAnalyzing, setPanelAnalyzing] = useState(false);
     const [panelAnalysisResult, setPanelAnalysisResult] = useState<any | null>(null);
     const [panelNotes, setPanelNotes] = useState('');
@@ -155,8 +152,6 @@ export const SelectionCommitteeDashboard: React.FC = () => {
     const handleVentureSelect = async (venture: Venture) => {
         // Optimistically set selected to show UI immediately
         setSelectedVenture(venture);
-        setRoadmapGenerated(false); // Reset roadmap when selecting new venture
-        setRoadmapData(null);
         setPanelAnalysisResult(null);
         setEditedScorecard(null);
         setInteractionCount(0);
@@ -184,16 +179,6 @@ export const SelectionCommitteeDashboard: React.FC = () => {
             setGateQuestions(freshVenture.gate_questions || null);
             setPanelNotes('');
 
-            // Fetch existing roadmap
-            try {
-                const { roadmap } = await api.getRoadmap(venture.id);
-                if (roadmap?.roadmap_data) {
-                    setRoadmapData(roadmap.roadmap_data);
-                    setRoadmapGenerated(true);
-                }
-            } catch (e) {
-                // No roadmap yet, that's fine
-            }
         } catch (error) {
             console.error('Error fetching venture details:', error);
         }
@@ -252,27 +237,6 @@ export const SelectionCommitteeDashboard: React.FC = () => {
             setSavingPanelAssessment(false);
         }
     };
-
-    const generateRoadmap = async () => {
-        if (!selectedVenture) return;
-
-        setGeneratingRoadmap(true);
-
-        try {
-            const result = await api.generateRoadmap(selectedVenture.id);
-            const roadmap = result.roadmap;
-            if (roadmap?.roadmap_data) {
-                setRoadmapData(roadmap.roadmap_data);
-            }
-            setRoadmapGenerated(true);
-        } catch (error: any) {
-            console.error('Error generating roadmap:', error);
-            toast(error.message || 'Failed to generate roadmap.', 'error');
-        } finally {
-            setGeneratingRoadmap(false);
-        }
-    };
-
 
     const [revenueFilter, setRevenueFilter] = useState<string>('all');
 
@@ -722,18 +686,23 @@ export const SelectionCommitteeDashboard: React.FC = () => {
                         {/* Interactions Section */}
                         <InteractionsSection ventureId={selectedVenture.id} onInteractionsLoaded={setInteractionCount} />
 
-                        {/* Panel Interview Insights - V2 Scorecard */}
+                        {/* SCALE Scorecard — shows screening by default, replaced by panel once generated */}
                         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
                                 <div className="flex items-center gap-2">
                                     <Target className="w-5 h-5 text-teal-500" />
-                                    <span className="text-base font-bold text-gray-700">Panel SCALE Scorecard</span>
-                                    {panelAnalysisResult && !panelAnalyzing && (
+                                    <span className="text-base font-bold text-gray-700">SCALE Scorecard</span>
+                                    {panelAnalysisResult && !panelAnalyzing ? (
                                         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-50 border border-teal-200 text-xs font-medium text-teal-600">
                                             <Sparkles className="w-3 h-3" />
-                                            AI Generated
+                                            Panel Generated
                                         </span>
-                                    )}
+                                    ) : selectedVenture.ai_analysis?.scorecard ? (
+                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-xs font-medium text-indigo-600">
+                                            <Sparkles className="w-3 h-3" />
+                                            Screening Manager
+                                        </span>
+                                    ) : null}
                                 </div>
                                 <button
                                     onClick={runPanelAIAnalysis}
@@ -766,7 +735,44 @@ export const SelectionCommitteeDashboard: React.FC = () => {
                                 </div>
                             )}
 
-                            {!panelAnalysisResult && !panelAnalyzing && (
+                            {/* Default: show screening scorecard when no panel insights yet */}
+                            {!panelAnalysisResult && !panelAnalyzing && selectedVenture.ai_analysis?.scorecard && (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                        <thead>
+                                            <tr className="border-b border-gray-200">
+                                                <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Dimension</th>
+                                                <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Assessment</th>
+                                                <th className="text-center px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Rating</th>
+                                                <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Brief</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                            {selectedVenture.ai_analysis.scorecard.map((item: any, i: number) => {
+                                                const style = item.rating === 'Green' ? { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-500' } :
+                                                    item.rating === 'Red' ? { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500' } :
+                                                    { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500' };
+                                                return (
+                                                    <tr key={i} className={`${style.bg}`}>
+                                                        <td className="px-4 py-4 font-semibold text-gray-800 whitespace-nowrap">{item.dimension}</td>
+                                                        <td className="px-4 py-4 text-gray-600">{item.assessment}</td>
+                                                        <td className="px-3 py-4 text-center">
+                                                            <span className={`inline-flex items-center gap-1.5 ${style.text} font-semibold`}>
+                                                                <span className={`w-2 h-2 rounded-full ${style.dot}`} />
+                                                                {item.rating}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-4 text-gray-600 text-xs leading-relaxed max-w-xs">{item.brief}</td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+
+                            {/* Fallback empty state when no screening scorecard and no panel insights */}
+                            {!panelAnalysisResult && !panelAnalyzing && !selectedVenture.ai_analysis?.scorecard && (
                                 <div className="py-10 flex flex-col items-center gap-2 text-gray-300">
                                     <Target className="w-10 h-10" />
                                     <p className="text-sm">{interactionCount === 0 ? 'Add interactions above, then generate panel insights' : 'Click "Generate Panel Insights" to create a dual-column scorecard'}</p>
@@ -904,117 +910,6 @@ export const SelectionCommitteeDashboard: React.FC = () => {
                                     </div>
                                 )}
                             </div>
-                        </div>
-
-                        {/* Journey Roadmap */}
-                        <div className="bg-gradient-to-br from-indigo-50 to-white rounded-2xl border border-indigo-200 p-8 shadow-sm">
-                            <div className="flex items-center justify-between mb-4">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
-                                        <Sparkles className="w-6 h-6 text-white" />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-2xl font-bold text-gray-900">Generate Journey Roadmap</h2>
-                                        <p className="text-sm text-indigo-600 font-semibold flex items-center gap-1.5">
-                                            <Zap className="w-3.5 h-3.5" />
-                                            Uses AI Insights
-                                        </p>
-                                    </div>
-                                </div>
-                                {!roadmapGenerated && (
-                                    <button
-                                        onClick={generateRoadmap}
-                                        disabled={generatingRoadmap}
-                                        className="flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:opacity-60 text-white font-semibold transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-                                    >
-                                        {generatingRoadmap ? (
-                                            <>
-                                                <Loader2 className="w-5 h-5 animate-spin" />
-                                                Generating...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Sparkles className="w-5 h-5" />
-                                                Generate Roadmap
-                                            </>
-                                        )}
-                                    </button>
-                                )}
-                            </div>
-
-                            {roadmapGenerated ? (
-                                <>
-                                    <div className="mb-8 flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg p-3">
-                                        <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
-                                            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                            </svg>
-                                        </div>
-                                        <p className="text-sm font-semibold text-green-900">AI-powered roadmap generated successfully</p>
-                                    </div>
-                                    <p className="text-sm text-gray-500 mb-8 uppercase tracking-wider font-semibold">Deliverables & Milestones</p>
-                                </>
-                            ) : (
-                                <div className="py-12 text-center">
-                                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center mx-auto mb-4">
-                                        <Map className="w-10 h-10 text-indigo-600" />
-                                    </div>
-                                    <h3 className="text-lg font-bold text-gray-900 mb-2">AI-Powered Journey Roadmap</h3>
-                                    <p className="text-sm text-gray-500 mb-6 max-w-md mx-auto">
-                                        Generate a personalized roadmap with deliverables and milestones across all six streams using AI insights from the Screening Manager's assessment.
-                                    </p>
-                                </div>
-                            )}
-
-                            {roadmapGenerated && roadmapData && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                    {([
-                                        { key: 'product', label: 'Product' },
-                                        { key: 'gtm', label: 'GTM' },
-                                        { key: 'capital_planning', label: 'Capital Planning' },
-                                        { key: 'supply_chain', label: 'Supply Chain' },
-                                        { key: 'operations', label: 'Operations' },
-                                        { key: 'team', label: 'Team' },
-                                    ] as { key: string; label: string }[]).map(({ key, label }) => {
-                                        const area = (roadmapData as any)[key];
-                                        const actions = Array.isArray(area) ? area : area?.actions || [];
-                                        const relevance = area?.relevance;
-                                        const supportPriority = area?.support_priority;
-                                        return (
-                                        <div key={key} className="bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-lg transition-shadow">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <h3 className="text-sm font-bold text-blue-600 uppercase tracking-wider">{label}</h3>
-                                                {supportPriority && (
-                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                                        supportPriority === 'Need deep support' || supportPriority === 'High' ? 'bg-red-100 text-red-700' :
-                                                        supportPriority === 'Need some guidance' || supportPriority === 'Medium' ? 'bg-amber-100 text-amber-700' :
-                                                        'bg-green-100 text-green-700'
-                                                    }`}>{supportPriority}</span>
-                                                )}
-                                            </div>
-                                            {relevance && <p className="text-xs text-gray-400 mb-4">{relevance}</p>}
-                                            <div className="space-y-4">
-                                                {actions.map((item: any) => (
-                                                    <div key={item.id} className="flex items-start gap-3">
-                                                        <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-2 ${
-                                                            item.priority === 'Need deep support' || item.priority === 'high' ? 'bg-red-500' :
-                                                            item.priority === 'Need some guidance' || item.priority === 'medium' ? 'bg-orange-500' :
-                                                            'bg-green-500'
-                                                        }`} />
-                                                        <div>
-                                                            <p className="text-sm font-semibold text-gray-900">{item.title}</p>
-                                                            <p className="text-xs text-gray-500 italic mt-0.5">{item.description}</p>
-                                                            <span className="text-[10px] text-gray-400 font-medium">{item.timeline}</span>
-                                                            {item.success_metric && <p className="text-[10px] text-green-600 mt-0.5">✓ {item.success_metric}</p>}
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
                         </div>
 
                         {/* Panel Feedback Button */}

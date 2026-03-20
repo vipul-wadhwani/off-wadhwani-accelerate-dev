@@ -73,6 +73,9 @@ export const InteractionsSection: React.FC<InteractionsSectionProps> = ({ ventur
                             <h3 className="text-base font-bold text-gray-900">Interactions</h3>
                             <p className="text-xs text-gray-500 mt-0.5">
                                 {filteredInteractions.length} {filteredInteractions.length === 1 ? 'interaction' : 'interactions'}
+                                {interactions.length === 0 && (
+                                    <span className="text-amber-600 ml-2">— Add interactions to generate panel insights</span>
+                                )}
                             </p>
                         </div>
                     </div>
@@ -122,8 +125,11 @@ export const InteractionsSection: React.FC<InteractionsSectionProps> = ({ ventur
                             <h4 className="text-lg font-semibold text-gray-900 mb-2">
                                 {typeFilter === 'all' ? 'No interactions yet' : `No ${typeFilter}s yet`}
                             </h4>
-                            <p className="text-sm text-gray-500 mb-6 max-w-md mx-auto">
+                            <p className="text-sm text-gray-500 mb-2 max-w-md mx-auto">
                                 Start tracking your conversations with this venture by adding call transcripts, meeting notes, or other interactions.
+                            </p>
+                            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-6 max-w-md mx-auto">
+                                Add at least one interaction to generate Panel SCALE Scorecard insights.
                             </p>
                             <button
                                 onClick={() => setShowAddModal(true)}

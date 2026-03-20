@@ -1,6 +1,7 @@
 import React, { Component } from 'react';
 import type { ErrorInfo } from 'react';
 import { logger } from '../utils/logger';
+import { Sentry } from '../config/sentry';
 
 interface Props {
     children: React.ReactNode;
@@ -26,6 +27,9 @@ export class ErrorBoundary extends Component<Props, State> {
         logger.error('ErrorBoundary', `Uncaught error: ${error.message}`, {
             error,
             componentStack: errorInfo.componentStack,
+        });
+        Sentry.captureException(error, {
+            contexts: { react: { componentStack: errorInfo.componentStack || '' } },
         });
     }
 

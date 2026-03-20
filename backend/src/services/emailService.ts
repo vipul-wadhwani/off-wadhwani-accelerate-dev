@@ -210,11 +210,6 @@ export async function sendSelectionWelcomeEmail(
 
             <p>Congratulations on being selected for <strong>Wadhwani Accelerate</strong>, our highly selective growth program designed for ventures ready to unlock their next phase of scale through focused, execution-led support.</p>
 
-            <div class="login-box">
-                <p style="margin: 0;">To proceed, please log in at <a href="${loginUrl}">${loginUrl}</a> using your registered email ID and the password: <strong>WadhwaniAccelerate123456</strong>.</p>
-                <p style="margin: 8px 0 0 0;">Once logged in, you will be able to review the program details and formally accept your participation in the program to confirm your participation.</p>
-            </div>
-
             <p>Wadhwani Accelerate is a <strong>12-month growth execution platform</strong> that supports ventures in identifying, validating, and executing one high-impact growth idea. The program brings together experienced Venture Partners, domain and functional experts, and structured growth sprints to help founders move from intent to outcomes with speed and clarity.</p>
 
             <p>The program will commence shortly, with the first month focused on alignment, prioritization, and execution readiness.</p>
@@ -244,8 +239,6 @@ export async function sendSelectionWelcomeEmail(
     const plainText = `Hi ${founderName},
 
 Congratulations on being selected for Wadhwani Accelerate, our highly selective growth program designed for ventures ready to unlock their next phase of scale through focused, execution-led support.
-
-To proceed, please log in at ${loginUrl} using your registered email ID and the password: WadhwaniAccelerate123456. Once logged in, you will be able to review the program details and formally accept your participation in the program to confirm your participation.
 
 Wadhwani Accelerate is a 12-month growth execution platform that supports ventures in identifying, validating, and executing one high-impact growth idea. The program brings together experienced Venture Partners, domain and functional experts, and structured growth sprints to help founders move from intent to outcomes with speed and clarity.
 

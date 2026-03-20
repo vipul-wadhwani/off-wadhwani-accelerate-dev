@@ -134,11 +134,7 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
 
-        {/* Development Badge */}
-        <div className="fixed bottom-4 right-4 bg-red-600 border border-red-700 text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-lg z-[9999] opacity-75 hover:opacity-100 transition-opacity select-none flex items-center gap-2 cursor-default">
-          <span>🚧</span>
-          <span>Development Build</span>
-        </div>
+
       </Router>
     </ToastProvider>
     </AuthProvider>

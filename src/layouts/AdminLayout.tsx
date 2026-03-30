@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { Rocket, LayoutDashboard, Users, BarChart3, LogOut } from 'lucide-react';
+import { Rocket, LayoutDashboard, Users, BarChart3, Building2, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export const AdminLayout: React.FC = () => {
@@ -15,6 +15,7 @@ export const AdminLayout: React.FC = () => {
 
     const navItems = [
         { to: '/admin/dashboard', label: 'Application Dashboard', icon: LayoutDashboard, end: true },
+        { to: '/admin/dashboard/ventures', label: 'Venture Dashboard', icon: Building2, end: false },
         { to: '/admin/dashboard/screening-performance', label: 'Screening Performance', icon: BarChart3, end: false },
         { to: '/admin/dashboard/users', label: 'Users', icon: Users, end: false },
     ];

@@ -17,27 +17,29 @@ router.get(
         try {
             const serviceClient = createServiceRoleClient();
 
-            // Get all profiles
+            // Get all profiles (including email from profiles table)
             const { data: profiles, error: profileError } = await serviceClient
                 .from('profiles')
-                .select('id, full_name, role, created_at')
+                .select('id, full_name, role, email, created_at')
                 .in('role', ['success_mgr', 'venture_mgr', 'committee_member', 'ops_manager', 'admin']);
 
             if (profileError) throw profileError;
 
-            // Get emails from auth
-            const { data: { users: authUsers }, error: authError } = await serviceClient.auth.admin.listUsers();
-            if (authError) throw authError;
-
-            const emailMap = new Map<string, string>();
-            (authUsers || []).forEach(u => {
-                if (u.id && u.email) emailMap.set(u.id, u.email);
-            });
+            // Try to get emails from auth (fallback to profile emails if it fails)
+            let emailMap = new Map<string, string>();
+            try {
+                const { data: { users: authUsers } } = await serviceClient.auth.admin.listUsers();
+                (authUsers || []).forEach(u => {
+                    if (u.id && u.email) emailMap.set(u.id, u.email);
+                });
+            } catch (authErr) {
+                console.warn('Failed to fetch auth users, falling back to profile emails:', (authErr as Error).message);
+            }
 
             const result = (profiles || []).map(p => ({
                 id: p.id,
                 full_name: p.full_name,
-                email: emailMap.get(p.id) || '',
+                email: emailMap.get(p.id) || p.email || '',
                 role: p.role,
                 created_at: p.created_at,
             }));

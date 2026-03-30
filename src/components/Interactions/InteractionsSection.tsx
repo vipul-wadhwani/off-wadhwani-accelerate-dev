@@ -8,9 +8,11 @@ import { AddInteractionModal } from './AddInteractionModal';
 interface InteractionsSectionProps {
     ventureId: string;
     onInteractionsLoaded?: (count: number) => void;
+    createdByOnly?: string; // Only show interactions created by this user ID
+    readOnly?: boolean; // Hide add/delete buttons, panel hints
 }
 
-export const InteractionsSection: React.FC<InteractionsSectionProps> = ({ ventureId, onInteractionsLoaded }) => {
+export const InteractionsSection: React.FC<InteractionsSectionProps> = ({ ventureId, onInteractionsLoaded, createdByOnly, readOnly }) => {
     const [interactions, setInteractions] = useState<Interaction[]>([]);
     const [loading, setLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState(false);
@@ -23,7 +25,7 @@ export const InteractionsSection: React.FC<InteractionsSectionProps> = ({ ventur
     const fetchInteractions = async () => {
         try {
             setLoading(true);
-            const response = await api.getInteractions(ventureId);
+            const response = await api.getInteractions(ventureId, createdByOnly);
             const list = response.interactions || [];
             setInteractions(list);
             onInteractionsLoaded?.(list.length);
@@ -73,19 +75,21 @@ export const InteractionsSection: React.FC<InteractionsSectionProps> = ({ ventur
                             <h3 className="text-base font-bold text-gray-900">Interactions</h3>
                             <p className="text-xs text-gray-500 mt-0.5">
                                 {filteredInteractions.length} {filteredInteractions.length === 1 ? 'interaction' : 'interactions'}
-                                {interactions.length === 0 && (
+                                {interactions.length === 0 && !createdByOnly && (
                                     <span className="text-amber-600 ml-2">— Add interactions to generate panel insights</span>
                                 )}
                             </p>
                         </div>
                     </div>
-                    <button
-                        onClick={() => setShowAddModal(true)}
-                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition-colors text-sm font-semibold shadow-md"
-                    >
-                        <Plus className="w-4 h-4" />
-                        Add Interaction
-                    </button>
+                    {!readOnly && (
+                        <button
+                            onClick={() => setShowAddModal(true)}
+                            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition-colors text-sm font-semibold shadow-md"
+                        >
+                            <Plus className="w-4 h-4" />
+                            Add Interaction
+                        </button>
+                    )}
                 </div>
 
                 {/* Filters */}
@@ -128,16 +132,20 @@ export const InteractionsSection: React.FC<InteractionsSectionProps> = ({ ventur
                             <p className="text-sm text-gray-500 mb-2 max-w-md mx-auto">
                                 Start tracking your conversations with this venture by adding call transcripts, meeting notes, or other interactions.
                             </p>
-                            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-6 max-w-md mx-auto">
-                                Add at least one interaction to generate Panel SCALE Scorecard insights.
-                            </p>
-                            <button
-                                onClick={() => setShowAddModal(true)}
-                                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition-colors text-sm font-semibold"
-                            >
-                                <Plus className="w-4 h-4" />
-                                Add First Interaction
-                            </button>
+                            {!createdByOnly && !readOnly && (
+                                <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-6 max-w-md mx-auto">
+                                    Add at least one interaction to generate Panel SCALE Scorecard insights.
+                                </p>
+                            )}
+                            {!readOnly && (
+                                <button
+                                    onClick={() => setShowAddModal(true)}
+                                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition-colors text-sm font-semibold"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    Add First Interaction
+                                </button>
+                            )}
                         </div>
                     ) : (
                         <div className="divide-y divide-gray-100">
@@ -145,7 +153,7 @@ export const InteractionsSection: React.FC<InteractionsSectionProps> = ({ ventur
                                 <InteractionCard
                                     key={interaction.id}
                                     interaction={interaction}
-                                    onDelete={() => handleDeleteInteraction(interaction.id)}
+                                    onDelete={readOnly ? undefined : () => handleDeleteInteraction(interaction.id)}
                                 />
                             ))}
                         </div>

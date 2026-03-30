@@ -190,6 +190,7 @@ class ApiClient {
             focus_segment: application.focus_segment,
             focus_geography: application.focus_geography,
             blockers: application.blockers,
+            kpi_status: application.kpi_status,
             // From venture_assessments
             vsm_notes: currentAssessment.notes,
             internal_comments: currentAssessment.internal_comments,
@@ -232,6 +233,25 @@ class ApiClient {
                 ventureFields[key] = value as string;
             } else if (assessmentColumns.has(key)) {
                 assessmentFields[key] = value;
+            }
+        }
+
+        // Intercept: if status is being set to 'Approved' and venture has a
+        // Prime/Core/Select program recommendation, route to 'Assign VP/VM' instead
+        if (ventureFields.status === 'Approved') {
+            // Check incoming data first, then look up from assessments
+            let rec = (data.program_recommendation || '').toLowerCase();
+            if (!rec) {
+                const { data: assessment } = await supabase
+                    .from('venture_assessments')
+                    .select('program_recommendation')
+                    .eq('venture_id', id)
+                    .eq('is_current', true)
+                    .single();
+                rec = (assessment?.program_recommendation || '').toLowerCase();
+            }
+            if (rec.includes('prime') || rec.includes('core') || rec.includes('select')) {
+                ventureFields.status = 'Assign VP/VM';
             }
         }
 
@@ -406,13 +426,18 @@ class ApiClient {
 
     // ============ INTERACTION ENDPOINTS ============
 
-    async getInteractions(ventureId: string) {
-        const { data, error } = await supabase
+    async getInteractions(ventureId: string, createdBy?: string) {
+        let query = supabase
             .from('venture_interactions')
             .select('*')
             .eq('venture_id', ventureId)
-            .is('deleted_at', null)
-            .order('interaction_date', { ascending: false });
+            .is('deleted_at', null);
+
+        if (createdBy) {
+            query = query.eq('created_by', createdBy);
+        }
+
+        const { data, error } = await query.order('interaction_date', { ascending: false });
 
         if (error) throw error;
         return { interactions: data || [] };
@@ -465,13 +490,19 @@ class ApiClient {
 
         const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000); // 5 min timeout
+
         const response = await fetch(`${API_URL}/api/ventures/${ventureId}/generate-roadmap`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${session.access_token}`
-            }
+            },
+            signal: controller.signal,
         });
+
+        clearTimeout(timeoutId);
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
@@ -952,6 +983,47 @@ class ApiClient {
 
         if (error) throw error;
         return data.signedUrl;
+    }
+
+    async getVPVMCandidates(program: string) {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const session = await supabase.auth.getSession();
+
+        const response = await fetch(`${API_URL}/api/ventures/vpvm-candidates?program=${encodeURIComponent(program)}`, {
+            headers: {
+                'Authorization': `Bearer ${session.data.session?.access_token}`
+            }
+        });
+
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ error: 'Failed to fetch VP/VM candidates' }));
+            throw new Error(error.error || 'Failed to fetch VP/VM candidates');
+        }
+
+        const result = await response.json();
+        return result.candidates || [];
+    }
+
+    async assignVPVM(ventureId: string, assignedVmId: string) {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const session = await supabase.auth.getSession();
+
+        const response = await fetch(`${API_URL}/api/ventures/${ventureId}/assign-vpvm`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.data.session?.access_token}`
+            },
+            body: JSON.stringify({ assigned_vm_id: assignedVmId })
+        });
+
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ error: 'Failed to assign VP/VM' }));
+            throw new Error(error.error || 'Failed to assign VP/VM');
+        }
+
+        const result = await response.json();
+        return result.venture;
     }
 
     async getPanelistsByProgram(program: string) {

@@ -4,7 +4,7 @@ import type { Interaction } from '../../types/interactions';
 
 interface InteractionCardProps {
     interaction: Interaction;
-    onDelete: () => void;
+    onDelete?: () => void;
 }
 
 const TYPE_CONFIG = {
@@ -81,13 +81,15 @@ export const InteractionCard: React.FC<InteractionCardProps> = ({ interaction, o
                         </div>
 
                         {/* Actions */}
-                        <button
-                            onClick={onDelete}
-                            className="p-2 hover:bg-red-50 rounded-lg transition-colors group"
-                            title="Delete interaction"
-                        >
-                            <Trash2 className="w-4 h-4 text-gray-400 group-hover:text-red-600" />
-                        </button>
+                        {onDelete && (
+                            <button
+                                onClick={onDelete}
+                                className="p-2 hover:bg-red-50 rounded-lg transition-colors group"
+                                title="Delete interaction"
+                            >
+                                <Trash2 className="w-4 h-4 text-gray-400 group-hover:text-red-600" />
+                            </button>
+                        )}
                     </div>
 
                     {/* Transcript/Notes */}

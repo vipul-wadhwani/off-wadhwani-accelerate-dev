@@ -25,7 +25,7 @@ export interface Venture {
     name: string;
     founder_name?: string;
     program: string;
-    status: 'draft' | 'submitted' | 'screening' | 'committee_review' | 'approved' | 'rejected';
+    status: string;
     growth_current?: GrowthData;
     growth_target?: GrowthData;
     growth_focus?: string;
@@ -119,4 +119,5 @@ export interface VentureQueryParams {
     program?: string;
     limit?: number;
     offset?: number;
+    assigned_to_me?: boolean;
 }

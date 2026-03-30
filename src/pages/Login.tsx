@@ -4,6 +4,7 @@ import { Rocket, Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 import { logger } from '../utils/logger';
 
 export const Login: React.FC = () => {
@@ -16,14 +17,27 @@ export const Login: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const navigateByRole = (role?: string) => {
+    const navigateByRole = async (role?: string) => {
         let target = '/dashboard';
         if (isApply) {
             target = '/dashboard/new-application';
-        } else if (role === 'venture_mgr') {
-            target = '/vmanager/dashboard';
-        } else if (role === 'committee_member') {
-            target = '/committee/dashboard';
+        } else if (role === 'venture_mgr' || role === 'committee_member') {
+            // Check if user is a panelist or a VP/VM candidate
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+                const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user?.id).single();
+                const { data: panelists } = await supabase.from('panelists').select('name');
+                const panelistNames = new Set((panelists || []).map((p: any) => (p.name || '').toLowerCase()));
+                const isPanelist = panelistNames.has((profile?.full_name || '').toLowerCase());
+
+                if (isPanelist) {
+                    target = role === 'venture_mgr' ? '/vmanager/dashboard' : '/committee/dashboard';
+                } else {
+                    target = '/vpvm/dashboard';
+                }
+            } catch {
+                target = role === 'venture_mgr' ? '/vmanager/dashboard' : '/committee/dashboard';
+            }
         } else if (role === 'ops_manager') {
             target = '/ops/dashboard';
         } else if (role === 'admin') {
@@ -42,7 +56,7 @@ export const Login: React.FC = () => {
 
         try {
             const signedInUser = await signIn(email, password);
-            navigateByRole(signedInUser?.user_metadata?.role);
+            await navigateByRole(signedInUser?.user_metadata?.role);
         } catch (err: any) {
             logger.error('Login', `Login failed for ${email}`, err);
             setError(err.message || 'Login failed. Please check your credentials.');

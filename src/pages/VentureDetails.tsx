@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { formatRevenue, formatEmployees } from '../utils/formatters';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, FileText, CheckCircle2 } from 'lucide-react';
 import { api } from '../lib/api';
@@ -140,8 +141,8 @@ export const VentureDetails: React.FC = () => {
                         <ReadOnlyField label="What do you sell" value={growthCurrent.product || venture.what_do_you_sell} multiline />
                         <ReadOnlyField label="Who do you sell to" value={growthCurrent.segment || venture.who_do_you_sell_to} multiline />
                         <ReadOnlyField label="Which regions do you sell to" value={growthCurrent.geography || venture.which_regions} multiline />
-                        <ReadOnlyField label="Number of full time employees" value={growthCurrent.employees || venture.full_time_employees?.toString()} />
-                        <ReadOnlyField label="What was your company's revenue in the last 12 months" value={commitment.lastYearRevenue || venture.revenue_12m?.toString()} />
+                        <ReadOnlyField label="Number of full time employees" value={(() => { const emp = formatEmployees(growthCurrent.employees || venture.full_time_employees); return emp.breakdown ? `${emp.total} (${emp.breakdown})` : emp.total; })()} />
+                        <ReadOnlyField label="What was your company's revenue in the last 12 months" value={formatRevenue(commitment.lastYearRevenue || venture.revenue_12m)} />
                     </div>
                 </div>
 
@@ -194,7 +195,7 @@ export const VentureDetails: React.FC = () => {
 
                         <ReadOnlyField
                             label="Expected incremental revenue from this growth idea over the next 3 years (₹ Crore)"
-                            value={(() => { const val = commitment.revenuePotential || venture.revenue_potential_3y?.toString(); return val ? (isNaN(Number(val)) ? val : `₹${val} Cr`) : undefined; })()}
+                            value={formatRevenue(commitment.revenuePotential || venture.revenue_potential_3y)}
                         />
                         <ReadOnlyField
                             label="How do you plan to fund this growth idea"

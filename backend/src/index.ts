@@ -48,6 +48,16 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 // API routes
 app.use('/api', routes);
 
+// Sentry test endpoint — triggers a test error to verify Sentry is working
+app.get('/api/sentry-test', (req: Request, res: Response, next: NextFunction) => {
+    try {
+        throw new Error('Sentry backend test error — safe to ignore');
+    } catch (err) {
+        Sentry.captureException(err);
+        res.json({ success: true, message: 'Test error sent to Sentry (backend). Check your Sentry dashboard.' });
+    }
+});
+
 // Root endpoint
 app.get('/', (req: Request, res: Response) => {
     res.json({
@@ -71,21 +81,27 @@ app.use(errorHandler);
 
 // Start server
 const PORT = config.port;
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
     logger(`Server running on port ${PORT}`, 'info');
     logger(`Environment: ${config.nodeEnv}`, 'info');
     logger(`Frontend URL: ${config.frontendUrl}`, 'info');
 });
 
 // Handle graceful shutdown
-process.on('SIGTERM', () => {
-    logger('SIGTERM signal received: closing HTTP server', 'info');
-    process.exit(0);
-});
+function gracefulShutdown(signal: string) {
+    logger(`${signal} signal received: closing HTTP server`, 'info');
+    server.close(() => {
+        logger('HTTP server closed', 'info');
+        process.exit(0);
+    });
+    // Force exit if server hasn't closed in 10 seconds
+    setTimeout(() => {
+        logger('Forcing shutdown after timeout', 'warn');
+        process.exit(1);
+    }, 10_000).unref();
+}
 
-process.on('SIGINT', () => {
-    logger('SIGINT signal received: closing HTTP server', 'info');
-    process.exit(0);
-});
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 export default app;

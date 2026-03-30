@@ -141,6 +141,11 @@ export async function getVentures(
     }
     // Other roles (committee, ops_manager, admin, venture_mgr) can see all ventures
 
+    // VP/VM filter: show only ventures assigned to this user
+    if (filters?.assigned_to_me) {
+        query = query.eq('assigned_vm_id', userId);
+    }
+
     // Apply filters
     if (filters?.status) {
         query = query.eq('status', filters.status);
@@ -401,6 +406,25 @@ export async function updateVenture(
     const growthCurrent: any = data.growth_current || {};
     const growthTarget: any = data.growth_target || {};
     const commitment: any = data.commitment || {};
+
+    // Intercept: if panel approves (status → 'Approved') and venture has a
+    // Prime/Core/Select program recommendation, route to 'Assign VP/VM' instead
+    if (data.status === 'Approved') {
+        // Check incoming data first, then look up from assessments
+        let rec = ((data as any).program_recommendation || '').toLowerCase();
+        if (!rec) {
+            const { data: assessment } = await client
+                .from('venture_assessments')
+                .select('program_recommendation')
+                .eq('venture_id', ventureId)
+                .eq('is_current', true)
+                .single();
+            rec = (assessment?.program_recommendation || '').toLowerCase();
+        }
+        if (rec.includes('prime') || rec.includes('core') || rec.includes('select')) {
+            data.status = 'Assign VP/VM';
+        }
+    }
 
     // Separate data into ventures table fields
     const ventureUpdates: any = {};

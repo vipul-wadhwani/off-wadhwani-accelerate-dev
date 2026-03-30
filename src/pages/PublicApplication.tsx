@@ -157,7 +157,7 @@ export const PublicApplication: React.FC = () => {
             if (!formData.email.trim()) errors.push('Email is required');
             if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errors.push('Please enter a valid email');
             if (!formData.businessName.trim()) errors.push('Business name is required');
-            if (!formData.lastYearRevenue || Number(formData.lastYearRevenue) < 0) errors.push('Revenue in last 12 months is required (must be 0 or above)');
+            if (!formData.lastYearRevenue || Number(formData.lastYearRevenue) < 0) errors.push('Revenue in last 12 months is required (enter value in Crores, e.g. 10)');
             if (!formData.financialCondition) errors.push('Financial condition is required');
         }
         if (step === 2) {
@@ -665,11 +665,17 @@ export const PublicApplication: React.FC = () => {
                             <input
                                 type="number"
                                 min="0"
-                                step="any"
+                                step="0.01"
                                 className={inputClass(1, !formData.lastYearRevenue || Number(formData.lastYearRevenue) < 0)}
                                 placeholder="Enter revenue in Cr (e.g. 10)"
                                 value={formData.lastYearRevenue}
-                                onChange={e => updateField('lastYearRevenue', e.target.value)}
+                                onChange={e => {
+                                    const val = e.target.value;
+                                    if (val === '' || (Number(val) >= 0 && Number(val) <= 10000)) {
+                                        updateField('lastYearRevenue', val);
+                                    }
+                                }}
+                                onKeyDown={e => { if (e.key === '-' || e.key === 'e') e.preventDefault(); }}
                             />
                         </div>
                     </div>
@@ -764,10 +770,17 @@ export const PublicApplication: React.FC = () => {
                             <input
                                 type="number"
                                 min="0"
+                                step="1"
                                 className={inputClass(2, !formData.targetJobs || Number(formData.targetJobs) < 0)}
                                 placeholder="Enter number of planned hires"
                                 value={formData.targetJobs}
-                                onChange={e => updateField('targetJobs', e.target.value)}
+                                onChange={e => {
+                                    const val = e.target.value;
+                                    if (val === '' || (Number(val) >= 0 && Number(val) <= 100000)) {
+                                        updateField('targetJobs', val);
+                                    }
+                                }}
+                                onKeyDown={e => { if (e.key === '-' || e.key === 'e' || e.key === '.') e.preventDefault(); }}
                             />
                         </div>
 
@@ -783,7 +796,13 @@ export const PublicApplication: React.FC = () => {
                                 placeholder="e.g., 25"
                                 className={inputClass(2, !formData.revenuePotential12m || Number(formData.revenuePotential12m) <= 0)}
                                 value={formData.revenuePotential12m}
-                                onChange={e => updateField('revenuePotential12m', e.target.value)}
+                                onChange={e => {
+                                    const val = e.target.value;
+                                    if (val === '' || (Number(val) >= 0 && Number(val) <= 10000)) {
+                                        updateField('revenuePotential12m', val);
+                                    }
+                                }}
+                                onKeyDown={e => { if (e.key === '-' || e.key === 'e') e.preventDefault(); }}
                             />
                         </div>
 

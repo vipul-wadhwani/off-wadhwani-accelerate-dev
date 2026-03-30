@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { formatRevenue, formatEmployees } from '../utils/formatters';
 import { supabase } from '../lib/supabase';
 import { api } from '../lib/api';
 import {
@@ -6,6 +7,7 @@ import {
     ChevronUp, ChevronDown, UserPlus, X, Briefcase, TrendingUp, AlertTriangle, HelpCircle, Sparkles, Target,
 } from 'lucide-react';
 import { STATUS_CONFIG } from '../components/StatusSelect';
+import { InteractionsSection } from '../components/Interactions/InteractionsSection';
 import { useToast } from '../components/ui/Toast';
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -13,12 +15,22 @@ interface Venture {
     id: string;
     name: string;
     founder_name?: string;
+    city?: string;
+    state?: string;
     status: string;
     program_recommendation?: string;
     created_at: string;
     assigned_vsm_id?: string;
     assigned_panelist_id?: string;
+    assigned_vm_id?: string;
+    venture_partner?: string;
     agreement_status?: string;
+    revenue_12m?: string;
+    revenue_potential_3y?: string;
+    full_time_employees?: string;
+    target_jobs?: number;
+    incremental_hiring?: number;
+    kpi_status?: string;
 }
 
 interface StaffUser {
@@ -41,7 +53,7 @@ interface PerformanceRow {
     avgTurnaroundDays: number;
 }
 
-export type AdminTab = 'applications' | 'performance' | 'users';
+export type AdminTab = 'applications' | 'venture-dashboard' | 'performance' | 'users';
 type SortField = 'name' | 'created_at' | 'status' | 'program_recommendation' | 'assigned_to' | 'total_aging' | 'status_aging';
 type SortDir = 'asc' | 'desc';
 
@@ -51,6 +63,8 @@ function getDisplayStatus(v: Venture): string {
     const rec = (v.program_recommendation || '').toLowerCase();
     if (s === 'Panel Review' && rec.includes('prime')) return 'Pending with Panel (Prime)';
     if (s === 'Panel Review') return 'Pending with Panel (Core/Select)';
+    if (s === 'Assign VP/VM') return 'Assign VP/VM';
+    if (s === 'With VP/VM') return 'With VP/VM';
     if (s === 'Contract Sent' || s === 'Agreement Sent') return 'Pending with Business';
     if (s === 'Joined Program' || (s === 'Approved' && v.agreement_status?.toLowerCase() === 'signed')) return 'Accepted by Business';
     if (s === 'Rejected') return 'Declined by Business';
@@ -119,6 +133,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
     const [ventures, setVentures] = useState<Venture[]>([]);
     const [staffUsers, setStaffUsers] = useState<StaffUser[]>([]);
     const [profiles, setProfiles] = useState<Record<string, { full_name: string; role: string }>>({});
+    const [panelistNames, setPanelistNames] = useState<Set<string>>(new Set());
     const [statusHistory, setStatusHistory] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -134,6 +149,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
 
     // User filters
     const [userSearch, setUserSearch] = useState('');
+
+    // Venture dashboard filters
+    const [vdSearch, setVdSearch] = useState('');
+    const [vdStatus, setVdStatus] = useState('');
+    const [vdState, setVdState] = useState('');
+    const [vdCity, setVdCity] = useState('');
+    const [vdProgram, setVdProgram] = useState('');
+    const [ventureDetailId, setVentureDetailId] = useState<string | null>(null);
+    const [ventureDetailData, setVentureDetailData] = useState<any>(null);
+    const [ventureDetailRoadmap, setVentureDetailRoadmap] = useState<any>(null);
+    const [ventureDetailLoading, setVentureDetailLoading] = useState(false);
 
     // Timeline drawer
     const [timelineVenture, setTimelineVenture] = useState<Venture | null>(null);
@@ -160,7 +186,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
                 stream: s.stream_name || '',
                 status: s.status || 'N/A'
             }));
-            setProfileVenture({ ...(full || {}), needs: mappedNeeds });
+            // Fetch panel feedback
+            let panelFeedback = null;
+            try {
+                const { data: pfData } = await supabase
+                    .from('panel_feedback')
+                    .select('*')
+                    .eq('venture_id', venture.id)
+                    .order('created_at', { ascending: false })
+                    .limit(1);
+                panelFeedback = pfData?.[0] || null;
+            } catch { /* no panel feedback */ }
+            setProfileVenture({ ...(full || {}), needs: mappedNeeds, panel_feedback: panelFeedback });
         } catch (err) {
             console.error('Error fetching venture profile:', err);
         } finally {
@@ -172,14 +209,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
     const fetchData = async () => {
         setLoading(true);
         try {
-            // Ventures with assessments
+            // Ventures with assessments and applications
             const { data: ventureData } = await supabase
                 .from('ventures')
-                .select('*, assessments:venture_assessments(*)');
+                .select('*, assessments:venture_assessments(*), application:venture_applications(*)');
 
             const flat: Venture[] = (ventureData || []).map((v: any) => {
                 const assessment = (v.assessments || []).find((a: any) => a.is_current) || v.assessments?.[0] || {};
-                return { ...v, program_recommendation: assessment.program_recommendation };
+                const app = v.application?.[0] || v.application || {};
+                return {
+                    ...v,
+                    program_recommendation: assessment.program_recommendation,
+                    revenue_12m: app.revenue_12m,
+                    revenue_potential_3y: app.revenue_potential_3y,
+                    full_time_employees: app.full_time_employees,
+                    target_jobs: app.target_jobs,
+                    incremental_hiring: app.incremental_hiring,
+                    state: app.state,
+                    city: v.city || app.city,
+                    kpi_status: app.kpi_status,
+                };
             });
             setVentures(flat);
 
@@ -194,11 +243,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
             const { data: panelistData } = await supabase
                 .from('panelists')
                 .select('id, name, program');
+            const pNames = new Set<string>();
             (panelistData || []).forEach((p: any) => {
+                pNames.add((p.name || '').toLowerCase());
                 if (!profileMap[p.id]) {
                     profileMap[p.id] = { full_name: p.name, role: p.program === 'Prime' ? 'venture_mgr' : 'committee_member' };
                 }
             });
+            setPanelistNames(pNames);
             setProfiles(profileMap);
 
             // Staff users for Users tab
@@ -249,7 +301,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
     const isSelect = (rec?: string) => !!rec && rec.toLowerCase().includes('select');
     const isSelfserve = (rec?: string) => !!rec && rec.toLowerCase().includes('selfserve');
     const isJoined = (v: Venture) => v.status === 'Joined Program' || (v.status === 'Approved' && v.agreement_status?.toLowerCase() === 'signed');
-    const panelApprovedStatuses = ['Approved', 'Contract Sent', 'Agreement Sent', 'Joined Program'];
+    const panelApprovedStatuses = ['Approved', 'Assign VP/VM', 'With VP/VM', 'Contract Sent', 'Agreement Sent', 'Joined Program'];
 
     // ─── Computed Stats ──────────────────────────────────────────────
     const totalApplications = ventures.length;
@@ -631,7 +683,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
                                     {filteredVentures.map(v => {
                                         const totalAging = daysSince(v.created_at);
                                         const statusAging = getStatusAging(v.id);
-                                        const assignedName = profiles[v.assigned_panelist_id || '']?.full_name || profiles[v.assigned_vsm_id || '']?.full_name || '-';
+                                        const assignedName = v.venture_partner || profiles[v.assigned_panelist_id || '']?.full_name || profiles[v.assigned_vsm_id || '']?.full_name || '-';
                                         return (
                                             <tr key={v.id} className="hover:bg-gray-50/50 transition-colors">
                                                 <td className="px-4 py-2.5 font-medium text-sm">
@@ -797,15 +849,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
                                         </td>
                                         <td className="px-4 py-2.5 text-sm text-gray-500">{u.email}</td>
                                         <td className="px-4 py-2.5">
-                                            <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full ${
-                                                u.role === 'success_mgr' ? 'bg-amber-50 text-amber-700' :
-                                                u.role === 'venture_mgr' ? 'bg-purple-50 text-purple-700' :
-                                                u.role === 'committee_member' ? 'bg-indigo-50 text-indigo-700' :
-                                                u.role === 'admin' ? 'bg-gray-100 text-gray-700' :
-                                                'bg-gray-50 text-gray-600'
-                                            }`}>
-                                                {roleLabel(u.role)}
-                                            </span>
+                                            {(() => {
+                                                const isPanelist = panelistNames.has((u.full_name || '').toLowerCase());
+                                                const isVPVM = (u.role === 'venture_mgr' || u.role === 'committee_member') && !isPanelist;
+                                                const label = isVPVM
+                                                    ? (u.role === 'venture_mgr' ? 'VM (Prime)' : 'VP (Core/Select)')
+                                                    : roleLabel(u.role);
+                                                const style = isVPVM
+                                                    ? 'bg-purple-50 text-purple-700'
+                                                    : u.role === 'success_mgr' ? 'bg-amber-50 text-amber-700'
+                                                    : u.role === 'venture_mgr' ? 'bg-purple-50 text-purple-700'
+                                                    : u.role === 'committee_member' ? 'bg-indigo-50 text-indigo-700'
+                                                    : u.role === 'admin' ? 'bg-gray-100 text-gray-700'
+                                                    : 'bg-gray-50 text-gray-600';
+                                                return (
+                                                    <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full ${style}`}>
+                                                        {label}
+                                                    </span>
+                                                );
+                                            })()}
                                         </td>
                                         <td className="px-4 py-2.5">
                                             <span className="inline-flex items-center gap-1.5 text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
@@ -844,8 +906,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
                                         <label className="block text-xs font-medium text-gray-600 mb-1.5">Role</label>
                                         <select value={newUserRole} onChange={e => setNewUserRole(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
                                             <option value="success_mgr">Screening Manager</option>
-                                            <option value="venture_mgr">Panel (Prime)</option>
-                                            <option value="committee_member">Panel (Core/Select)</option>
+                                            <option value="venture_mgr">Panel / VM (Prime)</option>
+                                            <option value="committee_member">Panel / VP (Core/Select)</option>
                                             <option value="ops_manager">Ops Manager</option>
                                             <option value="admin">Admin</option>
                                         </select>
@@ -870,7 +932,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
                         className="fixed inset-0 z-40 bg-black/30 transition-opacity"
                         onClick={() => setProfileVenture(null)}
                     />
-                    <div className="fixed inset-y-0 right-0 z-50 w-full max-w-2xl bg-white shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-200">
+                    <div className="fixed inset-4 z-50 mx-auto max-w-5xl bg-white shadow-2xl overflow-y-auto rounded-2xl">
                         {/* Drawer Header */}
                         <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between z-10">
                             <div>
@@ -917,24 +979,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
                                 <div className="grid grid-cols-4 gap-3">
                                     <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
                                         <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Current Revenue</span>
-                                        <div className="text-lg font-bold text-gray-900">{profileVenture.revenue_12m ? (isNaN(Number(profileVenture.revenue_12m)) ? profileVenture.revenue_12m : `₹${profileVenture.revenue_12m} Cr`) : 'N/A'}</div>
+                                        <div className="text-lg font-bold text-gray-900">{formatRevenue(profileVenture.revenue_12m)}</div>
                                     </div>
                                     <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
                                         <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Incremental Revenue (3Y)</span>
-                                        <div className="text-lg font-bold text-gray-900">{profileVenture.revenue_potential_3y ? (isNaN(Number(profileVenture.revenue_potential_3y)) ? profileVenture.revenue_potential_3y : `₹${profileVenture.revenue_potential_3y} Cr`) : 'N/A'}</div>
+                                        <div className="text-lg font-bold text-gray-900">{formatRevenue(profileVenture.revenue_potential_3y)}</div>
                                     </div>
                                     <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
                                         <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Employees</span>
                                         <div className="text-lg font-bold text-gray-900 flex items-center gap-1">
                                             <Users className="w-4 h-4 text-gray-400" />
-                                            {profileVenture.full_time_employees || 'N/A'}
+                                            {(() => { const emp = formatEmployees(profileVenture.full_time_employees); return <>{emp.total}{emp.breakdown && <span className="text-xs text-gray-400 block">{emp.breakdown}</span>}</>; })()}
                                         </div>
                                     </div>
                                     <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
                                         <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Target Jobs</span>
                                         <div className="text-lg font-bold text-gray-900 flex items-center gap-1">
                                             <Users className="w-4 h-4 text-gray-400" />
-                                            {profileVenture.target_jobs || 'N/A'}
+                                            {profileVenture.target_jobs ?? 'N/A'}
                                         </div>
                                     </div>
                                 </div>
@@ -1282,11 +1344,78 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
                                                         <p className="text-sm text-gray-800">{gq.question}</p>
                                                         {gq.remarks && <p className="text-xs text-gray-500 mt-1">{gq.remarks}</p>}
                                                     </div>
-                                                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${gq.answer === 'Yes' ? 'bg-green-100 text-green-700' : gq.answer === 'No' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'}`}>
-                                                        {gq.answer || '—'}
+                                                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${(gq.response || gq.answer) === 'Yes' ? 'bg-green-100 text-green-700' : (gq.response || gq.answer) === 'No' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'}`}>
+                                                        {gq.response || gq.answer || '—'}
                                                     </span>
                                                 </div>
                                             ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Panel Feedback */}
+                                {profileVenture.panel_feedback && (
+                                    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                                        <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
+                                            <FileText className="w-5 h-5 text-indigo-500" />
+                                            <span className="text-base font-bold text-gray-700">Panel Feedback</span>
+                                            <span className="text-xs text-gray-400">Read Only</span>
+                                        </div>
+                                        <div className="p-5 space-y-4">
+                                            {profileVenture.panel_feedback.business_overview && (
+                                                <div>
+                                                    <span className="text-xs font-bold text-gray-400 uppercase block mb-1">Business Overview</span>
+                                                    <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg border border-gray-100">{profileVenture.panel_feedback.business_overview}</p>
+                                                </div>
+                                            )}
+                                            <div className="grid grid-cols-2 gap-4">
+                                                {profileVenture.panel_feedback.rating_financial_health && (
+                                                    <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                                        <span className="text-xs text-gray-400 block mb-1">Financial Health Rating</span>
+                                                        <span className="text-lg font-bold text-gray-900">{profileVenture.panel_feedback.rating_financial_health}/5</span>
+                                                        {profileVenture.panel_feedback.insights_financial_health && <p className="text-xs text-gray-500 mt-1">{profileVenture.panel_feedback.insights_financial_health}</p>}
+                                                    </div>
+                                                )}
+                                                {profileVenture.panel_feedback.rating_leadership && (
+                                                    <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                                        <span className="text-xs text-gray-400 block mb-1">Leadership Rating</span>
+                                                        <span className="text-lg font-bold text-gray-900">{profileVenture.panel_feedback.rating_leadership}/5</span>
+                                                        {profileVenture.panel_feedback.insights_leadership && <p className="text-xs text-gray-500 mt-1">{profileVenture.panel_feedback.insights_leadership}</p>}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            {profileVenture.panel_feedback.proposed_expansion_idea && (
+                                                <div>
+                                                    <span className="text-xs font-bold text-gray-400 uppercase block mb-1">Proposed Expansion Idea</span>
+                                                    <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg border border-gray-100">{profileVenture.panel_feedback.proposed_expansion_idea}</p>
+                                                </div>
+                                            )}
+                                            {profileVenture.panel_feedback.expansion_idea_description && (
+                                                <div>
+                                                    <span className="text-xs font-bold text-gray-400 uppercase block mb-1">Expansion Description</span>
+                                                    <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg border border-gray-100">{profileVenture.panel_feedback.expansion_idea_description}</p>
+                                                </div>
+                                            )}
+                                            {profileVenture.panel_feedback.risks_red_flags && (
+                                                <div>
+                                                    <span className="text-xs font-bold text-gray-400 uppercase block mb-1">Risks / Red Flags</span>
+                                                    <p className="text-sm text-red-700 bg-red-50 p-3 rounded-lg border border-red-100">{profileVenture.panel_feedback.risks_red_flags}</p>
+                                                </div>
+                                            )}
+                                            {profileVenture.panel_feedback.final_recommendation && (
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-xs font-bold text-gray-400 uppercase">Final Recommendation:</span>
+                                                    <span className={`text-sm font-bold px-3 py-1 rounded-full ${profileVenture.panel_feedback.final_recommendation === 'proceed' ? 'bg-green-100 text-green-700' : profileVenture.panel_feedback.final_recommendation === 'hold' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-700'}`}>
+                                                        {profileVenture.panel_feedback.final_recommendation}
+                                                    </span>
+                                                </div>
+                                            )}
+                                            {profileVenture.panel_feedback.additional_notes && (
+                                                <div>
+                                                    <span className="text-xs font-bold text-gray-400 uppercase block mb-1">Additional Notes</span>
+                                                    <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg border border-gray-100">{profileVenture.panel_feedback.additional_notes}</p>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 )}
@@ -1294,6 +1423,347 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
                         )}
                     </div>
                 </>
+            )}
+
+            {/* ─── VENTURE DASHBOARD TAB ─── */}
+            {tab === 'venture-dashboard' && (() => {
+                const programStatuses = ['With VP/VM', 'Active', 'Completed', 'Assign VP/VM'];
+                const programVentures = ventures.filter(v => programStatuses.includes(v.status));
+
+                const parseNum = (val: any): number => {
+                    if (!val) return 0;
+                    const str = String(val).replace(/\s*(crore|cr)\s*$/i, '').replace(/,/g, '').trim();
+                    const num = parseFloat(str);
+                    return isNaN(num) ? 0 : num;
+                };
+
+                const totalVentures = programVentures.length;
+                const totalCurrentRevenue = programVentures.reduce((s, v) => s + parseNum(v.revenue_12m), 0);
+                const totalIncrementalRevenue = programVentures.reduce((s, v) => s + parseNum(v.revenue_potential_3y), 0);
+                const totalCurrentJobs = programVentures.reduce((s, v) => s + parseNum(v.full_time_employees), 0);
+                const totalIncrementalJobs = programVentures.reduce((s, v) => s + parseNum(v.incremental_hiring || v.target_jobs || 0), 0);
+
+                // Derive filter options from data
+                const uniqueStates = Array.from(new Set(programVentures.map(v => v.state).filter(Boolean))).sort();
+                const uniqueCities = Array.from(new Set(programVentures.map(v => v.city).filter(Boolean))).sort();
+
+                const filtered = programVentures.filter(v => {
+                    if (vdSearch) {
+                        const q = vdSearch.toLowerCase();
+                        if (!v.name.toLowerCase().includes(q) && !(v.founder_name || '').toLowerCase().includes(q)) return false;
+                    }
+                    if (vdStatus && !(v.kpi_status || 'Grey (Not Started Yet)').includes(vdStatus)) return false;
+                    if (vdState && (v.state || '') !== vdState) return false;
+                    if (vdCity && (v.city || '') !== vdCity) return false;
+                    if (vdProgram) {
+                        const rec = (v.program_recommendation || '').toLowerCase();
+                        if (vdProgram === 'Prime' && !rec.includes('prime')) return false;
+                        if (vdProgram === 'Core' && !rec.includes('core')) return false;
+                        if (vdProgram === 'Select' && !rec.includes('select')) return false;
+                    }
+                    return true;
+                });
+
+                const getStatusDot = (kpiStatus?: string) => {
+                    const s = kpiStatus || '';
+                    return s.includes('Green') ? 'bg-green-500' : s.includes('Amber') ? 'bg-amber-500' : s.includes('Red') ? 'bg-red-500' : 'bg-gray-400';
+                };
+
+                const shortProg = (rec?: string) => {
+                    if (!rec) return '';
+                    const l = rec.toLowerCase();
+                    return l.includes('prime') ? 'Prime' : l.includes('core') ? 'Core' : l.includes('select') ? 'Select' : rec;
+                };
+
+                return (
+                    <div className="space-y-6">
+                        <div>
+                            <h1 className="text-2xl font-bold text-gray-900">My Ventures</h1>
+                            <p className="text-gray-500 mt-1">Manage and track your assigned venture portfolio.</p>
+                        </div>
+
+                        {/* Summary Cards */}
+                        <div className="grid grid-cols-3 gap-4">
+                            <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center">
+                                    <Building2 className="w-6 h-6 text-indigo-600" />
+                                </div>
+                                <div>
+                                    <p className="text-xs text-gray-500 font-medium">No. of Ventures</p>
+                                    <p className="text-2xl font-bold text-gray-900">{totalVentures}</p>
+                                </div>
+                            </div>
+                            <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-start gap-4">
+                                <div className="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center">
+                                    <TrendingUp className="w-6 h-6 text-green-600" />
+                                </div>
+                                <div className="flex-1">
+                                    <p className="text-xs text-gray-500 font-medium">Revenue</p>
+                                    <div className="flex items-baseline justify-between mt-1">
+                                        <div>
+                                            <p className="text-xs text-gray-400">Current</p>
+                                            <p className="text-lg font-bold text-gray-900">{formatRevenue(totalCurrentRevenue)}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-xs text-gray-400">Incremental revenue</p>
+                                            <p className="text-lg font-bold text-green-600">+{formatRevenue(totalIncrementalRevenue)}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-start gap-4">
+                                <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center">
+                                    <Users className="w-6 h-6 text-blue-600" />
+                                </div>
+                                <div className="flex-1">
+                                    <p className="text-xs text-gray-500 font-medium">Jobs</p>
+                                    <div className="flex items-baseline justify-between mt-1">
+                                        <div>
+                                            <p className="text-xs text-gray-400">Current FTE</p>
+                                            <p className="text-lg font-bold text-gray-900">{totalCurrentJobs}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-xs text-gray-400">Incremental jobs</p>
+                                            <p className="text-lg font-bold text-blue-600">+{totalIncrementalJobs}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Filters */}
+                        <div className="flex items-center gap-3">
+                            <div className="relative flex-1 max-w-sm">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                <input type="text" placeholder="Search by company name..." value={vdSearch} onChange={e => setVdSearch(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white" />
+                            </div>
+                            <select value={vdStatus} onChange={e => setVdStatus(e.target.value)}
+                                className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                <option value="">All Statuses</option>
+                                <option value="Grey">Grey (Not Started Yet)</option>
+                                <option value="Green">Green (On Track)</option>
+                                <option value="Amber">Amber (Needs Attention)</option>
+                                <option value="Red">Red (At Risk)</option>
+                            </select>
+                            {uniqueStates.length > 0 && (
+                                <select value={vdState} onChange={e => setVdState(e.target.value)}
+                                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                    <option value="">All States</option>
+                                    {uniqueStates.map(s => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                            )}
+                            {uniqueCities.length > 0 && (
+                                <select value={vdCity} onChange={e => setVdCity(e.target.value)}
+                                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                    <option value="">All Cities</option>
+                                    {uniqueCities.map(s => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                            )}
+                            <select value={vdProgram} onChange={e => setVdProgram(e.target.value)}
+                                className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                <option value="">All Programs</option>
+                                <option value="Prime">Prime</option>
+                                <option value="Core">Core</option>
+                                <option value="Select">Select</option>
+                            </select>
+                        </div>
+
+                        {/* Venture Table */}
+                        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr className="border-b border-gray-100 bg-gray-50">
+                                        <th className="text-left px-4 py-3 font-medium text-gray-500 uppercase text-xs tracking-wide">Company Name</th>
+                                        <th className="text-left px-4 py-3 font-medium text-gray-500 uppercase text-xs tracking-wide">Revenue</th>
+                                        <th className="text-left px-4 py-3 font-medium text-gray-500 uppercase text-xs tracking-wide">Jobs</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-50">
+                                    {filtered.length === 0 ? (
+                                        <tr><td colSpan={3} className="px-4 py-12 text-center text-gray-400 text-sm">No ventures in program yet.</td></tr>
+                                    ) : filtered.map(v => (
+                                        <tr key={v.id} className="hover:bg-gray-50/50 transition-colors">
+                                            <td className="px-4 py-3">
+                                                <div className="flex items-center gap-2">
+                                                    <button onClick={async () => {
+                                                        setVentureDetailId(v.id);
+                                                        setVentureDetailLoading(true);
+                                                        try {
+                                                            const result = await api.getVenture(v.id);
+                                                            setVentureDetailData(result.venture);
+                                                            try {
+                                                                const rm = await api.getRoadmap(v.id);
+                                                                setVentureDetailRoadmap(rm?.roadmap?.roadmap_data || null);
+                                                            } catch { setVentureDetailRoadmap(null); }
+                                                        } catch (err) { console.error('Error fetching venture detail:', err); }
+                                                        finally { setVentureDetailLoading(false); }
+                                                    }} className="font-semibold text-indigo-600 hover:text-indigo-700 transition-colors">
+                                                        {v.name}
+                                                    </button>
+                                                    <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${getStatusDot(v.kpi_status)}`} />
+                                                </div>
+                                                <div className="flex items-center gap-3 text-xs text-gray-400 mt-0.5">
+                                                    <span>{v.founder_name || '-'}</span>
+                                                    <span>{v.city || '-'}</span>
+                                                    <span>{shortProg(v.program_recommendation)}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <div className="text-sm">
+                                                    <div className="flex items-baseline gap-2">
+                                                        <span className="text-gray-500 text-xs">Current:</span>
+                                                        <span className="font-semibold text-gray-900">{formatRevenue(v.revenue_12m)}</span>
+                                                    </div>
+                                                    <div className="flex items-baseline gap-2">
+                                                        <span className="text-gray-500 text-xs">Target:</span>
+                                                        <span className="font-semibold text-green-600">{formatRevenue(v.revenue_potential_3y)}</span>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <div className="text-sm">
+                                                    <div className="flex items-baseline gap-2">
+                                                        <span className="text-gray-500 text-xs">Current:</span>
+                                                        <span className="font-semibold text-gray-900">{parseNum(v.full_time_employees) || '-'}</span>
+                                                    </div>
+                                                    <div className="flex items-baseline gap-2">
+                                                        <span className="text-gray-500 text-xs">Target:</span>
+                                                        <span className="font-semibold text-blue-600">{v.incremental_hiring || v.target_jobs || '-'}</span>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {/* ─── VP/VM VENTURE DETAIL DRAWER ─── */}
+            {ventureDetailId && (
+                <div className="fixed inset-0 z-50 flex justify-end">
+                    <div className="absolute inset-0 bg-black/20" onClick={() => { setVentureDetailId(null); setVentureDetailData(null); setVentureDetailRoadmap(null); }} />
+                    <div className="fixed inset-4 z-50 mx-auto max-w-5xl bg-white shadow-2xl overflow-y-auto rounded-2xl">
+                        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between z-10">
+                            <h2 className="text-xl font-bold text-gray-900">{ventureDetailData?.name || 'Loading...'}</h2>
+                            <button onClick={() => { setVentureDetailId(null); setVentureDetailData(null); setVentureDetailRoadmap(null); }}
+                                className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {ventureDetailLoading ? (
+                            <div className="flex items-center justify-center h-64">
+                                <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+                            </div>
+                        ) : ventureDetailData ? (
+                            <div className="p-6 space-y-6">
+                                {/* Header info */}
+                                <div className="flex items-center gap-3 text-sm text-gray-500">
+                                    <span>Name: {ventureDetailData.founder_name || '-'}</span>
+                                    <span>City: {ventureDetailData.city || '-'}</span>
+                                    <span>Program: {(() => { const r = (ventureDetailData.program_recommendation || '').toLowerCase(); return r.includes('prime') ? 'Prime' : r.includes('core') ? 'Core' : r.includes('select') ? 'Select' : '-'; })()}</span>
+                                </div>
+
+                                {/* KPIs */}
+                                <div>
+                                    <div className="grid grid-cols-4 gap-3">
+                                        <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                                            <span className="text-xs text-gray-400 block mb-1">Current Revenue</span>
+                                            <span className="text-lg font-bold text-gray-900">{formatRevenue(ventureDetailData.revenue_12m)}</span>
+                                        </div>
+                                        <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                                            <span className="text-xs text-gray-400 block mb-1">Incremental Revenue</span>
+                                            <span className="text-lg font-bold text-green-600">{formatRevenue(ventureDetailData.revenue_potential_3y)}</span>
+                                        </div>
+                                        <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                                            <span className="text-xs text-gray-400 block mb-1">Current FTE</span>
+                                            <span className="text-lg font-bold text-gray-900">{ventureDetailData.full_time_employees || '-'}</span>
+                                        </div>
+                                        <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                                            <span className="text-xs text-gray-400 block mb-1">Target Jobs</span>
+                                            <span className="text-lg font-bold text-blue-600">{ventureDetailData.incremental_hiring || ventureDetailData.target_jobs || '-'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Panel Scorecard */}
+                                {ventureDetailData.panel_ai_analysis?.panel_scorecard && (
+                                    <div>
+                                        <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2"><Sparkles className="w-4 h-4 text-indigo-600" /> Panel Scorecard <span className="text-xs text-gray-400 font-normal ml-1">Read Only</span></h3>
+                                        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                                            <table className="w-full text-sm">
+                                                <thead>
+                                                    <tr className="border-b border-gray-200 bg-gray-50">
+                                                        <th className="text-left px-3 py-2 text-xs font-bold text-gray-500 uppercase">Dimension</th>
+                                                        <th className="text-center px-3 py-2 text-xs font-bold text-gray-500 uppercase">Panel Rating</th>
+                                                        <th className="text-left px-3 py-2 text-xs font-bold text-gray-500 uppercase">Brief</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-100">
+                                                    {ventureDetailData.panel_ai_analysis.panel_scorecard.map((item: any, i: number) => {
+                                                        const rs = (r: string) => r === 'Green' ? 'text-green-700' : r === 'Red' ? 'text-red-700' : 'text-amber-700';
+                                                        const ds = (r: string) => r === 'Green' ? 'bg-green-500' : r === 'Red' ? 'bg-red-500' : 'bg-amber-500';
+                                                        return (
+                                                            <tr key={i}>
+                                                                <td className="px-3 py-2 font-semibold text-gray-800 text-xs">{item.dimension}</td>
+                                                                <td className="px-3 py-2 text-center">{item.panel_rating ? <span className={`inline-flex items-center gap-1 text-xs font-semibold ${rs(item.panel_rating)}`}><span className={`w-1.5 h-1.5 rounded-full ${ds(item.panel_rating)}`}/>{item.panel_rating}</span> : '-'}</td>
+                                                                <td className="px-3 py-2 text-xs text-gray-600">{item.panel_brief || item.brief || '-'}</td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Roadmap */}
+                                {ventureDetailRoadmap && (
+                                    <div>
+                                        <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2"><Sparkles className="w-4 h-4 text-indigo-600" /> Roadmap <span className="text-xs text-gray-400 font-normal ml-1">Read Only</span></h3>
+                                        <div className="grid grid-cols-3 gap-3">
+                                            {(['product', 'gtm', 'capital_planning', 'team', 'supply_chain', 'operations'] as const).map(key => {
+                                                const area = ventureDetailRoadmap[key];
+                                                if (!area) return null;
+                                                const labels: Record<string, string> = { product: 'Product', gtm: 'GTM', capital_planning: 'Capital Planning', team: 'Team', supply_chain: 'Supply Chain', operations: 'Operations' };
+                                                const status = area.support_status || area.support_priority || 'Need Some Guidance';
+                                                const style = status.toLowerCase().includes('deep') ? 'bg-red-50 text-red-600 border-red-200' : status.toLowerCase().includes('not') || status.toLowerCase().includes("don't") ? 'bg-green-50 text-green-600 border-green-200' : 'bg-amber-50 text-amber-600 border-amber-200';
+                                                return (
+                                                    <div key={key} className="bg-white border border-gray-200 rounded-lg p-3">
+                                                        <div className="flex items-center justify-between mb-2">
+                                                            <h4 className="font-semibold text-gray-900 text-xs">{labels[key]}</h4>
+                                                            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full border ${style}`}>{status}</span>
+                                                        </div>
+                                                        {area.end_goal && <p className="text-[11px] text-gray-500">{area.end_goal}</p>}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Interactions */}
+                                <div>
+                                    <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2"><Sparkles className="w-4 h-4 text-indigo-600" /> Interactions <span className="text-xs text-gray-400 font-normal ml-1">Read Only</span></h3>
+                                    <div className="bg-white border border-gray-200 rounded-xl p-4">
+                                        <InteractionsSection ventureId={ventureDetailId} readOnly />
+                                    </div>
+                                </div>
+                            </div>
+                        ) : null}
+
+                        <div className="sticky bottom-0 bg-white border-t border-gray-100 px-6 py-4 flex justify-end">
+                            <button onClick={() => { setVentureDetailId(null); setVentureDetailData(null); setVentureDetailRoadmap(null); }}
+                                className="px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors">
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {/* ─── TIMELINE DRAWER ─── */}
@@ -1371,6 +1841,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
                                             const prog = shortProgramName(timelineVenture.program_recommendation);
                                             const panelLabel = prog === 'Prime' ? 'Panel (Prime)' : 'Panel (Core/Select)';
                                             events.push({ title: `${panelLabel} review complete`, subtitle: 'Program approved', person: changedByName, date: h.created_at, icon: 'green' });
+                                        } else if (newVal === 'Assign VP/VM') {
+                                            const prog = shortProgramName(timelineVenture.program_recommendation);
+                                            const panelLabel = prog === 'Prime' ? 'Panel (Prime)' : 'Panel (Core/Select)';
+                                            events.push({ title: `${panelLabel} review complete`, subtitle: 'Program approved — pending VP/VM assignment', person: changedByName, date: h.created_at, icon: 'green' });
+                                        } else if (newVal === 'With VP/VM') {
+                                            const vmName = profiles[timelineVenture.assigned_vm_id || '']?.full_name || timelineVenture.venture_partner || changedByName;
+                                            const prog = shortProgramName(timelineVenture.program_recommendation);
+                                            const roleLabel = prog === 'Prime' ? 'Venture Manager' : 'Venture Partner';
+                                            events.push({ title: `Assigned to ${roleLabel}`, subtitle: `${vmName} assigned as ${roleLabel}`, person: changedByName, date: h.created_at, icon: 'blue' });
                                         } else if (newVal === 'Contract Sent' || newVal === 'Agreement Sent') {
                                             events.push({ title: 'Agreement sent', subtitle: 'Contract sent to business for review', person: changedByName, date: h.created_at, icon: 'blue' });
                                         } else if (newVal === 'Joined Program') {

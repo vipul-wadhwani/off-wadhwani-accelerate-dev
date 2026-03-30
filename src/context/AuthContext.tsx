@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { Sentry } from '../config/sentry';
 import { api } from '../lib/api';
 import { logger } from '../utils/logger';
 
@@ -33,14 +34,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             api.getMe()
                 .then(({ profile }) => {
                     logger.info('Auth', `Session restored for ${profile.email} (${profile.role})`);
-                    setUser({
+                    const restoredUser = {
                         id: profile.id || '',
                         email: profile.email,
                         user_metadata: {
                             full_name: profile.full_name,
                             role: profile.role,
                         },
-                    });
+                    };
+                    setUser(restoredUser);
+                    Sentry.setUser({ id: restoredUser.id, email: restoredUser.email, username: profile.full_name });
                 })
                 .catch((error) => {
                     logger.error('Auth', 'Failed to restore session', error);
@@ -66,6 +69,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         setUser(apiUser);
+        if (apiUser) {
+            Sentry.setUser({ id: apiUser.id, email: apiUser.email, username: apiUser.user_metadata?.full_name });
+        }
         logger.info('Auth', `Sign in successful for ${email} (role: ${apiUser?.user_metadata?.role})`);
         return apiUser;
     };
@@ -98,6 +104,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             localStorage.removeItem('access_token');
             localStorage.removeItem('refresh_token');
             setUser(null);
+            Sentry.setUser(null);
         }
     };
 

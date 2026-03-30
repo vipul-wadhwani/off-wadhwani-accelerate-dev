@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { formatRevenue, formatEmployees } from '../utils/formatters';
 import { api } from '../lib/api';
 import {
     Briefcase,
@@ -69,6 +70,12 @@ function getVentureDisplayStatus(venture: Venture): { label: string; color: stri
     }
     if (status === 'Panel Review') {
         return { label: 'Pending with Panel (Core/Select)', color: 'text-indigo-700', bg: 'bg-indigo-50' };
+    }
+    if (status === 'Assign VP/VM') {
+        return { label: 'Assign VP/VM', color: 'text-purple-700', bg: 'bg-purple-50' };
+    }
+    if (status === 'With VP/VM') {
+        return { label: 'With VP/VM', color: 'text-purple-700', bg: 'bg-purple-50' };
     }
     if (status === 'Approved') {
         return { label: 'Accepted by Business', color: 'text-green-700', bg: 'bg-green-50' };
@@ -603,7 +610,7 @@ export const VSMDashboard: React.FC = () => {
 
             // Setup form state
             setVsmNotes(freshVenture.vsm_notes || '');
-            setProgram(freshVenture.program_recommendation || 'Selfserve');
+            setProgram(freshVenture.program_recommendation || '');
             setSelectedPanelist(freshVenture.assigned_panelist_id || '');
             setInternalComments(freshVenture.internal_comments || '');
             setAnalysisResult(freshVenture.ai_analysis || null);
@@ -628,13 +635,28 @@ export const VSMDashboard: React.FC = () => {
             return;
         }
 
+        // For Prime/Core/Select, panelist and comments are mandatory
+        if (program !== 'Selfserve') {
+            if (!selectedPanelist) {
+                toast('Please assign a panelist before submitting.', 'warning');
+                return;
+            }
+            if (!internalComments?.trim()) {
+                toast('Please add comments before submitting.', 'warning');
+                return;
+            }
+        }
+
         setSaving(true);
         try {
+            // Selfserve stays as 'Approved' (no panel review needed), others go to Panel Review
+            const newStatus = program === 'Selfserve' ? 'Approved' : 'Panel Review';
+
             const updatePayload: any = {
                 vsm_notes: vsmNotes,
                 program_recommendation: program,
                 internal_comments: internalComments,
-                status: 'Panel Review', // Recommending to panel moves status to Panel Review
+                status: newStatus,
                 ai_analysis: analysisResult || selectedVenture.ai_analysis, // Persist AI analysis if generated
                 vsm_reviewed_at: new Date().toISOString() // Track when VSM reviewed
             };
@@ -661,7 +683,9 @@ export const VSMDashboard: React.FC = () => {
             setSelectedVenture(prev => prev ? { ...prev, ...updatePayload } : null);
 
             // Success feedback
-            toast('Recommendation submitted. Status: Pending with Panel — ' + program, 'success');
+            toast(program === 'Selfserve'
+                ? 'Recommendation submitted. Venture recommended for Self-Serve (LiftOff AI).'
+                : 'Recommendation submitted. Status: Pending with Panel — ' + program, 'success');
 
             // Navigate back to list after 1 second
             setTimeout(() => {
@@ -842,7 +866,7 @@ export const VSMDashboard: React.FC = () => {
                                         <div className="col-span-2 flex items-center justify-end gap-3 border-l border-gray-100 pl-4">
                                             <div className="text-right">
                                                 <div className="text-[15px] font-semibold text-gray-800 whitespace-nowrap">
-                                                    {v.revenue_12m ? (isNaN(Number(v.revenue_12m)) ? v.revenue_12m : `₹${v.revenue_12m} Cr`) : '--'}
+                                                    {formatRevenue(v.revenue_12m) === 'N/A' ? '--' : formatRevenue(v.revenue_12m)}
                                                 </div>
                                             </div>
                                             <div className="w-9 h-9 rounded-full flex items-center justify-center text-gray-300 group-hover:bg-blue-600 group-hover:text-white transition-all duration-200 flex-shrink-0">
@@ -884,27 +908,27 @@ export const VSMDashboard: React.FC = () => {
                             <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Current Revenue</span>
                                 <div className="text-xl font-bold text-gray-900 flex items-center gap-1">
-                                    {selectedVenture.revenue_12m ? (isNaN(Number(selectedVenture.revenue_12m)) ? selectedVenture.revenue_12m : `₹${selectedVenture.revenue_12m} Cr`) : 'N/A'}
+                                    {formatRevenue(selectedVenture.revenue_12m)}
                                 </div>
                             </div>
                             <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Incremental Revenue (3Y)</span>
                                 <div className="text-xl font-bold text-gray-900 flex items-center gap-1">
-                                    {(() => { const val = selectedVenture.revenue_potential_3y || selectedVenture.commitment?.revenuePotential; return val ? (isNaN(Number(val)) ? val : `₹${val} Cr`) : 'N/A'; })()}
+                                    {formatRevenue(selectedVenture.revenue_potential_3y || selectedVenture.commitment?.revenuePotential)}
                                 </div>
                             </div>
                             <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Current Full Time Employees</span>
                                 <div className="text-xl font-bold text-gray-900 flex items-center gap-1">
                                     <Users className="w-4 h-4 text-gray-400" />
-                                    {selectedVenture.full_time_employees || 'N/A'}
+                                    {(() => { const emp = formatEmployees(selectedVenture.full_time_employees); return <>{emp.total}{emp.breakdown && <span className="text-xs text-gray-400 block">{emp.breakdown}</span>}</>; })()}
                                 </div>
                             </div>
                             <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Target Jobs</span>
                                 <div className="text-xl font-bold text-gray-900 flex items-center gap-1">
                                     <Users className="w-4 h-4 text-gray-400" />
-                                    {selectedVenture.target_jobs || 'N/A'}
+                                    {selectedVenture.target_jobs ?? 'N/A'}
                                 </div>
                             </div>
                         </div>

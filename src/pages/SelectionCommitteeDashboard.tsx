@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { formatRevenue, formatEmployees } from '../utils/formatters';
 import { useNavigate } from 'react-router-dom';
 import { Sparkles, TrendingUp, Loader2, Briefcase, Users, Target, AlertTriangle, HelpCircle, ChevronRight, FileText, ChevronUp, Plus } from 'lucide-react';
 import { api } from '../lib/api';
@@ -344,7 +345,7 @@ export const SelectionCommitteeDashboard: React.FC = () => {
                                         <div className="col-span-2 flex items-center justify-end gap-3 border-l border-gray-100 pl-4">
                                             <div className="text-right">
                                                 <div className="text-[15px] font-semibold text-gray-800 whitespace-nowrap">
-                                                    {v.revenue_12m ? (isNaN(Number(v.revenue_12m)) ? v.revenue_12m : `₹${v.revenue_12m} Cr`) : '--'}
+                                                    {formatRevenue(v.revenue_12m) === 'N/A' ? '--' : formatRevenue(v.revenue_12m)}
                                                 </div>
                                             </div>
                                             <div className="w-9 h-9 rounded-full flex items-center justify-center text-gray-300 group-hover:bg-purple-600 group-hover:text-white transition-all duration-200 flex-shrink-0">
@@ -396,27 +397,27 @@ export const SelectionCommitteeDashboard: React.FC = () => {
                             <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Current Revenue</span>
                                 <div className="text-xl font-bold text-gray-900 flex items-center gap-1">
-                                    {selectedVenture.revenue_12m ? (isNaN(Number(selectedVenture.revenue_12m)) ? selectedVenture.revenue_12m : `₹${selectedVenture.revenue_12m} Cr`) : 'N/A'}
+                                    {formatRevenue(selectedVenture.revenue_12m)}
                                 </div>
                             </div>
                             <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Incremental Revenue (3Y)</span>
                                 <div className="text-xl font-bold text-gray-900 flex items-center gap-1">
-                                    {selectedVenture.revenue_potential_3y ? (isNaN(Number(selectedVenture.revenue_potential_3y)) ? selectedVenture.revenue_potential_3y : `₹${selectedVenture.revenue_potential_3y} Cr`) : 'N/A'}
+                                    {formatRevenue(selectedVenture.revenue_potential_3y)}
                                 </div>
                             </div>
                             <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Current Full Time Employees</span>
                                 <div className="text-xl font-bold text-gray-900 flex items-center gap-1">
                                     <Users className="w-4 h-4 text-gray-400" />
-                                    {selectedVenture.full_time_employees || 'N/A'}
+                                    {(() => { const emp = formatEmployees(selectedVenture.full_time_employees); return <>{emp.total}{emp.breakdown && <span className="text-xs text-gray-400 block">{emp.breakdown}</span>}</>; })()}
                                 </div>
                             </div>
                             <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Target Jobs</span>
                                 <div className="text-xl font-bold text-gray-900 flex items-center gap-1">
                                     <Users className="w-4 h-4 text-gray-400" />
-                                    {selectedVenture.target_jobs || 'N/A'}
+                                    {selectedVenture.target_jobs ?? 'N/A'}
                                 </div>
                             </div>
                         </div>

@@ -6,7 +6,7 @@ export interface Venture {
     id: string;
     name: string;
     description: string;
-    status: 'Draft' | 'Submitted' | 'Under Review' | 'Panel Review' | 'Approved' | 'Rejected' | 'Agreement Sent' | 'Contract Sent' | 'Joined Program';
+    status: 'Draft' | 'Submitted' | 'Under Review' | 'Panel Review' | 'Approved' | 'Assign VP/VM' | 'With VP/VM' | 'Rejected' | 'Agreement Sent' | 'Contract Sent' | 'Joined Program';
     program: 'Accelerate' | 'Ignite' | 'Liftoff';
     location: string;
     submittedAt: string;
@@ -28,12 +28,17 @@ const statusConfig: Record<string, { bg: string; text: string; dot: string }> = 
     'Agreement Sent': { bg: 'bg-indigo-50 border-indigo-200/60', text: 'text-indigo-800', dot: 'bg-indigo-500' },
     'Contract Sent': { bg: 'bg-teal-50 border-teal-200/60', text: 'text-teal-800', dot: 'bg-teal-500' },
     'Joined Program': { bg: 'bg-emerald-50 border-emerald-200/60', text: 'text-emerald-800', dot: 'bg-emerald-500' },
+    'Assign VP/VM': { bg: 'bg-purple-50 border-purple-200/60', text: 'text-purple-800', dot: 'bg-purple-500' },
+    'With VP/VM': { bg: 'bg-purple-50 border-purple-200/60', text: 'text-purple-800', dot: 'bg-purple-500' },
 };
 
 export const VentureCard: React.FC<VentureCardProps> = ({ venture }) => {
     const navigate = useNavigate();
-    // Map "Panel Review" to "Under Review" for entrepreneur-facing display
-    const displayStatus = venture.status === 'Panel Review' ? 'Under Review' : venture.status;
+    // Map internal statuses to entrepreneur-facing display
+    const displayStatus = venture.status === 'Panel Review' ? 'Under Review'
+        : venture.status === 'Assign VP/VM' ? 'Approved'
+        : venture.status === 'With VP/VM' ? 'Approved'
+        : venture.status;
     const status = statusConfig[displayStatus] || statusConfig.Draft;
 
     const initials = venture.name

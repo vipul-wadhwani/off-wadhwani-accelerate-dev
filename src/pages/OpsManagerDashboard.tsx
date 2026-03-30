@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { formatRevenue, formatEmployees } from '../utils/formatters';
 import { api } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import {
@@ -21,6 +22,7 @@ import {
     ChevronUp,
 } from 'lucide-react';
 import { ScheduleCallModal } from '../components/ScheduleCallModal';
+import { AssignVPVMModal } from '../components/AssignVPVMModal';
 import { STATUS_CONFIG } from '../components/StatusSelect';
 import { useToast } from '../components/ui/Toast';
 
@@ -34,6 +36,8 @@ interface Venture {
     assigned_vsm_id?: string;
     assigned_panelist_id?: string;
     vsm_reviewed_at?: string;
+    venture_partner?: string;
+    city?: string;
 }
 
 interface Panelist {
@@ -80,6 +84,12 @@ function getDisplayStatus(venture: Venture): { label: string; color: string; bg:
     if (status === 'Panel Review') {
         return { label: 'Pending with Panel (Core/Select)', color: 'text-indigo-700', bg: 'bg-indigo-50 border-indigo-200' };
     }
+    if (status === 'Assign VP/VM') {
+        return { label: 'Assign VP/VM', color: 'text-purple-700', bg: 'bg-purple-50 border-purple-200' };
+    }
+    if (status === 'With VP/VM') {
+        return { label: 'With VP/VM', color: 'text-purple-700', bg: 'bg-purple-50 border-purple-200' };
+    }
     if (status === 'Approved') {
         return { label: 'Accepted by Business', color: 'text-green-700', bg: 'bg-green-50 border-green-200' };
     }
@@ -102,6 +112,7 @@ export const OpsManagerDashboard: React.FC = () => {
     const [programFilter, setProgramFilter] = useState<ProgramFilter>('');
     const [callStatusFilter, setCallStatusFilter] = useState<CallStatusFilter>('');
     const [scheduleModalVenture, setScheduleModalVenture] = useState<Venture | null>(null);
+    const [assignVPVMVenture, setAssignVPVMVenture] = useState<Venture | null>(null);
     const [profileVenture, setProfileVenture] = useState<any | null>(null);
     const [profileLoading, setProfileLoading] = useState(false);
 
@@ -130,7 +141,7 @@ export const OpsManagerDashboard: React.FC = () => {
             const { data: ventureData } = await supabase
                 .from('ventures')
                 .select('*, assessments:venture_assessments(*)')
-                .in('status', ['Panel Review', 'Approved', 'Rejected', 'Under Review', 'Submitted']);
+                .in('status', ['Panel Review', 'Approved', 'Assign VP/VM', 'With VP/VM', 'Rejected', 'Under Review', 'Submitted']);
 
             const flatVentures: Venture[] = (ventureData || []).map((v: any) => {
                 const assessment = (v.assessments || []).find((a: any) => a.is_current) || v.assessments?.[0] || {};
@@ -375,7 +386,9 @@ export const OpsManagerDashboard: React.FC = () => {
                                                     const label = displayStatus.label;
                                                     let short = label;
                                                     let style = 'bg-gray-50 text-gray-600 border-gray-200';
-                                                    if (label.includes('Screening')) { short = 'Screening'; style = 'bg-amber-50 text-amber-700 border-amber-200'; }
+                                                    if (label === 'Assign VP/VM') { short = 'Assign VP/VM'; style = 'bg-purple-50 text-purple-700 border-purple-200'; }
+                                                    else if (label === 'With VP/VM') { short = 'With VP/VM'; style = 'bg-purple-50 text-purple-700 border-purple-200'; }
+                                                    else if (label.includes('Screening')) { short = 'Screening'; style = 'bg-amber-50 text-amber-700 border-amber-200'; }
                                                     else if (label.includes('Panel')) { short = label.includes('Prime') ? 'Panel Review' : 'Panel Review'; style = 'bg-indigo-50 text-indigo-700 border-indigo-200'; }
                                                     else if (label.includes('Accepted')) { short = 'Accepted'; style = 'bg-emerald-50 text-emerald-700 border-emerald-200'; }
                                                     else if (label.includes('Declined')) { short = 'Declined'; style = 'bg-red-50 text-red-700 border-red-200'; }
@@ -384,7 +397,9 @@ export const OpsManagerDashboard: React.FC = () => {
                                                 })()}
                                             </td>
                                             <td className="px-4 py-3">
-                                                {assignedPanelist?.name ? (
+                                                {venture.venture_partner ? (
+                                                    <span className="text-sm text-gray-700 font-medium whitespace-nowrap">{venture.venture_partner}</span>
+                                                ) : assignedPanelist?.name ? (
                                                     <span className="text-sm text-gray-700 font-medium whitespace-nowrap">{assignedPanelist.name}</span>
                                                 ) : (
                                                     <span className="text-xs text-gray-300">—</span>
@@ -425,7 +440,23 @@ export const OpsManagerDashboard: React.FC = () => {
                                                 )}
                                             </td>
                                             <td className="px-4 py-3">
-                                                {cc.total > 0 ? (
+                                                {venture.status === 'Assign VP/VM' ? (
+                                                    <button
+                                                        onClick={() => setAssignVPVMVenture(venture)}
+                                                        className="inline-flex items-center gap-1 text-indigo-600 text-sm font-medium hover:text-indigo-700 transition-colors"
+                                                    >
+                                                        <Users className="w-3.5 h-3.5" />
+                                                        Assign VP/VM
+                                                    </button>
+                                                ) : venture.status === 'With VP/VM' ? (
+                                                    <button
+                                                        onClick={() => setScheduleModalVenture(venture)}
+                                                        className="inline-flex items-center gap-1 text-indigo-600 text-sm font-medium hover:text-indigo-700 transition-colors"
+                                                    >
+                                                        <Calendar className="w-3.5 h-3.5" />
+                                                        Schedule Call
+                                                    </button>
+                                                ) : cc.total > 0 ? (
                                                     <button
                                                         onClick={() => setScheduleModalVenture(venture)}
                                                         className="inline-flex items-center gap-1 text-indigo-600 text-sm font-medium hover:text-indigo-700 transition-colors"
@@ -474,6 +505,18 @@ export const OpsManagerDashboard: React.FC = () => {
                 />
             )}
 
+            {/* Assign VP/VM Modal */}
+            {assignVPVMVenture && (
+                <AssignVPVMModal
+                    venture={assignVPVMVenture}
+                    onClose={() => setAssignVPVMVenture(null)}
+                    onAssigned={() => {
+                        setAssignVPVMVenture(null);
+                        fetchData();
+                    }}
+                />
+            )}
+
             {/* Venture Profile Drawer (Panel-style) */}
             {profileVenture && (
                 <>
@@ -481,7 +524,7 @@ export const OpsManagerDashboard: React.FC = () => {
                         className="fixed inset-0 z-40 bg-black/30 transition-opacity"
                         onClick={() => setProfileVenture(null)}
                     />
-                    <div className="fixed inset-y-0 right-0 z-50 w-full max-w-2xl bg-white shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-200">
+                    <div className="fixed inset-4 z-50 mx-auto max-w-5xl bg-white shadow-2xl overflow-y-auto rounded-2xl">
                         {/* Drawer Header */}
                         <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between z-10">
                             <div>
@@ -528,24 +571,24 @@ export const OpsManagerDashboard: React.FC = () => {
                                 <div className="grid grid-cols-4 gap-3">
                                     <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
                                         <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Current Revenue</span>
-                                        <div className="text-lg font-bold text-gray-900">{profileVenture.revenue_12m ? (isNaN(Number(profileVenture.revenue_12m)) ? profileVenture.revenue_12m : `₹${profileVenture.revenue_12m} Cr`) : 'N/A'}</div>
+                                        <div className="text-lg font-bold text-gray-900">{formatRevenue(profileVenture.revenue_12m)}</div>
                                     </div>
                                     <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
                                         <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Incremental Revenue (3Y)</span>
-                                        <div className="text-lg font-bold text-gray-900">{profileVenture.revenue_potential_3y ? (isNaN(Number(profileVenture.revenue_potential_3y)) ? profileVenture.revenue_potential_3y : `₹${profileVenture.revenue_potential_3y} Cr`) : 'N/A'}</div>
+                                        <div className="text-lg font-bold text-gray-900">{formatRevenue(profileVenture.revenue_potential_3y)}</div>
                                     </div>
                                     <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
                                         <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Employees</span>
                                         <div className="text-lg font-bold text-gray-900 flex items-center gap-1">
                                             <Users className="w-4 h-4 text-gray-400" />
-                                            {profileVenture.full_time_employees || 'N/A'}
+                                            {(() => { const emp = formatEmployees(profileVenture.full_time_employees); return <>{emp.total}{emp.breakdown && <span className="text-xs text-gray-400 block">{emp.breakdown}</span>}</>; })()}
                                         </div>
                                     </div>
                                     <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
                                         <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Target Jobs</span>
                                         <div className="text-lg font-bold text-gray-900 flex items-center gap-1">
                                             <Users className="w-4 h-4 text-gray-400" />
-                                            {profileVenture.target_jobs || 'N/A'}
+                                            {profileVenture.target_jobs ?? 'N/A'}
                                         </div>
                                     </div>
                                 </div>
@@ -788,6 +831,95 @@ export const OpsManagerDashboard: React.FC = () => {
                                                     <p className="text-sm text-indigo-800 whitespace-pre-wrap">{profileVenture.internal_comments}</p>
                                                 </div>
                                             )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Screening SCALE Scorecard */}
+                                {profileVenture.ai_analysis?.scorecard && (
+                                    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                                        <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
+                                            <span className="text-base font-bold text-gray-700">Screening SCALE Scorecard</span>
+                                            <span className="text-xs text-gray-400">Read Only</span>
+                                        </div>
+                                        <table className="w-full text-sm">
+                                            <thead>
+                                                <tr className="border-b border-gray-200 bg-gray-50">
+                                                    <th className="text-left px-4 py-2 text-xs font-bold text-gray-500 uppercase">Dimension</th>
+                                                    <th className="text-center px-3 py-2 text-xs font-bold text-gray-500 uppercase">Rating</th>
+                                                    <th className="text-left px-4 py-2 text-xs font-bold text-gray-500 uppercase">Brief</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-100">
+                                                {profileVenture.ai_analysis.scorecard.map((item: any, i: number) => {
+                                                    const style = item.rating === 'Green' ? { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-500' } : item.rating === 'Red' ? { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500' } : { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500' };
+                                                    return (
+                                                        <tr key={i} className={style.bg}>
+                                                            <td className="px-4 py-3 font-semibold text-gray-800">{item.dimension}</td>
+                                                            <td className="px-3 py-3 text-center"><span className={`inline-flex items-center gap-1.5 ${style.text} font-semibold text-xs`}><span className={`w-2 h-2 rounded-full ${style.dot}`}/>{item.rating}</span></td>
+                                                            <td className="px-4 py-3 text-gray-600 text-xs">{item.brief}</td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+
+                                {/* Panel SCALE Scorecard */}
+                                {profileVenture.panel_ai_analysis?.panel_scorecard && (
+                                    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                                        <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
+                                            <span className="text-base font-bold text-gray-700">Panel SCALE Scorecard</span>
+                                            <span className="text-xs text-gray-400">Read Only</span>
+                                        </div>
+                                        <table className="w-full text-sm">
+                                            <thead>
+                                                <tr className="border-b border-gray-200 bg-gray-50">
+                                                    <th className="text-left px-4 py-2 text-xs font-bold text-gray-500 uppercase">Dimension</th>
+                                                    <th className="text-center px-3 py-2 text-xs font-bold text-gray-500 uppercase">App Rating</th>
+                                                    <th className="text-center px-3 py-2 text-xs font-bold text-gray-500 uppercase">Panel Rating</th>
+                                                    <th className="text-left px-4 py-2 text-xs font-bold text-gray-500 uppercase">Brief</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-100">
+                                                {profileVenture.panel_ai_analysis.panel_scorecard.map((item: any, i: number) => {
+                                                    const rs = (r: string) => r === 'Green' ? 'text-green-700' : r === 'Red' ? 'text-red-700' : 'text-amber-700';
+                                                    const ds = (r: string) => r === 'Green' ? 'bg-green-500' : r === 'Red' ? 'bg-red-500' : 'bg-amber-500';
+                                                    return (
+                                                        <tr key={i}>
+                                                            <td className="px-4 py-3 font-semibold text-gray-800">{item.dimension}</td>
+                                                            <td className="px-3 py-3 text-center"><span className={`inline-flex items-center gap-1 text-xs font-semibold ${rs(item.application_rating || item.rating || '')}`}><span className={`w-1.5 h-1.5 rounded-full ${ds(item.application_rating || item.rating || '')}`}/>{item.application_rating || item.rating || '-'}</span></td>
+                                                            <td className="px-3 py-3 text-center">{item.panel_rating ? <span className={`inline-flex items-center gap-1 text-xs font-semibold ${rs(item.panel_rating)}`}><span className={`w-1.5 h-1.5 rounded-full ${ds(item.panel_rating)}`}/>{item.panel_rating}</span> : '-'}</td>
+                                                            <td className="px-4 py-3 text-gray-600 text-xs">{item.panel_brief || item.brief || '-'}</td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+
+                                {/* Panel Gate Questions */}
+                                {profileVenture.gate_questions?.gate_questions && (
+                                    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                                        <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
+                                            <span className="text-base font-bold text-gray-700">Panel Gate Questions</span>
+                                            <span className="text-xs text-gray-400">Read Only</span>
+                                        </div>
+                                        <div className="divide-y divide-gray-100">
+                                            {profileVenture.gate_questions.gate_questions.map((gq: any, i: number) => (
+                                                <div key={i} className="px-5 py-3 flex items-start gap-3">
+                                                    <span className="text-xs font-bold text-gray-400 mt-0.5">{i + 1}.</span>
+                                                    <div className="flex-1">
+                                                        <p className="text-sm text-gray-800">{gq.question}</p>
+                                                        {gq.remarks && <p className="text-xs text-gray-500 mt-1">{gq.remarks}</p>}
+                                                    </div>
+                                                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${(gq.response || gq.answer) === 'Yes' ? 'bg-green-100 text-green-700' : (gq.response || gq.answer) === 'No' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'}`}>
+                                                        {gq.response || gq.answer || '—'}
+                                                    </span>
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
                                 )}

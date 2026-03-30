@@ -42,6 +42,8 @@ export interface RoadmapAction {
 export interface FunctionalAreaRoadmap {
     relevance: string;
     support_priority: 'Need deep support' | 'Need some guidance' | "Don't need help";
+    support_status?: 'Need Deep Support' | 'Need Some Guidance' | 'Do Not Need Help';
+    end_goal?: string;
     actions: RoadmapAction[];
 }
 
@@ -354,7 +356,7 @@ function parseScorecardResponse(responseText: string): AIInsights {
  */
 export async function generateVentureRoadmap(
     ventureData: any,
-    additionalContext: { vsmNotes?: string; aiAnalysis?: any } = {}
+    additionalContext: { vsmNotes?: string; aiAnalysis?: any; interactionNotes?: string; panelFeedback?: any; panelScorecard?: any; gateQuestions?: any } = {}
 ): Promise<RoadmapData> {
     if (!process.env.ANTHROPIC_API_KEY) {
         throw new Error('ANTHROPIC_API_KEY is not configured in environment variables');
@@ -384,20 +386,68 @@ export async function generateVentureRoadmap(
     }
 }
 
-function buildRoadmapPrompt(ventureData: any, ctx: { vsmNotes?: string; aiAnalysis?: any; interactionNotes?: string }): string {
+function buildRoadmapPrompt(ventureData: any, ctx: { vsmNotes?: string; aiAnalysis?: any; interactionNotes?: string; panelFeedback?: any; panelScorecard?: any; gateQuestions?: any }): string {
     let aiSummary = '';
     if (ctx.aiAnalysis) {
         if (ctx.aiAnalysis.scorecard) {
-            // V2 scorecard format
             const scorecardLines = (ctx.aiAnalysis.scorecard as any[])
                 .map((d: any) => `- ${d.dimension} (${d.rating}): ${d.brief}`)
                 .join('\n');
             aiSummary = `\n**AI Screening Scorecard:**\n${scorecardLines}`;
-        } else if (ctx.aiAnalysis.existing_venture_profile) {
-            // V1 legacy format
-            aiSummary = `\n**AI Screening Analysis:**\n- Profile: ${ctx.aiAnalysis.existing_venture_profile?.profile_summary || 'N/A'}\n- Growth History: ${ctx.aiAnalysis.existing_venture_profile?.current_product_growth_history || 'N/A'}\n- Clarity Flag: ${ctx.aiAnalysis.new_venture_clarity?.definition_clarity_flag || 'N/A'}\n- Clarity Summary: ${ctx.aiAnalysis.new_venture_clarity?.clarity_summary || 'N/A'}\n- Clarity Gaps: ${(ctx.aiAnalysis.new_venture_clarity?.clarity_gaps || []).join('; ')}`;
+            // Extract pros/cons from scorecard
+            const strengths = (ctx.aiAnalysis.scorecard as any[]).filter((d: any) => d.rating === 'Green').map((d: any) => d.dimension);
+            const risks = (ctx.aiAnalysis.scorecard as any[]).filter((d: any) => d.rating === 'Red').map((d: any) => d.dimension);
+            if (strengths.length) aiSummary += `\n- Strengths: ${strengths.join('; ')}`;
+            if (risks.length) aiSummary += `\n- Risks: ${risks.join('; ')}`;
+        } else if (ctx.aiAnalysis.recommendation) {
+            aiSummary = `\n**AI Screening Analysis:**\n- Recommendation: ${ctx.aiAnalysis.recommendation || 'N/A'}\n- Summary: ${ctx.aiAnalysis.summary || 'N/A'}\n- Strengths: ${(ctx.aiAnalysis.strengths || []).join('; ')}\n- Risks: ${(ctx.aiAnalysis.risks || []).join('; ')}`;
         }
     }
+
+    // Build panel feedback section
+    const pf = ctx.panelFeedback || {};
+    const panelSection = ctx.panelFeedback ? `
+**Panel Feedback:**
+- Panel Expert: ${pf.panel_expert_name || 'N/A'}
+- Panel Date: ${pf.panel_date || 'N/A'}
+- SME Participant: ${pf.sme_name || 'N/A'}
+- Final Recommendation: ${pf.final_recommendation || 'N/A'}
+- Program Category: ${pf.program_category || 'N/A'}
+- Business Overview: ${pf.business_overview || 'N/A'}
+- Annual Revenue Actuals: ${pf.annual_revenue_actuals || 'N/A'}
+- Projected Annual Revenue: ${pf.projected_annual_revenue || 'N/A'}
+- Financial Health Rating: ${pf.rating_financial_health || 'N/A'}/5
+- Leadership Rating: ${pf.rating_leadership || 'N/A'}/5
+- Financial Health Insights: ${pf.insights_financial_health || 'N/A'}
+- Leadership Insights: ${pf.insights_leadership || 'N/A'}
+- Proposed Expansion Idea: ${pf.proposed_expansion_idea || 'N/A'}
+- Expansion Type: ${pf.selected_expansion_type || 'N/A'}
+- Market Entry Routes: ${(pf.market_entry_routes || []).join?.(', ') || pf.market_entry_routes || 'N/A'}
+- Expansion Description: ${pf.expansion_idea_description || 'N/A'}
+- Current Progress on Expansion: ${pf.current_progress || 'N/A'}
+- Incremental Revenue (3Y): ${pf.incremental_revenue_3y || 'N/A'}
+- Incremental Jobs (3Y): ${pf.incremental_jobs_3y || 'N/A'}
+- Expansion Clarity Rating: ${pf.rating_clarity_expansion || 'N/A'}/5
+- Expansion Clarity Comments: ${pf.comments_clarity_expansion || 'N/A'}
+- Support Type Proposal: ${pf.support_type_proposal || 'N/A'}
+- Risks / Red Flags: ${pf.risks_red_flags || 'N/A'}
+- Additional Notes: ${pf.additional_notes || 'N/A'}
+
+**Panel Stream Assessment:**
+- GTM: ${pf.stream_gtm || 'N/A'}
+- Product / Quality: ${pf.stream_product_quality || 'N/A'}
+- Operations: ${pf.stream_operations || 'N/A'}
+- Supply Chain: ${pf.stream_supply_chain || 'N/A'}
+- Org Design / Team: ${pf.stream_org_design || 'N/A'}
+- Finance / Capital: ${pf.stream_finance || 'N/A'}` : '';
+
+    const scorecardSection = ctx.panelScorecard ? `
+**Panel SCALE Scorecard:**
+${JSON.stringify(ctx.panelScorecard, null, 2)}` : '';
+
+    const gateSection = ctx.gateQuestions ? `
+**Panel Gate Questions:**
+${JSON.stringify(ctx.gateQuestions, null, 2)}` : '';
 
     return `You are a strategic program advisor for the Accelerate Assisted Growth Platform. Your role is to generate a tailored, actionable roadmap for ventures that have been approved by the selection committee. This roadmap will guide the venture through the program to achieve their stated growth idea.
 
@@ -410,6 +460,8 @@ You will receive the following context for the approved venture:
 3. **Support Areas Requested**
 4. **Screening & Evaluation Context**
 5. **Corporate Presentation** (optional)
+6. **Panel Feedback Form**
+7. **Panel SCALE Scorecard & Gate Questions**
 
 **Venture Information:**
 - Company: ${ventureData.name || 'N/A'}
@@ -434,60 +486,60 @@ ${ctx.vsmNotes || 'No notes provided.'}
 **Interaction Notes:**
 ${ctx.interactionNotes || 'No interaction notes available.'}
 ${aiSummary}
+${panelSection}
+${scorecardSection}
+${gateSection}
 ${ventureData.corporate_presentation_text ? `
 **Corporate Presentation Content:**
-${ventureData.corporate_presentation_text.slice(0, 3000)}
-${ventureData.corporate_presentation_text.length > 3000 ? '\n[... truncated ...]' : ''}
+${ventureData.corporate_presentation_text.slice(0, 8000)}
+${ventureData.corporate_presentation_text.length > 8000 ? '\n[... truncated ...]' : ''}
 ` : ''}
 ## OUTPUT FORMAT
 
-Generate a structured roadmap covering ALL SIX functional support areas. For each area, provide exactly 5 actions/deliverables that are specific to this venture's context, growth idea, and identified gaps.
+Generate a structured roadmap covering ALL SIX functional support areas. For each area, provide an end goal, support status, and exactly 5 actions/deliverables that are specific to this venture's context, growth idea, panel feedback, and identified gaps.
 
 Return ONLY a JSON object in this format:
 
 {
   "product": {
     "relevance": "<One sentence explaining why Product matters for this specific venture's growth idea>",
-    "support_priority": "<Need deep support | Need some guidance | Don't need help>",
+    "support_status": "<Need Deep Support | Need Some Guidance | Do Not Need Help — mapped from panel stream_product_quality>",
+    "end_goal": "<One sentence stating the specific measurable outcome for this area. Do NOT start with 'By week X' — state the outcome directly, e.g. 'Product roadmap defined and MVP validated with 3 pilot customers.'>",
     "actions": [
       {
         "id": "prod_1",
         "title": "<Specific action — 3-5 words>",
         "description": "<What needs to be done and why — 1-2 sentences>",
-        "context_reference": "<Which input data point drives this action>",
-        "timeline": "<Week/Month range within 12-16 week program — e.g., 'Weeks 1-2', 'Weeks 3-5'>",
+        "context_reference": "<Which input data point drives this action — cite source explicitly>",
+        "timeline": "<Week/Month range within 12-16 week program>",
         "success_metric": "<Measurable outcome>",
         "status": "pending",
-        "priority": "<Need deep support | Need some guidance | Don't need help>"
+        "priority": "<high | medium | low>"
       },
-      { "id": "prod_2", "..." : "..." },
-      { "id": "prod_3", "..." : "..." },
-      { "id": "prod_4", "..." : "..." },
-      { "id": "prod_5", "..." : "..." }
+      { "id": "prod_2", ... }, { "id": "prod_3", ... }, { "id": "prod_4", ... }, { "id": "prod_5", ... }
     ]
   },
-  "gtm": { "relevance": "<...>", "support_priority": "<...>", "actions": [ ... ] },
-  "capital_planning": { "relevance": "<...>", "support_priority": "<...>", "actions": [ ... ] },
-  "team": { "relevance": "<...>", "support_priority": "<...>", "actions": [ ... ] },
-  "supply_chain": { "relevance": "<...>", "support_priority": "<...>", "actions": [ ... ] },
-  "operations": { "relevance": "<...>", "support_priority": "<...>", "actions": [ ... ] }
+  "gtm": { ... }, "capital_planning": { ... }, "team": { ... }, "supply_chain": { ... }, "operations": { ... }
 }
 
 ## GENERATION RULES
 
-1. **Context-driven, not generic:** Every action must trace back to a specific data point from the venture's application, screening insights, or interaction notes. The "context_reference" field must cite the source explicitly.
-2. **Growth idea alignment:** All actions across all 6 areas must collectively serve the venture's stated growth idea.
-3. **Address the Cons:** At least 2 actions across the full roadmap must directly address risks or gaps identified in the screening.
-4. **Leverage the Pros:** At least 2 actions should build on identified strengths to create momentum.
-5. **Interaction notes integration:** If interaction notes reveal specific concerns or commitments, these must be reflected in relevant actions.
+1. **Context-driven, not generic:** Every action must trace back to a specific data point. The "context_reference" field must cite the source explicitly. No generic advice.
+2. **Growth idea alignment:** All 30 actions must collectively serve the venture's stated growth idea.
+3. **Address the Cons:** At least 2 actions must directly address risks or gaps from screening.
+4. **Leverage the Pros:** At least 2 actions should build on identified strengths.
+5. **Interaction notes integration:** If interaction notes reveal specific concerns or commitments, reflect them in relevant actions.
 6. **Prioritization logic:**
-   - Areas where the venture explicitly requested help → "Need deep support"
-   - Areas where screening identified gaps but venture didn't request help → "Need some guidance"
-   - Areas where venture indicated no help needed and no red flags → "Don't need help"
-7. **Timeline realism:** Spread actions across 12-16 weeks: early = assess/plan, mid = execute, late = validate/sustain.
-8. **Sequencing:** Actions within each area should follow: Diagnose → Plan → Build → Test → Refine.
-9. **Deliverable clarity:** Each action should result in a tangible output (document, framework, model, strategy, process).
+   - support_status = Need Deep Support (panel stream = need_deep_support) → actions must be detailed and execution-ready; priority = high
+   - support_status = Need Some Guidance (panel stream = need_some_advice) → actions should be diagnostic and advisory; priority = medium
+   - support_status = Do Not Need Help (panel stream = not_started, on_track, or completed) → lightweight checkpoints; priority = low
+7. **Timeline realism:** Spread across 12-16 weeks: early = assess/plan, mid = execute, late = validate/sustain.
+8. **Sequencing:** Diagnose → Plan → Build → Test → Refine. Note cross-functional dependencies.
+9. **Deliverable clarity:** Each action should produce a tangible, reusable output.
 10. **Tone:** Professional, supportive, and direct.
+11. **Panel feedback integration:** Actions must reflect panel stream status assessments. Panelist-identified risks must be addressed. Panel expansion idea and support proposal must be incorporated.
+12. **SCALE scorecard alignment:** Red panel ratings → at least 1 remediation action per Red dimension. Green → build on strengths. Yellow → advisory/monitoring.
+13. **Per-stream end goal coherence:** Each area's end_goal must state the specific measurable outcome. Do NOT prefix with "By week X" — state the outcome directly (e.g. "Product roadmap defined and MVP validated with 3 pilot customers"). The 5 actions must collectively lead to it.
 
 Return ONLY the JSON object, no additional text.`;
 }
@@ -498,6 +550,13 @@ function mapSupportPriority(value: string): 'Need deep support' | 'Need some gui
     if (v === 'high' || v === 'need deep support') return 'Need deep support';
     if (v === 'low' || v === "don't need help") return "Don't need help";
     return 'Need some guidance';
+}
+
+function mapSupportStatus(value: string): 'Need Deep Support' | 'Need Some Guidance' | 'Do Not Need Help' {
+    const v = (value || '').toLowerCase();
+    if (v.includes('deep') || v === 'high') return 'Need Deep Support';
+    if (v.includes('not') || v.includes("don't") || v === 'low') return 'Do Not Need Help';
+    return 'Need Some Guidance';
 }
 
 function mapActionPriority(value: string): 'Need deep support' | 'Need some guidance' | "Don't need help" {
@@ -529,7 +588,9 @@ function parseRoadmapResponse(responseText: string): RoadmapData {
             if (area && Array.isArray(area.actions) && area.actions.length >= 3) {
                 result[stream] = {
                     relevance: area.relevance || '',
-                    support_priority: mapSupportPriority(area.support_priority),
+                    support_priority: mapSupportPriority(area.support_priority || area.support_status || ''),
+                    support_status: area.support_status || mapSupportStatus(area.support_priority || ''),
+                    end_goal: area.end_goal || '',
                     actions: area.actions.slice(0, 5).map((item: any, i: number) => ({
                         id: item.id || `${stream}_${i + 1}`,
                         title: item.title || 'Untitled',
@@ -566,6 +627,8 @@ function getFallbackArea(stream: string): FunctionalAreaRoadmap {
         product: {
             relevance: 'Product readiness assessment required for growth execution.',
             support_priority: 'Need some guidance',
+            support_status: 'Need Some Guidance',
+            end_goal: 'Product gaps identified and MVP defined for the growth idea — manual review required.',
             actions: [
                 { id: 'prod_1', title: 'Product Audit', description: 'Comprehensive review of current product capabilities and gaps.', context_reference: 'Manual review required', timeline: 'Weeks 1-2', success_metric: 'Audit report completed', status: 'pending', priority: 'Need deep support' },
                 { id: 'prod_2', title: 'Feature Gap Analysis', description: 'Identify feature gaps for the growth idea.', context_reference: 'Manual review required', timeline: 'Weeks 2-3', success_metric: 'Gap analysis document', status: 'pending', priority: 'Need deep support' },
@@ -577,6 +640,8 @@ function getFallbackArea(stream: string): FunctionalAreaRoadmap {
         gtm: {
             relevance: 'Go-to-market strategy required for new market entry.',
             support_priority: 'Need some guidance',
+            support_status: 'Need Some Guidance',
+            end_goal: 'Go-to-market strategy defined and first customer outreach initiated — manual review required.',
             actions: [
                 { id: 'gtm_1', title: 'Market Analysis', description: 'Target market sizing and competitive landscape review.', context_reference: 'Manual review required', timeline: 'Weeks 1-2', success_metric: 'Market analysis report', status: 'pending', priority: 'Need deep support' },
                 { id: 'gtm_2', title: 'ICP Definition', description: 'Define ideal customer profile for new segment.', context_reference: 'Manual review required', timeline: 'Weeks 2-4', success_metric: 'ICP document completed', status: 'pending', priority: 'Need deep support' },
@@ -588,6 +653,8 @@ function getFallbackArea(stream: string): FunctionalAreaRoadmap {
         capital_planning: {
             relevance: 'Financial readiness assessment for growth investment.',
             support_priority: 'Need some guidance',
+            support_status: 'Need Some Guidance',
+            end_goal: 'Financial model and funding strategy completed for the growth plan — manual review required.',
             actions: [
                 { id: 'cap_1', title: 'Financial Model', description: 'Detailed projections and unit economics analysis.', context_reference: 'Manual review required', timeline: 'Weeks 1-3', success_metric: 'Financial model completed', status: 'pending', priority: 'Need deep support' },
                 { id: 'cap_2', title: 'Unit Economics', description: 'Validate unit economics for new growth area.', context_reference: 'Manual review required', timeline: 'Weeks 3-5', success_metric: 'Unit economics validated', status: 'pending', priority: 'Need deep support' },
@@ -599,6 +666,8 @@ function getFallbackArea(stream: string): FunctionalAreaRoadmap {
         team: {
             relevance: 'Organizational readiness for growth execution.',
             support_priority: 'Need some guidance',
+            support_status: 'Need Some Guidance',
+            end_goal: 'Hiring roadmap and org structure defined to support growth — manual review required.',
             actions: [
                 { id: 'team_1', title: 'Org Structure Review', description: 'Define roles and reporting lines for growth phase.', context_reference: 'Manual review required', timeline: 'Weeks 1-2', success_metric: 'Org chart updated', status: 'pending', priority: 'Need deep support' },
                 { id: 'team_2', title: 'Skill Gap Analysis', description: 'Identify capability gaps against growth requirements.', context_reference: 'Manual review required', timeline: 'Weeks 2-4', success_metric: 'Gap analysis completed', status: 'pending', priority: 'Need deep support' },
@@ -610,6 +679,8 @@ function getFallbackArea(stream: string): FunctionalAreaRoadmap {
         supply_chain: {
             relevance: 'Supply chain readiness for scaled operations.',
             support_priority: 'Need some guidance',
+            support_status: 'Need Some Guidance',
+            end_goal: 'Vendor strategy and logistics model established for growth execution — manual review required.',
             actions: [
                 { id: 'sc_1', title: 'Vendor Assessment', description: 'Evaluate current supplier performance and risks.', context_reference: 'Manual review required', timeline: 'Weeks 1-3', success_metric: 'Vendor scorecard completed', status: 'pending', priority: 'Need deep support' },
                 { id: 'sc_2', title: 'Cost Optimization', description: 'Identify cost reduction opportunities in procurement.', context_reference: 'Manual review required', timeline: 'Weeks 3-6', success_metric: 'Cost savings identified', status: 'pending', priority: 'Need some guidance' },
@@ -621,6 +692,8 @@ function getFallbackArea(stream: string): FunctionalAreaRoadmap {
         operations: {
             relevance: 'Operational scalability for sustainable growth.',
             support_priority: 'Need some guidance',
+            support_status: 'Need Some Guidance',
+            end_goal: 'Operational processes documented and KPIs established for scaled delivery — manual review required.',
             actions: [
                 { id: 'ops_1', title: 'Process Mapping', description: 'Document and optimize core business processes.', context_reference: 'Manual review required', timeline: 'Weeks 1-3', success_metric: 'Process maps completed', status: 'pending', priority: 'Need deep support' },
                 { id: 'ops_2', title: 'KPI Dashboard', description: 'Real-time operational metrics tracking setup.', context_reference: 'Manual review required', timeline: 'Weeks 3-6', success_metric: 'Dashboard live', status: 'pending', priority: 'Need some guidance' },

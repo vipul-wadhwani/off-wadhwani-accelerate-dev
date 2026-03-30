@@ -262,3 +262,79 @@ Team Wadhwani Accelerate`;
 
     await sendEmail(toEmail, subject, htmlBody, plainText);
 }
+
+export async function sendSelfserveEmail(
+    toEmail: string,
+    founderName: string,
+    ventureName: string
+): Promise<void> {
+    const subject = `Update on Your Application to Wadhwani Foundation Accelerate Program`;
+
+    const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #1a365d; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { padding: 20px; background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0 0 8px 8px; }
+        .content ul { margin: 10px 0; padding-left: 20px; }
+        .content li { margin-bottom: 8px; }
+        .cta-button { display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; margin: 15px 0; }
+        .footer { text-align: center; padding: 20px; font-size: 12px; color: #6b7280; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Wadhwani Accelerate</h1>
+        </div>
+        <div class="content">
+            <p>Dear ${founderName},</p>
+            <p>Thank you for applying to the Wadhwani Foundation program and for taking the time to share your entrepreneurial journey with us. We appreciate the intent, effort, and commitment reflected in your application.</p>
+            <p>After a detailed review, we would like to invite you to take the next step by joining <strong>Wadhwani LiftOff AI</strong>&mdash;a curated, founder-focused platform designed to support entrepreneurs as they sharpen their ideas, strengthen execution, and build readiness for growth-oriented programs within the Wadhwani ecosystem.</p>
+            <p>LiftOff AI is selectively recommended to founders who demonstrate the drive to build thoughtfully and move forward with clarity. The platform offers:</p>
+            <ul>
+                <li>AI-powered guidance and founder tools to support informed, data-driven decision-making</li>
+                <li>Access to a comprehensive digital library covering core startup and business fundamentals</li>
+                <li>Mentor Connect support, enabling you to seek insights and guidance from experienced mentors within the ecosystem</li>
+            </ul>
+            <p>We encourage you to activate your access and begin immediately by visiting:</p>
+            <p style="text-align: center;"><a href="https://wadhwaniliftoff.ai" class="cta-button">Visit Wadhwani LiftOff AI</a></p>
+            <p>Engaging with LiftOff AI will help you build momentum and position yourself strongly as your venture evolves.</p>
+            <p>Wishing you focused execution and steady progress ahead.</p>
+            <p>Thanks,<br>Team Wadhwani Accelerate</p>
+        </div>
+        <div class="footer">
+            <p>&copy; Wadhwani Foundation. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>`;
+
+    const plainText = `Dear ${founderName},
+
+Thank you for applying to the Wadhwani Foundation program and for taking the time to share your entrepreneurial journey with us. We appreciate the intent, effort, and commitment reflected in your application.
+
+After a detailed review, we would like to invite you to take the next step by joining Wadhwani LiftOff AI — a curated, founder-focused platform designed to support entrepreneurs as they sharpen their ideas, strengthen execution, and build readiness for growth-oriented programs within the Wadhwani ecosystem.
+
+LiftOff AI is selectively recommended to founders who demonstrate the drive to build thoughtfully and move forward with clarity. The platform offers:
+
+- AI-powered guidance and founder tools to support informed, data-driven decision-making
+- Access to a comprehensive digital library covering core startup and business fundamentals
+- Mentor Connect support, enabling you to seek insights and guidance from experienced mentors within the ecosystem
+
+We encourage you to activate your access and begin immediately by visiting:
+https://wadhwaniliftoff.ai
+
+Engaging with LiftOff AI will help you build momentum and position yourself strongly as your venture evolves.
+
+Wishing you focused execution and steady progress ahead.
+
+Thanks,
+Team Wadhwani Accelerate`;
+
+    await sendEmail(toEmail, subject, htmlBody, plainText);
+}

@@ -93,6 +93,12 @@ function getVentureStatusBadge(venture?: ScheduledCall['venture']) {
     if (status === 'Panel Review') {
         return { label: 'Pending with Panel (Core/Select)', color: 'text-indigo-700', bg: 'bg-indigo-50' };
     }
+    if (status === 'Assign VP/VM') {
+        return { label: 'Assign VP/VM', color: 'text-purple-700', bg: 'bg-purple-50' };
+    }
+    if (status === 'With VP/VM') {
+        return { label: 'With VP/VM', color: 'text-purple-700', bg: 'bg-purple-50' };
+    }
     if (status === 'Approved') {
         return { label: 'Accepted by Business', color: 'text-green-700', bg: 'bg-green-50' };
     }

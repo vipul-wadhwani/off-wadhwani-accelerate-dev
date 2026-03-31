@@ -1108,6 +1108,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
                                     </div>
                                 </div>
 
+                                {/* Support Request from Application */}
+                                {profileVenture.support_request && (
+                                    <div className="bg-white rounded-xl border border-gray-200 p-5">
+                                        <h3 className="text-base font-bold text-gray-900 mb-3">Support Description (from application)</h3>
+                                        <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg border border-gray-100 whitespace-pre-wrap">{profileVenture.support_request}</p>
+                                    </div>
+                                )}
+
                                 {/* Growth Idea Support Status */}
                                 <div>
                                     <h3 className="text-base font-bold text-gray-900 mb-3">Growth Idea Support Status</h3>

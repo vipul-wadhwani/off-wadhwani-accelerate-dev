@@ -551,6 +551,13 @@ router.put(
         try {
             const { supabase, role } = await getContext(req);
 
+            // If SelfServe, auto-set status to Completed and clear assignments
+            if (req.body.program_recommendation === 'Selfserve') {
+                req.body.status = 'Completed';
+                req.body.assigned_vsm_id = null;
+                req.body.assigned_vm_id = null;
+            }
+
             const venture = await ventureService.updateVenture(
                 supabase,
                 req.params.id,

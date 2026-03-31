@@ -271,6 +271,11 @@ export const PanelFeedbackForm: React.FC = () => {
             let payload: any;
 
             if (isPrime) {
+                if (finalRecommendation === 'proceed' && !additionalNotes?.trim()) {
+                    toast('Additional notes are mandatory when approving (Proceed). Please add comments.', 'warning');
+                    setSubmitting(false);
+                    return;
+                }
                 payload = {
                     ...commonPayload,
                     growth_venture_type: growthVentureType || null,
@@ -291,6 +296,11 @@ export const PanelFeedbackForm: React.FC = () => {
             } else {
                 if (!finalRecommendation) {
                     toast('Please select a Final Recommendation in Section D.', 'warning');
+                    setSubmitting(false);
+                    return;
+                }
+                if (finalRecommendation === 'proceed' && !additionalNotes?.trim()) {
+                    toast('Additional notes are mandatory when approving (Proceed). Please add comments in Section D.', 'warning');
                     setSubmitting(false);
                     return;
                 }

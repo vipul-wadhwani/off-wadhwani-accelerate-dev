@@ -158,6 +158,10 @@ export const VPVMVentureDetail: React.FC = () => {
     const [scorecardOpen, setScorecardOpen] = useState(false);
     const [roadmapOpen, setRoadmapOpen] = useState(true);
     const [interactionsOpen, setInteractionsOpen] = useState(false);
+    const [panelFeedbackOpen, setPanelFeedbackOpen] = useState(false);
+
+    // Panel feedback
+    const [panelFeedback, setPanelFeedback] = useState<any>(null);
     const [currentStatusOpen, setCurrentStatusOpen] = useState(true);
 
     // KPI edit mode
@@ -203,6 +207,18 @@ export const VPVMVentureDetail: React.FC = () => {
                     }
                 } catch (delErr) {
                     console.error('[VPVMDetail] Error fetching deliverables:', delErr);
+                }
+                // Fetch panel feedback
+                try {
+                    const { data: pfData } = await supabase
+                        .from('panel_feedback')
+                        .select('*')
+                        .eq('venture_id', id)
+                        .order('created_at', { ascending: false })
+                        .limit(1);
+                    if (pfData?.[0]) setPanelFeedback(pfData[0]);
+                } catch (pfErr) {
+                    console.error('[VPVMDetail] Error fetching panel feedback:', pfErr);
                 }
             } catch (err) {
                 console.error('Error fetching venture:', err);
@@ -533,6 +549,65 @@ export const VPVMVentureDetail: React.FC = () => {
                         <p className="text-sm text-gray-400 text-center py-8">No scorecard available.</p>
                     )}
                 </div>
+            )}
+
+            {/* Panel Feedback */}
+            {panelFeedback && (
+                <>
+                    <SectionHeader
+                        icon={Users}
+                        title="Panel Feedback"
+                        open={panelFeedbackOpen}
+                        onToggle={() => setPanelFeedbackOpen(!panelFeedbackOpen)}
+                    />
+                    {panelFeedbackOpen && (
+                        <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
+                            {panelFeedback.final_recommendation && (
+                                <div className="flex items-center gap-3">
+                                    <span className="text-xs font-bold text-gray-400 uppercase">Final Recommendation:</span>
+                                    <span className={`text-sm font-bold px-3 py-1 rounded-full ${panelFeedback.final_recommendation === 'proceed' ? 'bg-green-100 text-green-700' : panelFeedback.final_recommendation === 'hold' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-700'}`}>
+                                        {panelFeedback.final_recommendation}
+                                    </span>
+                                    {panelFeedback.program_category && (
+                                        <span className="text-sm text-gray-500">({panelFeedback.program_category})</span>
+                                    )}
+                                </div>
+                            )}
+                            {panelFeedback.business_overview && (
+                                <div>
+                                    <span className="text-xs font-bold text-gray-400 uppercase block mb-1">Business Overview</span>
+                                    <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg border border-gray-100">{panelFeedback.business_overview}</p>
+                                </div>
+                            )}
+                            <div className="grid grid-cols-2 gap-4">
+                                {panelFeedback.rating_financial_health && (
+                                    <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                        <span className="text-xs text-gray-400 block mb-1">Financial Health Rating</span>
+                                        <span className="text-lg font-bold text-gray-900">{panelFeedback.rating_financial_health}/5</span>
+                                    </div>
+                                )}
+                                {panelFeedback.rating_leadership && (
+                                    <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                        <span className="text-xs text-gray-400 block mb-1">Leadership Rating</span>
+                                        <span className="text-lg font-bold text-gray-900">{panelFeedback.rating_leadership}/5</span>
+                                    </div>
+                                )}
+                            </div>
+                            {panelFeedback.risks_red_flags && (
+                                <div>
+                                    <span className="text-xs font-bold text-gray-400 uppercase block mb-1">Risks / Red Flags</span>
+                                    <p className="text-sm text-red-700 bg-red-50 p-3 rounded-lg border border-red-100">{panelFeedback.risks_red_flags}</p>
+                                </div>
+                            )}
+                            {panelFeedback.additional_notes && (
+                                <div>
+                                    <span className="text-xs font-bold text-gray-400 uppercase block mb-1">Additional Notes</span>
+                                    <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg border border-gray-100 whitespace-pre-wrap">{panelFeedback.additional_notes}</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </>
             )}
 
             {/* Roadmap */}

@@ -4,6 +4,7 @@ import { api } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { formatRevenue } from '../utils/formatters';
 import { InteractionsSection } from '../components/Interactions/InteractionsSection';
+import { CurrentStatusSection } from '../components/CurrentStatus/CurrentStatusSection';
 import {
     Loader2,
     ChevronUp,
@@ -19,6 +20,8 @@ import {
     DollarSign,
     Truck,
     Settings,
+    RefreshCw,
+    Activity,
 } from 'lucide-react';
 
 const STREAM_ICONS: Record<string, any> = {
@@ -155,6 +158,7 @@ export const VPVMVentureDetail: React.FC = () => {
     const [scorecardOpen, setScorecardOpen] = useState(false);
     const [roadmapOpen, setRoadmapOpen] = useState(true);
     const [interactionsOpen, setInteractionsOpen] = useState(false);
+    const [currentStatusOpen, setCurrentStatusOpen] = useState(true);
 
     // KPI edit mode
     const [kpiEditing, setKpiEditing] = useState(false);
@@ -573,7 +577,7 @@ export const VPVMVentureDetail: React.FC = () => {
                                 <button
                                     onClick={async () => {
                                         if (!id || generatingDeliverables) return;
-                                        if (showDeliverables && deliverables.length > 0) {
+                                        if (deliverables.length > 0) {
                                             setShowDeliverables(!showDeliverables);
                                             return;
                                         }
@@ -596,6 +600,32 @@ export const VPVMVentureDetail: React.FC = () => {
                                     {generatingDeliverables ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
                                     {generatingDeliverables ? 'Generating...' : showDeliverables ? 'Hide deliverables' : deliverables.length > 0 ? 'Show deliverables' : 'Generate deliverables'}
                                 </button>
+                                {deliverables.length > 0 && (
+                                    <button
+                                        onClick={async () => {
+                                            if (!id || generatingDeliverables) return;
+                                            if (!confirm('This will regenerate all deliverables and replace the existing ones. Continue?')) return;
+                                            setGeneratingDeliverables(true);
+                                            try {
+                                                const result = await api.generateDeliverables(id, true);
+                                                if (result?.deliverables) {
+                                                    setDeliverables(result.deliverables);
+                                                    setShowDeliverables(true);
+                                                }
+                                            } catch (err) {
+                                                console.error('Error regenerating deliverables:', err);
+                                            } finally {
+                                                setGeneratingDeliverables(false);
+                                            }
+                                        }}
+                                        disabled={generatingDeliverables}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-indigo-600 border border-indigo-300 rounded-lg hover:bg-indigo-50 disabled:opacity-50 transition-colors"
+                                        title="Regenerate deliverables from roadmap"
+                                    >
+                                        <RefreshCw className="w-3.5 h-3.5" />
+                                        Regenerate
+                                    </button>
+                                )}
                                 <button
                                     onClick={() => {
                                         setEditedRoadmap(JSON.parse(JSON.stringify(roadmapData)));
@@ -674,6 +704,26 @@ export const VPVMVentureDetail: React.FC = () => {
                         </button>
                     </div>
                 )
+            )}
+
+            {/* Current Status */}
+            {deliverables.length > 0 && (
+                <>
+                    <SectionHeader
+                        icon={Activity}
+                        title="Current Status"
+                        open={currentStatusOpen}
+                        onToggle={() => setCurrentStatusOpen(!currentStatusOpen)}
+                    />
+                    {currentStatusOpen && id && (
+                        <CurrentStatusSection
+                            ventureId={id}
+                            ventureName={venture?.name || ''}
+                            deliverables={deliverables}
+                            onDeliverablesChange={setDeliverables}
+                        />
+                    )}
+                </>
             )}
 
             {/* Interactions */}

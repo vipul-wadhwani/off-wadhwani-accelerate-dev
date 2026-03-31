@@ -1024,3 +1024,65 @@ Return ONLY the JSON, no additional text.`;
         throw new Error(`Failed to generate deliverables: ${error.message}`);
     }
 }
+
+/**
+ * Generate resource recommendations for a deliverable using Claude API
+ */
+export async function generateRecommendations(
+    type: 'expert_connect' | 'service_provider' | 'masterclass' | 'research',
+    deliverable: { title: string; description?: string },
+    ventureContext: { name: string; what_do_you_sell?: string; growth_focus?: string[] }
+): Promise<any[]> {
+    if (!process.env.ANTHROPIC_API_KEY) {
+        throw new Error('ANTHROPIC_API_KEY is not configured');
+    }
+
+    const schemaByType: Record<string, string> = {
+        expert_connect: `[{ "name": "string", "title": "string (role/position)", "rating": number (4.0-5.0), "description": "string (1 sentence about their expertise)", "tags": ["string", "string", "string"] }]`,
+        service_provider: `[{ "name": "string (company name)", "rating": number (4.0-5.0), "description": "string (1 sentence about their services)", "tags": ["string", "string"] }]`,
+        masterclass: `[{ "title": "string", "instructor": "string", "description": "string (1 sentence)", "tags": ["string", "string", "string"], "date": "YYYY-MM-DD" }]`,
+        research: `[{ "title": "string", "type": "Report|Article|Case Study", "description": "string (1 sentence)", "tags": ["string", "string", "string"] }]`,
+    };
+
+    const typeLabel: Record<string, string> = {
+        expert_connect: 'expert mentors/advisors',
+        service_provider: 'service provider companies',
+        masterclass: 'masterclass courses/workshops',
+        research: 'research resources (reports, articles, case studies)',
+    };
+
+    const prompt = `You are an AI recommendation engine for a venture growth platform. Generate exactly 4 realistic ${typeLabel[type]} that would be relevant and helpful for the following deliverable.
+
+**Venture:** ${ventureContext.name}
+**Business:** ${ventureContext.what_do_you_sell || 'N/A'}
+**Growth Focus:** ${Array.isArray(ventureContext.growth_focus) ? ventureContext.growth_focus.join(', ') : 'N/A'}
+
+**Deliverable:** ${deliverable.title}
+**Description:** ${deliverable.description || 'N/A'}
+
+Return ONLY a valid JSON array with exactly 4 objects matching this schema:
+${schemaByType[type]}
+
+Make recommendations specific and relevant to the deliverable and venture context. Use realistic but fictional names. For ratings, use values between 4.5 and 4.9. For masterclass dates, use dates within the next 3 months from today.`;
+
+    try {
+        const response = await anthropic.messages.create({
+            model: 'claude-sonnet-4-5-20250929',
+            max_tokens: 2000,
+            messages: [{ role: 'user', content: prompt }],
+        });
+
+        const text = response.content
+            .filter((block): block is Anthropic.TextBlock => block.type === 'text')
+            .map((block) => block.text)
+            .join('');
+
+        const jsonMatch = text.match(/\[[\s\S]*\]/);
+        if (!jsonMatch) throw new Error('No JSON array found in AI response');
+
+        return JSON.parse(jsonMatch[0]);
+    } catch (error: any) {
+        console.error(`Error generating ${type} recommendations:`, error);
+        throw new Error(`Failed to generate recommendations: ${error.message}`);
+    }
+}

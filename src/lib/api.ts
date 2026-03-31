@@ -536,7 +536,7 @@ class ApiClient {
 
     // ============ DELIVERABLES ENDPOINTS ============
 
-    async generateDeliverables(ventureId: string) {
+    async generateDeliverables(ventureId: string, regenerate = false) {
         const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
         const session = await supabase.auth.getSession();
         const controller = new AbortController();
@@ -549,6 +549,7 @@ class ApiClient {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${session.data.session?.access_token}`
                 },
+                body: JSON.stringify({ regenerate }),
                 signal: controller.signal,
             });
 
@@ -592,6 +593,141 @@ class ApiClient {
 
         if (!response.ok) throw new Error('Failed to update deliverable');
         return await response.json();
+    }
+
+    async updateDeliverable(ventureId: string, deliverableId: string, data: Record<string, any>) {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const session = await supabase.auth.getSession();
+
+        const response = await fetch(`${API_URL}/api/ventures/${ventureId}/deliverables/${deliverableId}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.data.session?.access_token}`
+            },
+            body: JSON.stringify(data),
+        });
+
+        if (!response.ok) throw new Error('Failed to update deliverable');
+        return await response.json();
+    }
+
+    // ============ CHECKLIST ENDPOINTS ============
+
+    async getChecklistItems(ventureId: string, deliverableId: string) {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const session = await supabase.auth.getSession();
+
+        const response = await fetch(`${API_URL}/api/ventures/${ventureId}/deliverables/${deliverableId}/checklist`, {
+            headers: { 'Authorization': `Bearer ${session.data.session?.access_token}` },
+        });
+
+        if (!response.ok) throw new Error('Failed to fetch checklist');
+        return await response.json();
+    }
+
+    async addChecklistItem(ventureId: string, deliverableId: string, text: string) {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const session = await supabase.auth.getSession();
+
+        const response = await fetch(`${API_URL}/api/ventures/${ventureId}/deliverables/${deliverableId}/checklist`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.data.session?.access_token}`
+            },
+            body: JSON.stringify({ text }),
+        });
+
+        if (!response.ok) throw new Error('Failed to add checklist item');
+        return await response.json();
+    }
+
+    async updateChecklistItem(ventureId: string, deliverableId: string, itemId: string, data: Record<string, any>) {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const session = await supabase.auth.getSession();
+
+        const response = await fetch(`${API_URL}/api/ventures/${ventureId}/deliverables/${deliverableId}/checklist/${itemId}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.data.session?.access_token}`
+            },
+            body: JSON.stringify(data),
+        });
+
+        if (!response.ok) throw new Error('Failed to update checklist item');
+        return await response.json();
+    }
+
+    async deleteChecklistItem(ventureId: string, deliverableId: string, itemId: string) {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const session = await supabase.auth.getSession();
+
+        const response = await fetch(`${API_URL}/api/ventures/${ventureId}/deliverables/${deliverableId}/checklist/${itemId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${session.data.session?.access_token}` },
+        });
+
+        if (!response.ok) throw new Error('Failed to delete checklist item');
+        return await response.json();
+    }
+
+    // ============ NOTES ENDPOINTS ============
+
+    async getDeliverableNotes(ventureId: string, deliverableId: string) {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const session = await supabase.auth.getSession();
+
+        const response = await fetch(`${API_URL}/api/ventures/${ventureId}/deliverables/${deliverableId}/notes`, {
+            headers: { 'Authorization': `Bearer ${session.data.session?.access_token}` },
+        });
+
+        if (!response.ok) throw new Error('Failed to fetch notes');
+        return await response.json();
+    }
+
+    async addDeliverableNote(ventureId: string, deliverableId: string, data: { note_text: string; action_items: string[] }) {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const session = await supabase.auth.getSession();
+
+        const response = await fetch(`${API_URL}/api/ventures/${ventureId}/deliverables/${deliverableId}/notes`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.data.session?.access_token}`
+            },
+            body: JSON.stringify(data),
+        });
+
+        if (!response.ok) throw new Error('Failed to add note');
+        return await response.json();
+    }
+
+    // ============ RECOMMENDATION ENDPOINTS ============
+
+    async generateRecommendations(ventureId: string, deliverableId: string, type: string) {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const session = await supabase.auth.getSession();
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 120000); // 2 min
+
+        try {
+            const response = await fetch(`${API_URL}/api/ventures/${ventureId}/deliverables/${deliverableId}/recommendations`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.data.session?.access_token}`
+                },
+                body: JSON.stringify({ type }),
+                signal: controller.signal,
+            });
+
+            if (!response.ok) throw new Error('Failed to generate recommendations');
+            return await response.json();
+        } finally {
+            clearTimeout(timeout);
+        }
     }
 
     // ============ AI INSIGHTS ENDPOINTS ============

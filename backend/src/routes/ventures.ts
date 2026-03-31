@@ -1397,6 +1397,20 @@ router.post(
 
             const serviceClient = createServiceRoleClient();
             const ventureId = req.params.id;
+            const forceRegenerate = req.body?.regenerate === true;
+
+            // If not forcing regeneration, return existing deliverables
+            if (!forceRegenerate) {
+                const { data: existing } = await serviceClient
+                    .from('venture_deliverables')
+                    .select('*')
+                    .eq('venture_id', ventureId)
+                    .order('display_order');
+
+                if (existing && existing.length > 0) {
+                    return successResponse(res, { deliverables: existing, cached: true });
+                }
+            }
 
             // Fetch current roadmap
             const { data: roadmap } = await serviceClient
@@ -1502,7 +1516,7 @@ router.patch(
     async (req: Request, res: Response, next: NextFunction) => {
         try {
             const serviceClient = createServiceRoleClient();
-            const { status, notes } = req.body;
+            const { status, notes, title, description, owner, start_date, due_date } = req.body;
 
             const updates: any = { updated_at: new Date().toISOString() };
             if (status) {
@@ -1510,6 +1524,11 @@ router.patch(
                 if (status === 'completed') updates.completed_at = new Date().toISOString();
             }
             if (notes !== undefined) updates.notes = notes;
+            if (title !== undefined) updates.title = title;
+            if (description !== undefined) updates.description = description;
+            if (owner !== undefined) updates.owner = owner;
+            if (start_date !== undefined) updates.start_date = start_date;
+            if (due_date !== undefined) updates.due_date = due_date;
 
             const { data, error } = await serviceClient
                 .from('venture_deliverables')
@@ -1525,6 +1544,333 @@ router.patch(
             }
 
             successResponse(res, { deliverable: data });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
+// ============ CHECKLIST ROUTES ============
+
+/**
+ * GET /api/ventures/:ventureId/deliverables/:deliverableId/checklist
+ * Get all checklist items for a deliverable
+ */
+router.get(
+    '/:ventureId/deliverables/:deliverableId/checklist',
+    authenticateUser,
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const serviceClient = createServiceRoleClient();
+            const { data, error } = await serviceClient
+                .from('deliverable_checklist_items')
+                .select('*')
+                .eq('deliverable_id', req.params.deliverableId)
+                .order('display_order');
+
+            if (error) {
+                console.error('Error fetching checklist:', error);
+                return res.status(500).json({ success: false, message: 'Failed to fetch checklist' });
+            }
+
+            successResponse(res, { items: data || [] });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
+/**
+ * POST /api/ventures/:ventureId/deliverables/:deliverableId/checklist
+ * Add a checklist item
+ */
+router.post(
+    '/:ventureId/deliverables/:deliverableId/checklist',
+    authenticateUser,
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const serviceClient = createServiceRoleClient();
+            const { text } = req.body;
+
+            if (!text?.trim()) {
+                return res.status(400).json({ success: false, message: 'Text is required' });
+            }
+
+            // Get max display_order
+            const { data: existing } = await serviceClient
+                .from('deliverable_checklist_items')
+                .select('display_order')
+                .eq('deliverable_id', req.params.deliverableId)
+                .order('display_order', { ascending: false })
+                .limit(1);
+
+            const nextOrder = (existing?.[0]?.display_order ?? -1) + 1;
+
+            const { data, error } = await serviceClient
+                .from('deliverable_checklist_items')
+                .insert({
+                    deliverable_id: req.params.deliverableId,
+                    text: text.trim(),
+                    display_order: nextOrder,
+                })
+                .select()
+                .single();
+
+            if (error) {
+                console.error('Error adding checklist item:', error);
+                return res.status(500).json({ success: false, message: 'Failed to add checklist item' });
+            }
+
+            successResponse(res, { item: data });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
+/**
+ * PATCH /api/ventures/:ventureId/deliverables/:deliverableId/checklist/:itemId
+ * Update a checklist item (toggle completed, edit text)
+ */
+router.patch(
+    '/:ventureId/deliverables/:deliverableId/checklist/:itemId',
+    authenticateUser,
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const serviceClient = createServiceRoleClient();
+            const updates: any = {};
+
+            if (req.body.is_completed !== undefined) updates.is_completed = req.body.is_completed;
+            if (req.body.text !== undefined) updates.text = req.body.text;
+
+            const { data, error } = await serviceClient
+                .from('deliverable_checklist_items')
+                .update(updates)
+                .eq('id', req.params.itemId)
+                .eq('deliverable_id', req.params.deliverableId)
+                .select()
+                .single();
+
+            if (error) {
+                console.error('Error updating checklist item:', error);
+                return res.status(500).json({ success: false, message: 'Failed to update checklist item' });
+            }
+
+            successResponse(res, { item: data });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
+/**
+ * DELETE /api/ventures/:ventureId/deliverables/:deliverableId/checklist/:itemId
+ * Delete a checklist item
+ */
+router.delete(
+    '/:ventureId/deliverables/:deliverableId/checklist/:itemId',
+    authenticateUser,
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const serviceClient = createServiceRoleClient();
+            const { error } = await serviceClient
+                .from('deliverable_checklist_items')
+                .delete()
+                .eq('id', req.params.itemId)
+                .eq('deliverable_id', req.params.deliverableId);
+
+            if (error) {
+                console.error('Error deleting checklist item:', error);
+                return res.status(500).json({ success: false, message: 'Failed to delete checklist item' });
+            }
+
+            successResponse(res, { deleted: true });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
+// ============ NOTES ROUTES ============
+
+/**
+ * GET /api/ventures/:ventureId/deliverables/:deliverableId/notes
+ * Get all notes for a deliverable
+ */
+router.get(
+    '/:ventureId/deliverables/:deliverableId/notes',
+    authenticateUser,
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const serviceClient = createServiceRoleClient();
+            const { data, error } = await serviceClient
+                .from('deliverable_notes')
+                .select('*')
+                .eq('deliverable_id', req.params.deliverableId)
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                console.error('Error fetching notes:', error);
+                return res.status(500).json({ success: false, message: 'Failed to fetch notes' });
+            }
+
+            successResponse(res, { notes: data || [] });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
+/**
+ * POST /api/ventures/:ventureId/deliverables/:deliverableId/notes
+ * Add a note with action items
+ */
+router.post(
+    '/:ventureId/deliverables/:deliverableId/notes',
+    authenticateUser,
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const serviceClient = createServiceRoleClient();
+            const { note_text, action_items } = req.body;
+
+            if (!note_text?.trim()) {
+                return res.status(400).json({ success: false, message: 'Note text is required' });
+            }
+
+            // Get user id from token
+            const token = req.headers.authorization?.split(' ')[1] || '';
+            const authClient = createAuthenticatedClient(token);
+            const { data: { user } } = await authClient.auth.getUser();
+
+            const { data, error } = await serviceClient
+                .from('deliverable_notes')
+                .insert({
+                    deliverable_id: req.params.deliverableId,
+                    note_text: note_text.trim(),
+                    action_items: action_items || [],
+                    created_by: user?.id || null,
+                })
+                .select()
+                .single();
+
+            if (error) {
+                console.error('Error adding note:', error);
+                return res.status(500).json({ success: false, message: 'Failed to add note' });
+            }
+
+            successResponse(res, { note: data });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
+// ============ RECOMMENDATION ROUTES ============
+
+/**
+ * POST /api/ventures/:ventureId/deliverables/:deliverableId/recommendations
+ * Generate AI recommendations for a deliverable (returns cached if exists)
+ */
+router.post(
+    '/:ventureId/deliverables/:deliverableId/recommendations',
+    authenticateUser,
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const serviceClient = createServiceRoleClient();
+            const { ventureId, deliverableId } = req.params;
+            const { type } = req.body;
+
+            if (!['expert_connect', 'service_provider', 'masterclass', 'research'].includes(type)) {
+                return res.status(400).json({ success: false, message: 'Invalid recommendation type' });
+            }
+
+            // Check for cached recommendations
+            const { data: existing } = await serviceClient
+                .from('deliverable_recommendations')
+                .select('*')
+                .eq('deliverable_id', deliverableId)
+                .eq('recommendation_type', type)
+                .maybeSingle();
+
+            if (existing) {
+                return successResponse(res, { recommendation: existing, cached: true });
+            }
+
+            // Fetch deliverable and venture context
+            const { data: deliverable } = await serviceClient
+                .from('venture_deliverables')
+                .select('title, description')
+                .eq('id', deliverableId)
+                .single();
+
+            const { data: venture } = await serviceClient
+                .from('ventures')
+                .select('name, application:venture_applications(what_do_you_sell, growth_focus)')
+                .eq('id', ventureId)
+                .single();
+
+            const app: any = venture?.application?.[0] || venture?.application || {};
+
+            // Generate via AI
+            const recommendations = await aiService.generateRecommendations(type, {
+                title: deliverable?.title || '',
+                description: deliverable?.description,
+            }, {
+                name: venture?.name || '',
+                what_do_you_sell: app.what_do_you_sell,
+                growth_focus: app.growth_focus,
+            });
+
+            // Save to DB
+            const { data: saved, error } = await serviceClient
+                .from('deliverable_recommendations')
+                .insert({
+                    deliverable_id: deliverableId,
+                    recommendation_type: type,
+                    data: recommendations,
+                })
+                .select()
+                .single();
+
+            if (error) {
+                console.error('Error saving recommendations:', error);
+                return res.status(500).json({ success: false, message: 'Failed to save recommendations' });
+            }
+
+            successResponse(res, { recommendation: saved });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
+/**
+ * GET /api/ventures/:ventureId/deliverables/:deliverableId/recommendations
+ * Get recommendations for a deliverable (optionally filtered by type)
+ */
+router.get(
+    '/:ventureId/deliverables/:deliverableId/recommendations',
+    authenticateUser,
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const serviceClient = createServiceRoleClient();
+            let query = serviceClient
+                .from('deliverable_recommendations')
+                .select('*')
+                .eq('deliverable_id', req.params.deliverableId);
+
+            if (req.query.type) {
+                query = query.eq('recommendation_type', req.query.type as string);
+            }
+
+            const { data, error } = await query;
+
+            if (error) {
+                console.error('Error fetching recommendations:', error);
+                return res.status(500).json({ success: false, message: 'Failed to fetch recommendations' });
+            }
+
+            successResponse(res, { recommendations: data || [] });
         } catch (error) {
             next(error);
         }

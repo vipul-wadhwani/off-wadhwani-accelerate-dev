@@ -1379,6 +1379,158 @@ router.get(
     }
 );
 
+// ============ DELIVERABLE ROUTES ============
+
+/**
+ * POST /api/ventures/:id/generate-deliverables
+ * Generate AI-powered deliverables from the venture's roadmap
+ */
+router.post(
+    '/:id/generate-deliverables',
+    authenticateUser,
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const { role } = await getContext(req);
+            if (!['venture_mgr', 'committee_member', 'admin'].includes(role)) {
+                return res.status(403).json({ success: false, message: 'Access denied' });
+            }
+
+            const serviceClient = createServiceRoleClient();
+            const ventureId = req.params.id;
+
+            // Fetch current roadmap
+            const { data: roadmap } = await serviceClient
+                .from('venture_roadmaps')
+                .select('roadmap_data')
+                .eq('venture_id', ventureId)
+                .eq('is_current', true)
+                .maybeSingle();
+
+            if (!roadmap?.roadmap_data) {
+                return res.status(400).json({ success: false, message: 'No roadmap found. Generate a roadmap first.' });
+            }
+
+            // Fetch venture context
+            const { data: venture } = await serviceClient
+                .from('ventures')
+                .select('name, founder_name, application:venture_applications(what_do_you_sell, growth_focus)')
+                .eq('id', ventureId)
+                .single();
+
+            const app: any = venture?.application?.[0] || venture?.application || {};
+
+            // Generate deliverables via AI
+            const deliverablesByStream = await aiService.generateDeliverables(roadmap.roadmap_data, {
+                name: venture?.name || '',
+                founder_name: venture?.founder_name,
+                what_do_you_sell: app.what_do_you_sell,
+                growth_focus: app.growth_focus,
+            });
+
+            // Delete existing deliverables for this venture
+            await serviceClient
+                .from('venture_deliverables')
+                .delete()
+                .eq('venture_id', ventureId);
+
+            // Insert new deliverables
+            const rows = Object.entries(deliverablesByStream).flatMap(([streamKey, items]) =>
+                items.map((item) => ({
+                    venture_id: ventureId,
+                    title: item.title,
+                    description: item.description,
+                    status: 'pending',
+                    priority: 'medium',
+                    display_order: item.display_order,
+                    roadmap_key: streamKey,
+                }))
+            );
+
+            const { data: saved, error: insertError } = await serviceClient
+                .from('venture_deliverables')
+                .insert(rows)
+                .select();
+
+            if (insertError) {
+                console.error('Error saving deliverables:', insertError);
+                return res.status(500).json({ success: false, message: 'Failed to save deliverables' });
+            }
+
+            successResponse(res, { deliverables: saved });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
+/**
+ * GET /api/ventures/:id/deliverables
+ * Fetch all deliverables for a venture
+ */
+router.get(
+    '/:id/deliverables',
+    authenticateUser,
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const serviceClient = createServiceRoleClient();
+
+            const { data, error } = await serviceClient
+                .from('venture_deliverables')
+                .select('*')
+                .eq('venture_id', req.params.id)
+                .order('display_order', { ascending: true });
+
+            if (error) {
+                console.error('Error fetching deliverables:', error);
+                return res.status(500).json({ success: false, message: 'Failed to fetch deliverables' });
+            }
+
+            successResponse(res, { deliverables: data || [] });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
+/**
+ * PATCH /api/ventures/:ventureId/deliverables/:deliverableId
+ * Update a deliverable (status, notes, etc.)
+ */
+router.patch(
+    '/:ventureId/deliverables/:deliverableId',
+    authenticateUser,
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const serviceClient = createServiceRoleClient();
+            const { status, notes } = req.body;
+
+            const updates: any = { updated_at: new Date().toISOString() };
+            if (status) {
+                updates.status = status;
+                if (status === 'completed') updates.completed_at = new Date().toISOString();
+            }
+            if (notes !== undefined) updates.notes = notes;
+
+            const { data, error } = await serviceClient
+                .from('venture_deliverables')
+                .update(updates)
+                .eq('id', req.body.deliverableId || req.params.deliverableId)
+                .eq('venture_id', req.params.ventureId)
+                .select()
+                .single();
+
+            if (error) {
+                console.error('Error updating deliverable:', error);
+                return res.status(500).json({ success: false, message: 'Failed to update deliverable' });
+            }
+
+            successResponse(res, { deliverable: data });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
 // ============ STREAM ROUTES ============
 
 /**

@@ -45,7 +45,22 @@ const ROADMAP_LABELS: Record<string, string> = {
 };
 const SUPPORT_STATUS_OPTIONS = ['Need Deep Support', 'Need Some Guidance', 'Do Not Need Help'];
 
-const RoadmapGrid: React.FC<{ roadmapData: any; editing: boolean; onUpdate: (key: string, field: string, value: string) => void }> = ({ roadmapData, editing, onUpdate }) => (
+const DELIVERABLE_STATUS_CONFIG: Record<string, { label: string; dot: string; badge: string }> = {
+    pending: { label: 'Not Started', dot: 'bg-gray-400', badge: 'text-gray-600 bg-gray-50 border-gray-200' },
+    in_progress: { label: 'Work In Progress', dot: 'bg-blue-500', badge: 'text-blue-600 bg-blue-50 border-blue-200' },
+    completed: { label: 'Completed', dot: 'bg-green-500', badge: 'text-green-600 bg-green-50 border-green-200' },
+};
+
+const DELIVERABLE_STATUS_CYCLE = ['pending', 'in_progress', 'completed'];
+
+const RoadmapGrid: React.FC<{
+    roadmapData: any;
+    editing: boolean;
+    onUpdate: (key: string, field: string, value: string) => void;
+    deliverables?: any[];
+    showDeliverables?: boolean;
+    onDeliverableStatusChange?: (deliverableId: string, newStatus: string) => void;
+}> = ({ roadmapData, editing, onUpdate, deliverables = [], showDeliverables = false, onDeliverableStatusChange }) => (
     <div className="grid grid-cols-3 gap-4">
         {ROADMAP_STREAM_KEYS.map((key) => {
             const area = roadmapData[key];
@@ -55,6 +70,8 @@ const RoadmapGrid: React.FC<{ roadmapData: any; editing: boolean; onUpdate: (key
             const statusStyle = status.toLowerCase().includes('deep') ? 'bg-red-50 text-red-600 border-red-200'
                 : status.toLowerCase().includes('not') || status.toLowerCase().includes("don't") ? 'bg-green-50 text-green-600 border-green-200'
                 : 'bg-amber-50 text-amber-600 border-amber-200';
+
+            const streamDeliverables = deliverables.filter(d => d.roadmap_key === key);
 
             return (
                 <div key={key} className="bg-white border border-gray-200 rounded-xl p-4">
@@ -90,6 +107,35 @@ const RoadmapGrid: React.FC<{ roadmapData: any; editing: boolean; onUpdate: (key
                             <p className="text-xs text-gray-600">{area.end_goal || '-'}</p>
                         )}
                     </div>
+
+                    {/* Deliverables */}
+                    {showDeliverables && streamDeliverables.length > 0 && (
+                        <div className="mt-3 space-y-2">
+                            {streamDeliverables.map((del) => {
+                                const cfg = DELIVERABLE_STATUS_CONFIG[del.status] || DELIVERABLE_STATUS_CONFIG.pending;
+                                return (
+                                    <div key={del.id} className="bg-gray-50 border border-gray-100 rounded-lg p-3">
+                                        <div className="flex items-start gap-2">
+                                            <span className={`w-2.5 h-2.5 rounded-full mt-1 flex-shrink-0 ${cfg.dot}`} />
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-xs font-medium text-gray-900">{del.title}</p>
+                                                <button
+                                                    onClick={() => {
+                                                        const currentIdx = DELIVERABLE_STATUS_CYCLE.indexOf(del.status);
+                                                        const nextStatus = DELIVERABLE_STATUS_CYCLE[(currentIdx + 1) % DELIVERABLE_STATUS_CYCLE.length];
+                                                        onDeliverableStatusChange?.(del.id, nextStatus);
+                                                    }}
+                                                    className={`mt-1 text-[10px] font-medium px-1.5 py-0.5 rounded border ${cfg.badge} hover:opacity-80 transition-opacity`}
+                                                >
+                                                    {cfg.label}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
             );
         })}
@@ -120,6 +166,11 @@ export const VPVMVentureDetail: React.FC = () => {
     const [roadmapSaving, setRoadmapSaving] = useState(false);
     const [editedRoadmap, setEditedRoadmap] = useState<any>(null);
 
+    // Deliverables
+    const [deliverables, setDeliverables] = useState<any[]>([]);
+    const [showDeliverables, setShowDeliverables] = useState(false);
+    const [generatingDeliverables, setGeneratingDeliverables] = useState(false);
+
     useEffect(() => {
         if (!id) return;
         const fetchData = async () => {
@@ -138,6 +189,16 @@ export const VPVMVentureDetail: React.FC = () => {
                     }
                 } catch (rmErr) {
                     console.error('[VPVMDetail] Error fetching roadmap:', rmErr);
+                }
+                // Fetch deliverables
+                try {
+                    const delResult = await api.getDeliverables(id);
+                    if (delResult?.deliverables?.length > 0) {
+                        setDeliverables(delResult.deliverables);
+                        setShowDeliverables(true);
+                    }
+                } catch (delErr) {
+                    console.error('[VPVMDetail] Error fetching deliverables:', delErr);
                 }
             } catch (err) {
                 console.error('Error fetching venture:', err);
@@ -508,16 +569,44 @@ export const VPVMVentureDetail: React.FC = () => {
                                 >{roadmapSaving ? 'Saving...' : 'Save Changes'}</button>
                             </div>
                         ) : (
-                            <button
-                                onClick={() => {
-                                    setEditedRoadmap(JSON.parse(JSON.stringify(roadmapData)));
-                                    setRoadmapEditing(true);
-                                }}
-                                className="flex items-center gap-1 text-sm text-indigo-600 font-medium hover:text-indigo-700"
-                            >
-                                <Pencil className="w-3.5 h-3.5" />
-                                Edit Roadmap
-                            </button>
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={async () => {
+                                        if (!id || generatingDeliverables) return;
+                                        if (showDeliverables && deliverables.length > 0) {
+                                            setShowDeliverables(!showDeliverables);
+                                            return;
+                                        }
+                                        setGeneratingDeliverables(true);
+                                        try {
+                                            const result = await api.generateDeliverables(id);
+                                            if (result?.deliverables) {
+                                                setDeliverables(result.deliverables);
+                                                setShowDeliverables(true);
+                                            }
+                                        } catch (err) {
+                                            console.error('Error generating deliverables:', err);
+                                        } finally {
+                                            setGeneratingDeliverables(false);
+                                        }
+                                    }}
+                                    disabled={generatingDeliverables}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                                >
+                                    {generatingDeliverables ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                                    {generatingDeliverables ? 'Generating...' : showDeliverables ? 'Hide deliverables' : deliverables.length > 0 ? 'Show deliverables' : 'Generate deliverables'}
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setEditedRoadmap(JSON.parse(JSON.stringify(roadmapData)));
+                                        setRoadmapEditing(true);
+                                    }}
+                                    className="flex items-center gap-1 text-sm text-indigo-600 font-medium hover:text-indigo-700"
+                                >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                    Edit Roadmap
+                                </button>
+                            </div>
                         )
                     ) : null
                 }
@@ -532,6 +621,19 @@ export const VPVMVentureDetail: React.FC = () => {
                             const updated = { ...editedRoadmap };
                             updated[key] = { ...updated[key], [field]: value };
                             setEditedRoadmap(updated);
+                        }}
+                        deliverables={deliverables}
+                        showDeliverables={showDeliverables}
+                        onDeliverableStatusChange={async (deliverableId, newStatus) => {
+                            if (!id) return;
+                            try {
+                                await api.updateDeliverableStatus(id, deliverableId, newStatus);
+                                setDeliverables(prev => prev.map(d =>
+                                    d.id === deliverableId ? { ...d, status: newStatus } : d
+                                ));
+                            } catch (err) {
+                                console.error('Error updating deliverable:', err);
+                            }
                         }}
                     />) : (
                     <div className="bg-gray-50 border border-gray-200 rounded-xl p-8 text-center">

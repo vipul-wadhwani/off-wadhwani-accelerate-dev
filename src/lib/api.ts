@@ -534,6 +534,66 @@ class ApiClient {
         return data; // Returns { roadmap }
     }
 
+    // ============ DELIVERABLES ENDPOINTS ============
+
+    async generateDeliverables(ventureId: string) {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const session = await supabase.auth.getSession();
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 300000); // 5 min
+
+        try {
+            const response = await fetch(`${API_URL}/api/ventures/${ventureId}/generate-deliverables`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.data.session?.access_token}`
+                },
+                signal: controller.signal,
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || 'Failed to generate deliverables');
+            }
+
+            return await response.json();
+        } finally {
+            clearTimeout(timeout);
+        }
+    }
+
+    async getDeliverables(ventureId: string) {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const session = await supabase.auth.getSession();
+
+        const response = await fetch(`${API_URL}/api/ventures/${ventureId}/deliverables`, {
+            headers: {
+                'Authorization': `Bearer ${session.data.session?.access_token}`
+            },
+        });
+
+        if (!response.ok) throw new Error('Failed to fetch deliverables');
+        return await response.json();
+    }
+
+    async updateDeliverableStatus(ventureId: string, deliverableId: string, status: string) {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const session = await supabase.auth.getSession();
+
+        const response = await fetch(`${API_URL}/api/ventures/${ventureId}/deliverables/${deliverableId}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.data.session?.access_token}`
+            },
+            body: JSON.stringify({ status }),
+        });
+
+        if (!response.ok) throw new Error('Failed to update deliverable');
+        return await response.json();
+    }
+
     // ============ AI INSIGHTS ENDPOINTS ============
 
     async generateInsights(ventureId: string, vsmNotes?: string) {

@@ -937,3 +937,90 @@ function parsePanelScorecardResponse(responseText: string, screeningScorecard: S
         };
     }
 }
+
+/**
+ * Generate deliverables for each roadmap stream using Claude API
+ */
+export async function generateDeliverables(
+    roadmapData: any,
+    ventureContext: { name: string; founder_name?: string; what_do_you_sell?: string; growth_focus?: string[] }
+): Promise<Record<string, Array<{ title: string; description: string; status: string; display_order: number }>>> {
+    if (!process.env.ANTHROPIC_API_KEY) {
+        throw new Error('ANTHROPIC_API_KEY is not configured');
+    }
+
+    const streamSummaries = Object.entries(roadmapData)
+        .filter(([key]) => ['product', 'gtm', 'capital_planning', 'team', 'supply_chain', 'operations'].includes(key))
+        .map(([key, area]: [string, any]) => {
+            const actions = (area.actions || []).map((a: any) => `- ${a.title}: ${a.description}`).join('\n');
+            return `### ${key} (Support: ${area.support_status || 'N/A'})\nGoal: ${area.end_goal || 'N/A'}\nActions:\n${actions}`;
+        })
+        .join('\n\n');
+
+    const prompt = `You are a venture growth advisor. Based on the roadmap below, generate 4-5 specific, actionable deliverables for each of the 6 streams. Each deliverable should be a concrete, measurable work item that the venture team or VP/VM can track.
+
+**Venture:** ${ventureContext.name}
+**Founder:** ${ventureContext.founder_name || 'N/A'}
+**Business:** ${ventureContext.what_do_you_sell || 'N/A'}
+**Growth Focus:** ${Array.isArray(ventureContext.growth_focus) ? ventureContext.growth_focus.join(', ') : 'N/A'}
+
+**Roadmap:**
+${streamSummaries}
+
+**Instructions:**
+- Generate 4-5 deliverables per stream
+- Each deliverable title should be 5-10 words, specific and actionable (e.g., "Develop Core API Specifications for Real-time Sensor Data Ingestion")
+- Each description should be 1-2 sentences explaining the deliverable
+- Deliverables should progress from foundational to advanced within each stream
+- Make deliverables specific to THIS venture's context, not generic
+
+Return ONLY a JSON object with this structure:
+{
+  "product": [
+    { "title": "...", "description": "..." },
+    ...
+  ],
+  "gtm": [...],
+  "capital_planning": [...],
+  "team": [...],
+  "supply_chain": [...],
+  "operations": [...]
+}
+
+Return ONLY the JSON, no additional text.`;
+
+    try {
+        const message = await anthropic.messages.create({
+            model: 'claude-sonnet-4-5-20250929',
+            max_tokens: 4000,
+            temperature: 0,
+            messages: [{ role: 'user', content: prompt }],
+        });
+
+        const responseText = message.content
+            .filter((block: any) => block.type === 'text')
+            .map((block: any) => block.text)
+            .join('\n');
+
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error('No JSON found in deliverables response');
+
+        const parsed = JSON.parse(jsonMatch[0]);
+        const result: Record<string, Array<{ title: string; description: string; status: string; display_order: number }>> = {};
+
+        for (const key of ['product', 'gtm', 'capital_planning', 'team', 'supply_chain', 'operations']) {
+            const items = Array.isArray(parsed[key]) ? parsed[key].slice(0, 5) : [];
+            result[key] = items.map((item: any, idx: number) => ({
+                title: item.title || `Deliverable ${idx + 1}`,
+                description: item.description || '',
+                status: 'pending',
+                display_order: idx + 1,
+            }));
+        }
+
+        return result;
+    } catch (error: any) {
+        console.error('Error generating deliverables:', error);
+        throw new Error(`Failed to generate deliverables: ${error.message}`);
+    }
+}

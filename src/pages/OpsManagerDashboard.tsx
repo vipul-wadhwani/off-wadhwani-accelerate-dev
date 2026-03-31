@@ -25,6 +25,7 @@ import { ScheduleCallModal } from '../components/ScheduleCallModal';
 import { AssignVPVMModal } from '../components/AssignVPVMModal';
 import { STATUS_CONFIG } from '../components/StatusSelect';
 import { useToast } from '../components/ui/Toast';
+import { PanelFeedbackReadOnly } from '../components/PanelFeedbackReadOnly';
 
 interface Venture {
     id: string;
@@ -935,54 +936,16 @@ export const OpsManagerDashboard: React.FC = () => {
                                     </div>
                                 )}
 
-                                {/* Panel Feedback */}
+                                {/* Panel Feedback (Full Read-Only) */}
                                 {profileVenture.panel_feedback && (
                                     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                                         <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
+                                            <FileText className="w-5 h-5 text-indigo-500" />
                                             <span className="text-base font-bold text-gray-700">Panel Feedback</span>
                                             <span className="text-xs text-gray-400">Read Only</span>
                                         </div>
-                                        <div className="p-5 space-y-4">
-                                            {profileVenture.panel_feedback.business_overview && (
-                                                <div>
-                                                    <span className="text-xs font-bold text-gray-400 uppercase block mb-1">Business Overview</span>
-                                                    <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg border border-gray-100">{profileVenture.panel_feedback.business_overview}</p>
-                                                </div>
-                                            )}
-                                            <div className="grid grid-cols-2 gap-4">
-                                                {profileVenture.panel_feedback.rating_financial_health && (
-                                                    <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
-                                                        <span className="text-xs text-gray-400 block mb-1">Financial Health Rating</span>
-                                                        <span className="text-lg font-bold text-gray-900">{profileVenture.panel_feedback.rating_financial_health}/5</span>
-                                                    </div>
-                                                )}
-                                                {profileVenture.panel_feedback.rating_leadership && (
-                                                    <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
-                                                        <span className="text-xs text-gray-400 block mb-1">Leadership Rating</span>
-                                                        <span className="text-lg font-bold text-gray-900">{profileVenture.panel_feedback.rating_leadership}/5</span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            {profileVenture.panel_feedback.risks_red_flags && (
-                                                <div>
-                                                    <span className="text-xs font-bold text-gray-400 uppercase block mb-1">Risks / Red Flags</span>
-                                                    <p className="text-sm text-red-700 bg-red-50 p-3 rounded-lg border border-red-100">{profileVenture.panel_feedback.risks_red_flags}</p>
-                                                </div>
-                                            )}
-                                            {profileVenture.panel_feedback.final_recommendation && (
-                                                <div className="flex items-center gap-3">
-                                                    <span className="text-xs font-bold text-gray-400 uppercase">Final Recommendation:</span>
-                                                    <span className={`text-sm font-bold px-3 py-1 rounded-full ${profileVenture.panel_feedback.final_recommendation === 'proceed' ? 'bg-green-100 text-green-700' : profileVenture.panel_feedback.final_recommendation === 'hold' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-700'}`}>
-                                                        {profileVenture.panel_feedback.final_recommendation}
-                                                    </span>
-                                                </div>
-                                            )}
-                                            {profileVenture.panel_feedback.additional_notes && (
-                                                <div>
-                                                    <span className="text-xs font-bold text-gray-400 uppercase block mb-1">Additional Notes</span>
-                                                    <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg border border-gray-100 whitespace-pre-wrap">{profileVenture.panel_feedback.additional_notes}</p>
-                                                </div>
-                                            )}
+                                        <div className="p-5">
+                                            <PanelFeedbackReadOnly data={profileVenture.panel_feedback} />
                                         </div>
                                     </div>
                                 )}

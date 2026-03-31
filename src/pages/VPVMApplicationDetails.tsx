@@ -11,12 +11,15 @@ import {
     Briefcase,
     HelpCircle,
 } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { PanelFeedbackReadOnly } from '../components/PanelFeedbackReadOnly';
 
 export const VPVMApplicationDetails: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const [venture, setVenture] = useState<any>(null);
     const [streams, setStreams] = useState<any[]>([]);
+    const [panelFeedback, setPanelFeedback] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -27,6 +30,16 @@ export const VPVMApplicationDetails: React.FC = () => {
                 const result = await api.getVenture(id);
                 setVenture(result.venture);
                 setStreams(result.streams || []);
+                // Fetch panel feedback
+                try {
+                    const { data: pfData } = await supabase
+                        .from('panel_feedback')
+                        .select('*')
+                        .eq('venture_id', id)
+                        .order('created_at', { ascending: false })
+                        .limit(1);
+                    if (pfData?.[0]) setPanelFeedback(pfData[0]);
+                } catch { /* no panel feedback */ }
             } catch (err) {
                 console.error('Error fetching venture:', err);
             } finally {
@@ -389,6 +402,18 @@ export const VPVMApplicationDetails: React.FC = () => {
                     </div>
                 </div>
             )}
+
+            {/* Panel Feedback (Full Read-Only) */}
+            <div>
+                <h2 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+                    <Users className="w-5 h-5 text-indigo-500" />
+                    Panel Feedback
+                    <span className="text-xs text-gray-400 font-normal">Read Only</span>
+                </h2>
+                <div className="bg-white border border-gray-200 rounded-xl p-5">
+                    <PanelFeedbackReadOnly data={panelFeedback} />
+                </div>
+            </div>
         </div>
     );
 };

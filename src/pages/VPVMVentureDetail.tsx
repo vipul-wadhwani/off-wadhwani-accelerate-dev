@@ -4,7 +4,6 @@ import { api } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { formatRevenue } from '../utils/formatters';
 import { InteractionsSection } from '../components/Interactions/InteractionsSection';
-import { PanelFeedbackReadOnly } from '../components/PanelFeedbackReadOnly';
 import { CurrentStatusSection } from '../components/CurrentStatus/CurrentStatusSection';
 import {
     Loader2,
@@ -156,13 +155,8 @@ export const VPVMVentureDetail: React.FC = () => {
     const [loading, setLoading] = useState(true);
 
     // Collapsible sections
-    const [scorecardOpen, setScorecardOpen] = useState(false);
     const [roadmapOpen, setRoadmapOpen] = useState(true);
     const [interactionsOpen, setInteractionsOpen] = useState(false);
-    const [panelFeedbackOpen, setPanelFeedbackOpen] = useState(false);
-
-    // Panel feedback
-    const [panelFeedback, setPanelFeedback] = useState<any>(null);
     const [currentStatusOpen, setCurrentStatusOpen] = useState(true);
 
     // KPI edit mode
@@ -208,18 +202,6 @@ export const VPVMVentureDetail: React.FC = () => {
                     }
                 } catch (delErr) {
                     console.error('[VPVMDetail] Error fetching deliverables:', delErr);
-                }
-                // Fetch panel feedback
-                try {
-                    const { data: pfData } = await supabase
-                        .from('panel_feedback')
-                        .select('*')
-                        .eq('venture_id', id)
-                        .order('created_at', { ascending: false })
-                        .limit(1);
-                    if (pfData?.[0]) setPanelFeedback(pfData[0]);
-                } catch (pfErr) {
-                    console.error('[VPVMDetail] Error fetching panel feedback:', pfErr);
                 }
             } catch (err) {
                 console.error('Error fetching venture:', err);

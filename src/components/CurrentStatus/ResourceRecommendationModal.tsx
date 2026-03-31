@@ -20,12 +20,13 @@ const TYPE_LABELS: Record<RecommendationType, string> = {
     research: 'Research',
 };
 
-const TYPE_ACTION_LABELS: Record<RecommendationType, string[]> = {
+const _TYPE_ACTION_LABELS: Record<RecommendationType, string[]> = {
     expert_connect: ['Recommend', 'Request Meeting'],
     service_provider: ['Recommend', 'Connect'],
     masterclass: ['Register'],
     research: ['View Resource'],
 };
+void _TYPE_ACTION_LABELS; // reserved for future use
 
 // Avatar placeholder using initials
 const Avatar: React.FC<{ name: string }> = ({ name }) => {

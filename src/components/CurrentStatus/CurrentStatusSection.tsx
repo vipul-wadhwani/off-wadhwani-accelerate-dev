@@ -46,7 +46,8 @@ export const CurrentStatusSection: React.FC<CurrentStatusSectionProps> = ({
     };
 
     const currentFilterLabel = STATUS_FILTER_OPTIONS.find((o) => o.value === statusFilter)?.label || 'All Statuses';
-    const currentFilterConfig = statusFilter !== 'all' ? DELIVERABLE_STATUS_CONFIG[statusFilter] : null;
+    const _currentFilterConfig = statusFilter !== 'all' ? DELIVERABLE_STATUS_CONFIG[statusFilter] : null;
+    void _currentFilterConfig; // reserved for future use
 
     // Detail view
     if (selectedDeliverable) {

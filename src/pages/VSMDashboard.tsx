@@ -649,8 +649,8 @@ export const VSMDashboard: React.FC = () => {
 
         setSaving(true);
         try {
-            // Selfserve stays as 'Approved' (no panel review needed), others go to Panel Review
-            const newStatus = program === 'Selfserve' ? 'Approved' : 'Panel Review';
+            // Selfserve → Completed (final status, no assignment), others → Panel Review
+            const newStatus = program === 'Selfserve' ? 'Completed' : 'Panel Review';
 
             const updatePayload: any = {
                 vsm_notes: vsmNotes,

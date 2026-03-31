@@ -153,7 +153,7 @@ export const OpsManagerDashboard: React.FC = () => {
             const { data: ventureData } = await supabase
                 .from('ventures')
                 .select('*, assessments:venture_assessments(*)')
-                .in('status', ['Panel Review', 'Approved', 'Assign VP/VM', 'With VP/VM', 'Rejected', 'Under Review', 'Submitted']);
+                .in('status', ['Panel Review', 'Approved', 'Assign VP/VM', 'With VP/VM', 'Rejected', 'Under Review', 'Submitted', 'Completed']);
 
             const flatVentures: Venture[] = (ventureData || []).map((v: any) => {
                 const assessment = (v.assessments || []).find((a: any) => a.is_current) || v.assessments?.[0] || {};

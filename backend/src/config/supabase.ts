@@ -1,33 +1,50 @@
-import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-dotenv.config();
+// Lazy-initialized default client — created on first access so that
+// Azure Key Vault secrets (loaded async in initConfig) are available.
+let _supabase: SupabaseClient | null = null;
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error('Missing Supabase environment variables');
+function getSupabaseUrl(): string {
+    const url = process.env.SUPABASE_URL;
+    if (!url) throw new Error('Missing SUPABASE_URL environment variable');
+    return url;
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+function getSupabaseAnonKey(): string {
+    const key = process.env.SUPABASE_ANON_KEY;
+    if (!key) throw new Error('Missing SUPABASE_ANON_KEY environment variable');
+    return key;
+}
 
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+export function getSupabase(): SupabaseClient {
+    if (!_supabase) {
+        _supabase = createClient(getSupabaseUrl(), getSupabaseAnonKey());
+    }
+    return _supabase;
+}
+
+// Backwards-compatible export — proxies to the lazy getter
+export const supabase = new Proxy({} as SupabaseClient, {
+    get(_, prop) {
+        return (getSupabase() as any)[prop];
+    },
+});
 
 export function createServiceRoleClient() {
-    if (!supabaseServiceRoleKey) {
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!serviceRoleKey) {
         console.warn('SUPABASE_SERVICE_ROLE_KEY not set — falling back to anon client');
-        return supabase;
+        return getSupabase();
     }
-    return createClient(supabaseUrl!, supabaseServiceRoleKey, {
+    return createClient(getSupabaseUrl(), serviceRoleKey, {
         auth: { autoRefreshToken: false, persistSession: false },
     });
 }
 
 export function createAuthenticatedClient(token: string) {
-    if (!token) return supabase;
+    if (!token) return getSupabase();
 
-    return createClient(supabaseUrl!, supabaseAnonKey!, {
+    return createClient(getSupabaseUrl(), getSupabaseAnonKey(), {
         global: {
             headers: {
                 Authorization: `Bearer ${token}`,

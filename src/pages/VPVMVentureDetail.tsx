@@ -437,24 +437,6 @@ export const VPVMVentureDetail: React.FC = () => {
                     </div>
                 </div>
 
-            {/* Panel Feedback (Full Read-Only) */}
-            <SectionHeader
-                icon={Users}
-                title="Panel Feedback"
-                open={panelFeedbackOpen}
-                onToggle={() => setPanelFeedbackOpen(!panelFeedbackOpen)}
-                action={panelFeedback ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 border border-gray-200 text-xs font-medium text-gray-500">
-                        Read Only
-                    </span>
-                ) : null}
-            />
-            {panelFeedbackOpen && (
-                <div className="bg-white border border-gray-200 rounded-xl p-5">
-                    <PanelFeedbackReadOnly data={panelFeedback} />
-                </div>
-            )}
-
             {/* Roadmap */}
             <SectionHeader
                 icon={Sparkles}

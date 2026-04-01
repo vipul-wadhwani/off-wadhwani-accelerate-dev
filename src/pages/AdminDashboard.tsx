@@ -248,7 +248,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
             (panelistData || []).forEach((p: any) => {
                 pNames.add((p.name || '').toLowerCase());
                 if (!profileMap[p.id]) {
-                    profileMap[p.id] = { full_name: p.name, role: p.program === 'Prime' ? 'venture_mgr' : 'committee_member' };
+                    profileMap[p.id] = { full_name: p.name, email: p.email || '', role: p.program === 'Prime' ? 'venture_mgr' : 'committee_member' };
                 }
             });
             setPanelistNames(pNames);

@@ -257,7 +257,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
             // Staff users for Users tab
             const staffList: StaffUser[] = (profileData || [])
                 .filter((p: any) => p.role && p.role !== 'entrepreneur')
-                .map((p: any) => ({ id: p.id, full_name: p.full_name || '', email: '', role: p.role, created_at: '' }));
+                .map((p: any) => ({ id: p.id, full_name: p.full_name || '', email: p.email || '', role: p.role, created_at: '' }));
             setStaffUsers(staffList);
 
             // Status history for aging

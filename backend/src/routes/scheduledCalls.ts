@@ -37,7 +37,7 @@ router.get(
                 .from('scheduled_calls')
                 .select(`
                     *,
-                    venture:ventures(id, name, founder_name, status),
+                    venture:ventures(id, name, founder_name, status, assessments:venture_assessments(program_recommendation, is_current)),
                     panelist:panelists(id, name, email, program)
                 `)
                 .order('call_date', { ascending: true })
@@ -153,7 +153,7 @@ router.post(
                 })
                 .select(`
                     *,
-                    venture:ventures(id, name, founder_name, status),
+                    venture:ventures(id, name, founder_name, status, assessments:venture_assessments(program_recommendation, is_current)),
                     panelist:panelists(id, name, email, program)
                 `)
                 .single();

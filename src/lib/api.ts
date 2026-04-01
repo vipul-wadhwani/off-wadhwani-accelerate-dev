@@ -946,7 +946,18 @@ class ApiClient {
         }
 
         const data = await response.json();
-        return data; // Returns { scheduled_calls: [...] }
+        // Flatten program_recommendation from nested venture.assessments
+        if (data.scheduled_calls) {
+            data.scheduled_calls = data.scheduled_calls.map((call: any) => {
+                if (call.venture?.assessments) {
+                    const assessment = call.venture.assessments.find((a: any) => a.is_current) || call.venture.assessments[0];
+                    call.venture.program_recommendation = assessment?.program_recommendation;
+                    delete call.venture.assessments;
+                }
+                return call;
+            });
+        }
+        return data;
     }
 
     async createScheduledCall(callData: {

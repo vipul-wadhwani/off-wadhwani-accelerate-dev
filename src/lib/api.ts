@@ -14,6 +14,8 @@ interface VentureQueryParams {
     offset?: number;
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
+    assigned_to_me?: boolean;
+    assigned_to_panelist?: boolean;
 }
 
 class ApiClient {
@@ -77,6 +79,8 @@ class ApiClient {
         if (params.offset) queryParams.set('offset', String(params.offset));
         if (params.sortBy) queryParams.set('sortBy', params.sortBy);
         if (params.sortOrder) queryParams.set('sortOrder', params.sortOrder);
+        if (params.assigned_to_me) queryParams.set('assigned_to_me', 'true');
+        if (params.assigned_to_panelist) queryParams.set('assigned_to_panelist', 'true');
 
         const url = `${API_URL}/api/ventures${queryParams.toString() ? `?${queryParams}` : ''}`;
         const response = await fetch(url, {

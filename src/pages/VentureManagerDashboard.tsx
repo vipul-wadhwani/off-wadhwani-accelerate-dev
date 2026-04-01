@@ -107,8 +107,8 @@ export const VentureManagerDashboard: React.FC = () => {
 
     const fetchVentures = async () => {
         try {
-            // Fetch all ventures with program_recommendation = "Accelerate Prime"
-            const { ventures: allVentures } = await api.getVentures({ sortBy: 'created_at', sortOrder });
+            // Fetch ventures assigned to this panelist
+            const { ventures: allVentures } = await api.getVentures({ sortBy: 'created_at', sortOrder, assigned_to_panelist: true });
 
             console.log('🔍 All ventures:', allVentures);
             console.log('🔍 Venture recommendations:', allVentures?.map((v: any) => ({

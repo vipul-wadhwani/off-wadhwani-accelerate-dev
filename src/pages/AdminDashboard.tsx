@@ -9,6 +9,7 @@ import {
 import { STATUS_CONFIG } from '../components/StatusSelect';
 import { InteractionsSection } from '../components/Interactions/InteractionsSection';
 import { useToast } from '../components/ui/Toast';
+import { getRoleDisplayLabel } from '../utils/roleLabels';
 
 // ─── Types ───────────────────────────────────────────────────────────
 interface Venture {
@@ -112,15 +113,8 @@ function daysSince(dateStr: string): number {
     return Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24));
 }
 
-function roleLabel(role: string): string {
-    const m: Record<string, string> = {
-        success_mgr: 'Screening Manager',
-        venture_mgr: 'Panel (Prime)',
-        committee_member: 'Panel (Core/Select)',
-        ops_manager: 'Ops Manager',
-        admin: 'Admin',
-    };
-    return m[role] || role;
+function roleLabel(role: string, isPanelist?: boolean): string {
+    return getRoleDisplayLabel(role, isPanelist);
 }
 
 // ─── Main Component ──────────────────────────────────────────────────
@@ -432,7 +426,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
                 id: pid,
                 name: p.full_name || 'Unknown',
                 role: p.role,
-                roleLabel: roleLabel(p.role),
+                roleLabel: roleLabel(p.role, panelistNames.has((p.full_name || '').toLowerCase())),
                 pendingReviews: pending,
                 completedReviews: completed,
                 approved,
@@ -442,7 +436,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
         })
         .filter(p => {
             if (perfSearch && !p.name.toLowerCase().includes(perfSearch.toLowerCase())) return false;
-            if (perfRoleFilter && p.role !== perfRoleFilter) return false;
+            if (perfRoleFilter) {
+                const isPanelist = panelistNames.has((p.name || '').toLowerCase());
+                if (perfRoleFilter === 'venture_mgr_panel') {
+                    if (p.role !== 'venture_mgr' || !isPanelist) return false;
+                } else if (perfRoleFilter === 'committee_member_panel') {
+                    if (p.role !== 'committee_member' || !isPanelist) return false;
+                } else if (perfRoleFilter === 'venture_mgr_vpvm') {
+                    if (p.role !== 'venture_mgr' || isPanelist) return false;
+                } else if (perfRoleFilter === 'committee_member_vpvm') {
+                    if (p.role !== 'committee_member' || isPanelist) return false;
+                } else if (p.role !== perfRoleFilter) {
+                    return false;
+                }
+            }
             return true;
         })
         .sort((a, b) => b.completedReviews - a.completedReviews);
@@ -454,10 +461,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
         try {
             const token = (await supabase.auth.getSession()).data.session?.access_token;
             const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+            // Parse composite role: e.g. "venture_mgr_panel" → role: "venture_mgr", is_panelist: true
+            let role = newUserRole;
+            let is_panelist = false;
+            if (newUserRole.endsWith('_panel')) {
+                role = newUserRole.replace('_panel', '');
+                is_panelist = true;
+            } else if (newUserRole.endsWith('_vpvm')) {
+                role = newUserRole.replace('_vpvm', '');
+                is_panelist = false;
+            }
             const res = await fetch(`${API_URL}/api/admin/users`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body: JSON.stringify({ full_name: newUserName, email: newUserEmail, role: newUserRole }),
+                body: JSON.stringify({ full_name: newUserName, email: newUserEmail, role, is_panelist }),
             });
             if (!res.ok) {
                 const err = await res.json();
@@ -746,8 +763,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
                         >
                             <option value="">All Roles</option>
                             <option value="success_mgr">Screening Manager</option>
-                            <option value="venture_mgr">Panel (Prime)</option>
-                            <option value="committee_member">Panel (Core/Select)</option>
+                            <option value="venture_mgr_panel">Panelist (Prime)</option>
+                            <option value="committee_member_panel">Panelist (Core/Select)</option>
+                            <option value="venture_mgr_vpvm">VM (Prime)</option>
+                            <option value="committee_member_vpvm">VP (Core/Select)</option>
+                            <option value="ops_manager">Ops Manager</option>
+                            <option value="admin">Admin</option>
                         </select>
                     </div>
 
@@ -851,10 +872,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
                                         <td className="px-4 py-2.5">
                                             {(() => {
                                                 const isPanelist = panelistNames.has((u.full_name || '').toLowerCase());
+                                                const label = roleLabel(u.role, isPanelist);
                                                 const isVPVM = (u.role === 'venture_mgr' || u.role === 'committee_member') && !isPanelist;
-                                                const label = isVPVM
-                                                    ? (u.role === 'venture_mgr' ? 'VM (Prime)' : 'VP (Core/Select)')
-                                                    : roleLabel(u.role);
                                                 const style = isVPVM
                                                     ? 'bg-purple-50 text-purple-700'
                                                     : u.role === 'success_mgr' ? 'bg-amber-50 text-amber-700'
@@ -906,8 +925,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
                                         <label className="block text-xs font-medium text-gray-600 mb-1.5">Role</label>
                                         <select value={newUserRole} onChange={e => setNewUserRole(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
                                             <option value="success_mgr">Screening Manager</option>
-                                            <option value="venture_mgr">Panel / VM (Prime)</option>
-                                            <option value="committee_member">Panel / VP (Core/Select)</option>
+                                            <option value="venture_mgr_panel">Panelist (Prime)</option>
+                                            <option value="committee_member_panel">Panelist (Core/Select)</option>
+                                            <option value="venture_mgr_vpvm">VM (Prime)</option>
+                                            <option value="committee_member_vpvm">VP (Core/Select)</option>
                                             <option value="ops_manager">Ops Manager</option>
                                             <option value="admin">Admin</option>
                                         </select>

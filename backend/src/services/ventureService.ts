@@ -146,6 +146,34 @@ export async function getVentures(
         query = query.eq('assigned_vm_id', userId);
     }
 
+    // Panelist filter: look up panelist by user email, filter by assigned_panelist_id
+    if (filters?.assigned_to_panelist) {
+        const serviceClient = createServiceRoleClient();
+        const { data: userProfile } = await serviceClient
+            .from('profiles')
+            .select('email')
+            .eq('id', userId)
+            .single();
+
+        if (userProfile?.email) {
+            const { data: panelist } = await serviceClient
+                .from('panelists')
+                .select('id')
+                .eq('email', userProfile.email)
+                .single();
+
+            if (panelist) {
+                // Use service client to bypass RLS which allows committee_member to see all ventures
+                query = serviceClient.from('ventures').select('*, streams:venture_streams(*), application:venture_applications(*), assessments:venture_assessments(*)', { count: 'exact' })
+                    .eq('assigned_panelist_id', panelist.id);
+            } else {
+                return { ventures: [], total: 0 };
+            }
+        } else {
+            return { ventures: [], total: 0 };
+        }
+    }
+
     // Apply filters
     if (filters?.status) {
         query = query.eq('status', filters.status);

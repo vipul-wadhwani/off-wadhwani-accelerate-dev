@@ -236,8 +236,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
             // Profiles (all staff)
             const { data: profileData } = await supabase
                 .from('profiles')
-                .select('id, full_name, role');
-            const profileMap: Record<string, { full_name: string; role: string }> = {};
+                .select('id, full_name, email, role');
+            const profileMap: Record<string, { full_name: string; email: string; role: string }> = {};
             (profileData || []).forEach((p: any) => { profileMap[p.id] = p; });
 
             // Panelists (assigned_panelist_id references panelists table, not profiles)

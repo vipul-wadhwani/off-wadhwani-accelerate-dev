@@ -22,7 +22,11 @@ function buildConfig() {
 
 // Load secrets from Azure Key Vault, then build config
 export async function initConfig(): Promise<void> {
-    await loadSecretsFromKeyVault();
+    try {
+        await loadSecretsFromKeyVault();
+    } catch (err: any) {
+        console.warn(`[Config] Key Vault unavailable, using .env fallback: ${err.message}`);
+    }
     _config = buildConfig();
 
     // Validate required environment variables

@@ -50,7 +50,8 @@ export async function loadSecretsFromKeyVault(): Promise<void> {
     });
 
     if (failed.length > 0) {
-        throw new Error(`[KeyVault] Failed to load ${failed.length} secret(s): ${failed.join(', ')}`);
+        console.warn(`[KeyVault] Failed to load ${failed.length} secret(s) — falling back to .env values: ${failed.join(', ')}`);
+        return;
     }
 
     console.log('[KeyVault] All secrets loaded successfully');

@@ -14,10 +14,12 @@ dist-ssr
 
 # Environment variables (NEVER commit these!)
 .env
+.env.*
 .env.local
 .env.production
 .env.development
 backend/.env
+backend/.env.*
 backend/.env.local
 
 # Secrets / credentials exports

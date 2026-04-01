@@ -146,21 +146,34 @@ export async function getVentures(
         query = query.eq('assigned_vm_id', userId);
     }
 
-    // Panelist filter: look up panelist by user email, filter by assigned_panelist_id
+    // Panelist filter: look up panelist by user email or name, filter by assigned_panelist_id
     if (filters?.assigned_to_panelist) {
         const serviceClient = createServiceRoleClient();
         const { data: userProfile } = await serviceClient
             .from('profiles')
-            .select('email')
+            .select('email, full_name')
             .eq('id', userId)
             .single();
 
-        if (userProfile?.email) {
-            const { data: panelist } = await serviceClient
-                .from('panelists')
-                .select('id')
-                .eq('email', userProfile.email)
-                .single();
+        if (userProfile) {
+            // Try matching by email first, then fall back to name
+            let panelist = null;
+            if (userProfile.email) {
+                const { data } = await serviceClient
+                    .from('panelists')
+                    .select('id')
+                    .eq('email', userProfile.email)
+                    .single();
+                panelist = data;
+            }
+            if (!panelist && userProfile.full_name) {
+                const { data } = await serviceClient
+                    .from('panelists')
+                    .select('id')
+                    .ilike('name', userProfile.full_name)
+                    .single();
+                panelist = data;
+            }
 
             if (panelist) {
                 // Use service client to bypass RLS which allows committee_member to see all ventures

@@ -62,7 +62,7 @@ router.post(
     requireRole('admin'),
     async (req: Request, res: Response, next: NextFunction) => {
         try {
-            const { email, full_name, role, password } = req.body;
+            const { email, full_name, role, password, is_panelist } = req.body;
 
             if (!email || !full_name || !role) {
                 return res.status(400).json({ error: 'email, full_name, and role are required' });
@@ -95,8 +95,8 @@ router.post(
                 console.error('Profile creation error:', profileError);
             }
 
-            // Auto-create panelist record for panel roles
-            if (role === 'venture_mgr' || role === 'committee_member') {
+            // Auto-create panelist record only when is_panelist is true
+            if (is_panelist && (role === 'venture_mgr' || role === 'committee_member')) {
                 const program = role === 'venture_mgr' ? 'Prime'
                     : (req.body.program || 'Core');
                 const { error: panelistError } = await serviceClient

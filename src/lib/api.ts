@@ -14,6 +14,8 @@ interface VentureQueryParams {
     offset?: number;
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
+    assigned_to_me?: boolean;
+    assigned_to_panelist?: boolean;
 }
 
 class ApiClient {
@@ -77,6 +79,8 @@ class ApiClient {
         if (params.offset) queryParams.set('offset', String(params.offset));
         if (params.sortBy) queryParams.set('sortBy', params.sortBy);
         if (params.sortOrder) queryParams.set('sortOrder', params.sortOrder);
+        if (params.assigned_to_me) queryParams.set('assigned_to_me', 'true');
+        if (params.assigned_to_panelist) queryParams.set('assigned_to_panelist', 'true');
 
         const url = `${API_URL}/api/ventures${queryParams.toString() ? `?${queryParams}` : ''}`;
         const response = await fetch(url, {
@@ -100,13 +104,36 @@ class ApiClient {
             const assessment = assessments.find((a: any) => a.is_current) || assessments[0] || {};
             return {
                 ...v,
+                // Application fields
                 revenue_12m: app.revenue_12m,
                 revenue_potential_3y: app.revenue_potential_3y,
+                revenue_potential_12m: app.revenue_potential_12m,
                 full_time_employees: app.full_time_employees,
                 target_jobs: app.target_jobs,
                 financial_condition: app.financial_condition,
                 time_commitment: app.time_commitment,
                 second_line_team: app.second_line_team,
+                founder_phone: app.founder_phone,
+                founder_email: app.founder_email,
+                founder_designation: app.founder_designation,
+                company_type: app.company_type,
+                registered_company_name: app.registered_company_name,
+                referred_by: app.referred_by,
+                what_do_you_sell: app.what_do_you_sell,
+                who_do_you_sell_to: app.who_do_you_sell_to,
+                which_regions: app.which_regions,
+                state: v.state || app.state,
+                growth_focus: app.growth_focus,
+                focus_product: app.focus_product,
+                focus_segment: app.focus_segment,
+                focus_geography: app.focus_geography,
+                blockers: app.blockers,
+                support_request: app.support_request,
+                corporate_presentation_url: app.corporate_presentation_url,
+                incremental_hiring: app.incremental_hiring,
+                min_investment: app.min_investment,
+                kpi_status: app.kpi_status,
+                // Assessment fields
                 program_recommendation: assessment.program_recommendation,
                 ai_analysis: assessment.ai_analysis,
             };

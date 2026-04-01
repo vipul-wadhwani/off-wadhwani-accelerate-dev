@@ -122,4 +122,8 @@ export const ventureQuerySchema = z.object({
     program: z.string().optional(),
     limit: z.string().transform(Number).pipe(z.number().int().positive().max(100)).optional().default('50'),
     offset: z.string().transform(Number).pipe(z.number().int().nonnegative()).optional().default('0'),
+    sortBy: z.string().optional(),
+    sortOrder: z.enum(['asc', 'desc']).optional(),
+    assigned_to_me: z.string().optional(),
+    assigned_to_panelist: z.string().optional(),
 });

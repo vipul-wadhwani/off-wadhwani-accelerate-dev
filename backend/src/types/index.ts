@@ -120,4 +120,5 @@ export interface VentureQueryParams {
     limit?: number;
     offset?: number;
     assigned_to_me?: boolean;
+    assigned_to_panelist?: boolean;
 }

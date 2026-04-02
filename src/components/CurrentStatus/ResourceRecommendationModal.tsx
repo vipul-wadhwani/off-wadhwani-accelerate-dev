@@ -176,7 +176,7 @@ export const ResourceRecommendationModal: React.FC<ResourceRecommendationModalPr
     const CardComponent = CARD_COMPONENTS[type];
 
     return (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 overflow-y-auto py-8" onClick={onClose}>
+        <div className="fixed inset-0 z-[60] flex items-start justify-center bg-black/50 overflow-y-auto py-8" onClick={onClose}>
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl mx-4" onClick={(e) => e.stopPropagation()}>
                 {/* Header */}
                 <div className="px-8 pt-6 pb-4 border-b border-gray-100">

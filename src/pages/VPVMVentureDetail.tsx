@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { formatRevenue } from '../utils/formatters';
 import { InteractionsSection } from '../components/Interactions/InteractionsSection';
 import { CurrentStatusSection } from '../components/CurrentStatus/CurrentStatusSection';
+import { DeliverableDetail } from '../components/CurrentStatus/DeliverableDetail';
 import {
     Loader2,
     ChevronUp,
@@ -63,7 +64,21 @@ const RoadmapGrid: React.FC<{
     deliverables?: any[];
     showDeliverables?: boolean;
     onDeliverableStatusChange?: (deliverableId: string, newStatus: string) => void;
-}> = ({ roadmapData, editing, onUpdate, deliverables = [], showDeliverables = false, onDeliverableStatusChange }) => (
+    onDeliverableClick?: (deliverable: any) => void;
+}> = ({ roadmapData, editing, onUpdate, deliverables = [], showDeliverables = false, onDeliverableStatusChange, onDeliverableClick }) => {
+    const [expandedStreams, setExpandedStreams] = useState<Set<string>>(new Set());
+    const PREVIEW_COUNT = 2;
+
+    const toggleStream = (key: string) => {
+        setExpandedStreams(prev => {
+            const next = new Set(prev);
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
+            return next;
+        });
+    };
+
+    return (
     <div className="grid grid-cols-3 gap-4">
         {ROADMAP_STREAM_KEYS.map((key) => {
             const area = roadmapData[key];
@@ -74,7 +89,10 @@ const RoadmapGrid: React.FC<{
                 : status.toLowerCase().includes('not') || status.toLowerCase().includes("don't") ? 'bg-green-50 text-green-600 border-green-200'
                 : 'bg-amber-50 text-amber-600 border-amber-200';
 
-            const streamDeliverables = deliverables.filter(d => d.roadmap_key === key);
+            const STATUS_PRIORITY: Record<string, number> = { in_progress: 0, pending: 1, completed: 2 };
+            const streamDeliverables = deliverables
+                .filter(d => d.roadmap_key === key)
+                .sort((a, b) => (STATUS_PRIORITY[a.status] ?? 1) - (STATUS_PRIORITY[b.status] ?? 1));
 
             return (
                 <div key={key} className="bg-white border border-gray-200 rounded-xl p-4">
@@ -114,36 +132,63 @@ const RoadmapGrid: React.FC<{
                     {/* Deliverables */}
                     {showDeliverables && streamDeliverables.length > 0 && (
                         <div className="mt-3 space-y-2">
-                            {streamDeliverables.map((del) => {
+                            {(expandedStreams.has(key) ? streamDeliverables : streamDeliverables.slice(0, PREVIEW_COUNT)).map((del) => {
                                 const cfg = DELIVERABLE_STATUS_CONFIG[del.status] || DELIVERABLE_STATUS_CONFIG.pending;
                                 return (
-                                    <div key={del.id} className="bg-gray-50 border border-gray-100 rounded-lg p-3">
+                                    <div
+                                        key={del.id}
+                                        className="bg-gray-50 border border-gray-100 rounded-lg p-3 cursor-pointer hover:bg-gray-100 hover:border-gray-200 transition-colors"
+                                        onClick={() => onDeliverableClick?.(del)}
+                                    >
                                         <div className="flex items-start gap-2">
                                             <span className={`w-2.5 h-2.5 rounded-full mt-1 flex-shrink-0 ${cfg.dot}`} />
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-xs font-medium text-gray-900">{del.title}</p>
-                                                <button
-                                                    onClick={() => {
-                                                        const currentIdx = DELIVERABLE_STATUS_CYCLE.indexOf(del.status);
-                                                        const nextStatus = DELIVERABLE_STATUS_CYCLE[(currentIdx + 1) % DELIVERABLE_STATUS_CYCLE.length];
-                                                        onDeliverableStatusChange?.(del.id, nextStatus);
-                                                    }}
-                                                    className={`mt-1 text-[10px] font-medium px-1.5 py-0.5 rounded border ${cfg.badge} hover:opacity-80 transition-opacity`}
-                                                >
-                                                    {cfg.label}
-                                                </button>
+                                                <div className="flex items-center gap-3 mt-2">
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            const currentIdx = DELIVERABLE_STATUS_CYCLE.indexOf(del.status);
+                                                            const nextStatus = DELIVERABLE_STATUS_CYCLE[(currentIdx + 1) % DELIVERABLE_STATUS_CYCLE.length];
+                                                            onDeliverableStatusChange?.(del.id, nextStatus);
+                                                        }}
+                                                        className={`text-[10px] font-medium px-2 py-0.5 rounded border ${cfg.badge} hover:opacity-80 transition-opacity`}
+                                                    >
+                                                        {cfg.label}
+                                                    </button>
+                                                    <span className="text-[10px] text-gray-300">|</span>
+                                                    <span className="text-[11px] font-medium text-gray-700 flex items-center gap-1">
+                                                        <Users className="w-3 h-3 text-indigo-400" />
+                                                        {del.owner || '—'}
+                                                    </span>
+                                                    <span className="text-[11px] font-medium text-gray-700 flex items-center gap-1">
+                                                        <Calendar className="w-3 h-3 text-indigo-400" />
+                                                        {del.due_date ? new Date(del.due_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}
+                                                    </span>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
                                 );
                             })}
+                            {streamDeliverables.length > PREVIEW_COUNT && (
+                                <button
+                                    onClick={() => toggleStream(key)}
+                                    className="w-full text-center text-xs font-medium text-indigo-600 hover:text-indigo-700 py-1.5"
+                                >
+                                    {expandedStreams.has(key)
+                                        ? 'See less'
+                                        : `See ${streamDeliverables.length - PREVIEW_COUNT} more`}
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>
             );
         })}
     </div>
-);
+    );
+};
 
 export const VPVMVentureDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -173,6 +218,8 @@ export const VPVMVentureDetail: React.FC = () => {
     const [deliverables, setDeliverables] = useState<any[]>([]);
     const [showDeliverables, setShowDeliverables] = useState(false);
     const [generatingDeliverables, setGeneratingDeliverables] = useState(false);
+    const [selectedRoadmapDeliverable, setSelectedRoadmapDeliverable] = useState<any>(null);
+    const [roadmapStatusFilter, setRoadmapStatusFilter] = useState<string>('all');
 
     useEffect(() => {
         if (!id) return;
@@ -520,6 +567,18 @@ export const VPVMVentureDetail: React.FC = () => {
                                     <Pencil className="w-3.5 h-3.5" />
                                     Edit Roadmap
                                 </button>
+                                {showDeliverables && deliverables.length > 0 && (
+                                    <select
+                                        value={roadmapStatusFilter}
+                                        onChange={e => setRoadmapStatusFilter(e.target.value)}
+                                        className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                    >
+                                        <option value="all">All Statuses</option>
+                                        <option value="pending">Not Started</option>
+                                        <option value="in_progress">Work In Progress</option>
+                                        <option value="completed">Completed</option>
+                                    </select>
+                                )}
                             </div>
                         )
                     ) : null
@@ -536,8 +595,9 @@ export const VPVMVentureDetail: React.FC = () => {
                             updated[key] = { ...updated[key], [field]: value };
                             setEditedRoadmap(updated);
                         }}
-                        deliverables={deliverables}
+                        deliverables={roadmapStatusFilter === 'all' ? deliverables : deliverables.filter(d => d.status === roadmapStatusFilter)}
                         showDeliverables={showDeliverables}
+                        onDeliverableClick={(del) => setSelectedRoadmapDeliverable(del)}
                         onDeliverableStatusChange={async (deliverableId, newStatus) => {
                             if (!id) return;
                             try {
@@ -620,6 +680,30 @@ export const VPVMVentureDetail: React.FC = () => {
             {interactionsOpen && id && (
                 <div className="bg-white border border-gray-200 rounded-xl p-5">
                     <InteractionsSection ventureId={id} createdByOnly={currentUserId} />
+                </div>
+            )}
+
+            {/* Deliverable Detail Modal (from roadmap click) */}
+            {selectedRoadmapDeliverable && id && (
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-y-auto">
+                        <DeliverableDetail
+                            ventureId={id}
+                            deliverable={selectedRoadmapDeliverable}
+                            ventureName={venture?.name || ''}
+                            onBack={() => {
+                                setSelectedRoadmapDeliverable(null);
+                                // Refresh deliverables to pick up any changes
+                                api.getDeliverables(id).then(res => {
+                                    if (res?.deliverables) setDeliverables(res.deliverables);
+                                }).catch(() => {});
+                            }}
+                            onUpdate={(updated) => {
+                                setDeliverables(prev => prev.map(d => d.id === updated.id ? updated : d));
+                                setSelectedRoadmapDeliverable(updated);
+                            }}
+                        />
+                    </div>
                 </div>
             )}
 

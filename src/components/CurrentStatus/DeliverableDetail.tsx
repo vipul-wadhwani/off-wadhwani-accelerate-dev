@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, Pencil, Calendar, User, ListChecks, MessageSquare, Clock, Plus } from 'lucide-react';
+import { ChevronLeft, Pencil, Calendar, User, ListChecks, MessageSquare, Clock, Plus, X } from 'lucide-react';
 import { api } from '../../lib/api';
 import type { Deliverable, DeliverableNote } from './constants';
 import { DELIVERABLE_STATUS_CONFIG } from './constants';
@@ -83,10 +83,10 @@ export const DeliverableDetail: React.FC<DeliverableDetailProps> = ({ ventureId,
 
     if (editing) {
         return (
-            <div>
-                <button onClick={() => setEditing(false)} className="flex items-center gap-1 text-sm text-indigo-600 font-medium hover:text-indigo-700 mb-3">
+            <div className="p-6">
+                <button onClick={() => setEditing(false)} className="flex items-center gap-1 text-sm text-indigo-600 font-medium hover:text-indigo-700 mb-4">
                     <ChevronLeft className="w-4 h-4" />
-                    Back to List
+                    Back
                 </button>
                 <DeliverableEditForm deliverable={deliverable} onSave={handleSave} onCancel={() => setEditing(false)} />
             </div>
@@ -95,36 +95,64 @@ export const DeliverableDetail: React.FC<DeliverableDetailProps> = ({ ventureId,
 
     return (
         <div>
-            <button onClick={onBack} className="flex items-center gap-1 text-sm text-indigo-600 font-medium hover:text-indigo-700 mb-3">
-                <ChevronLeft className="w-4 h-4" />
-                Back to List
-            </button>
+            {/* Header bar */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <div className="flex items-center gap-3 min-w-0">
+                    <span className={`w-3 h-3 rounded-full flex-shrink-0 ${statusConfig.dot}`} />
+                    <h3 className="text-base font-semibold text-gray-900 truncate">{deliverable.title}</h3>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${statusConfig.badge}`}>
+                        <Clock className="w-3 h-3" />
+                        {statusConfig.label}
+                    </span>
+                    <button onClick={() => setEditing(true)} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors" title="Edit">
+                        <Pencil className="w-4 h-4 text-gray-400" />
+                    </button>
+                    <button onClick={onBack} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors" title="Close">
+                        <X className="w-4 h-4 text-gray-400" />
+                    </button>
+                </div>
+            </div>
 
-            <div className="bg-white border border-gray-200 rounded-xl p-6">
-                {/* Header */}
-                <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                        <span className={`w-2.5 h-2.5 rounded-full ${statusConfig.dot}`} />
-                        <h3 className="text-lg font-semibold text-gray-900">{deliverable.title}</h3>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${statusConfig.badge}`}>
-                            <Clock className="w-3 h-3" />
-                            {statusConfig.label}
+            {/* Body */}
+            <div className="px-6 py-5 space-y-5">
+                {/* Description */}
+                {deliverable.description && (
+                    <p className="text-sm text-gray-600 leading-relaxed">{deliverable.description}</p>
+                )}
+
+                {/* Metadata bar */}
+                <div className="flex items-center gap-5 px-4 py-3 bg-gray-50 rounded-xl text-sm">
+                    <div className="flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-indigo-400" />
+                        <span className="text-gray-500">Start:</span>
+                        <span className="font-medium text-gray-800">
+                            {deliverable.start_date
+                                ? new Date(deliverable.start_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                                : '—'}
                         </span>
-                        <button onClick={() => setEditing(true)} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
-                            <Pencil className="w-4 h-4 text-gray-500" />
-                        </button>
+                    </div>
+                    <div className="w-px h-4 bg-gray-200" />
+                    <div className="flex items-center gap-1.5">
+                        <User className="w-3.5 h-3.5 text-indigo-400" />
+                        <span className="text-gray-500">Owner:</span>
+                        <span className="font-medium text-gray-800">{deliverable.owner || '—'}</span>
+                    </div>
+                    <div className="w-px h-4 bg-gray-200" />
+                    <div className="flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-indigo-400" />
+                        <span className="text-gray-500">End:</span>
+                        <span className="font-medium text-gray-800">
+                            {deliverable.due_date
+                                ? new Date(deliverable.due_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                                : '—'}
+                        </span>
                     </div>
                 </div>
 
-                {/* Description */}
-                {deliverable.description && (
-                    <p className="text-sm text-gray-600 mb-5 leading-relaxed">{deliverable.description}</p>
-                )}
-
                 {/* Action buttons */}
-                <div className="flex flex-wrap gap-2 mb-5">
+                <div className="flex flex-wrap gap-2">
                     {([
                         { label: 'Expert Connect', type: 'expert_connect' as RecommendationType },
                         { label: 'Service Provider', type: 'service_provider' as RecommendationType },
@@ -134,117 +162,111 @@ export const DeliverableDetail: React.FC<DeliverableDetailProps> = ({ ventureId,
                         <button
                             key={type}
                             onClick={() => setRecommendationType(type)}
-                            className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors"
+                            className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors"
                         >
-                            <Plus className="w-3.5 h-3.5" />
+                            <Plus className="w-3 h-3" />
                             Add {label}
                         </button>
                     ))}
                 </div>
 
-                {/* Metadata */}
-                <div className="flex items-center gap-6 px-4 py-3 bg-gray-50 rounded-lg text-sm text-gray-600 mb-5">
-                    <div className="flex items-center gap-1.5">
-                        <Calendar className="w-3.5 h-3.5 text-gray-400" />
-                        <span className="font-medium text-gray-500">Start:</span>
-                        {deliverable.start_date
-                            ? new Date(deliverable.start_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-                            : '—'}
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                        <User className="w-3.5 h-3.5 text-gray-400" />
-                        <span className="font-medium text-gray-500">Owner:</span>
-                        {deliverable.owner || '—'}
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                        <Calendar className="w-3.5 h-3.5 text-gray-400" />
-                        <span className="font-medium text-gray-500">End:</span>
-                        {deliverable.due_date
-                            ? new Date(deliverable.due_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-                            : '—'}
-                    </div>
-                </div>
-
                 {/* Tabs */}
-                <div className="flex gap-2 mb-4">
-                    <button
-                        onClick={() => setActiveTab('checklist')}
-                        className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                            activeTab === 'checklist'
-                                ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
-                                : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                        }`}
-                    >
-                        <ListChecks className="w-4 h-4" />
-                        Checklist ({checklistCount.completed}/{checklistCount.total})
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('notes')}
-                        className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                            activeTab === 'notes'
-                                ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
-                                : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                        }`}
-                    >
-                        <MessageSquare className="w-4 h-4" />
-                        Notes and Action Items ({notes.length})
-                    </button>
-                </div>
-
-                {/* Tab content */}
-                {activeTab === 'checklist' && (
-                    <div>
+                <div className="border-t border-gray-100 pt-4">
+                    <div className="flex gap-2 mb-4">
                         <button
-                            onClick={() => setShowChecklistModal(true)}
-                            className="text-sm text-indigo-600 font-medium hover:text-indigo-700"
+                            onClick={() => setActiveTab('checklist')}
+                            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                                activeTab === 'checklist'
+                                    ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+                                    : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                            }`}
                         >
-                            {checklistCount.total > 0 ? 'View / Edit Checklist' : 'Add Checklist Items'}
+                            <ListChecks className="w-4 h-4" />
+                            Checklist ({checklistCount.completed}/{checklistCount.total})
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('notes')}
+                            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                                activeTab === 'notes'
+                                    ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+                                    : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                            }`}
+                        >
+                            <MessageSquare className="w-4 h-4" />
+                            Notes ({notes.length})
                         </button>
                     </div>
-                )}
 
-                {activeTab === 'notes' && (
-                    <div className="bg-white border border-gray-200 rounded-xl p-5">
-                        <div className="flex items-center justify-between mb-4">
-                            <h4 className="font-semibold text-gray-900">Notes and Action Items</h4>
-                            <button
-                                onClick={() => setShowAddNoteModal(true)}
-                                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700"
-                            >
-                                <Plus className="w-3.5 h-3.5" />
-                                Add Update
-                            </button>
+                    {/* Tab content */}
+                    {activeTab === 'checklist' && (
+                        <div className="bg-gray-50 rounded-xl p-4">
+                            {checklistCount.total > 0 ? (
+                                <div className="flex items-center justify-between">
+                                    <span className="text-sm text-gray-600">{checklistCount.completed} of {checklistCount.total} items completed</span>
+                                    <button
+                                        onClick={() => setShowChecklistModal(true)}
+                                        className="text-sm text-indigo-600 font-medium hover:text-indigo-700"
+                                    >
+                                        View / Edit
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="text-center py-2">
+                                    <p className="text-sm text-gray-400 mb-2">No checklist items yet</p>
+                                    <button
+                                        onClick={() => setShowChecklistModal(true)}
+                                        className="text-sm text-indigo-600 font-medium hover:text-indigo-700"
+                                    >
+                                        + Add Checklist Items
+                                    </button>
+                                </div>
+                            )}
                         </div>
+                    )}
 
-                        {loadingNotes ? (
-                            <div className="text-sm text-gray-400 text-center py-4">Loading...</div>
-                        ) : notes.length === 0 ? (
-                            <div className="text-sm text-gray-400 text-center py-4">No notes yet.</div>
-                        ) : (
-                            <div className="space-y-4">
-                                {notes.map((note) => (
-                                    <div key={note.id} className="border border-gray-200 rounded-xl p-4">
-                                        <div className="text-sm font-medium text-indigo-600 mb-1">
-                                            {new Date(note.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                        </div>
-                                        <p className="text-sm text-gray-700 mb-2">{note.note_text}</p>
-                                        {note.action_items && note.action_items.length > 0 && (
-                                            <>
-                                                <hr className="my-2 border-gray-100" />
-                                                <div className="text-sm font-semibold text-gray-800 mb-1">Action Items:</div>
-                                                <ul className="list-disc list-inside text-sm text-gray-600 space-y-0.5">
-                                                    {note.action_items.map((item, idx) => (
-                                                        <li key={idx}>{item}</li>
-                                                    ))}
-                                                </ul>
-                                            </>
-                                        )}
-                                    </div>
-                                ))}
+                    {activeTab === 'notes' && (
+                        <div>
+                            <div className="flex items-center justify-between mb-3">
+                                <span className="text-sm text-gray-500">{notes.length} note{notes.length !== 1 ? 's' : ''}</span>
+                                <button
+                                    onClick={() => setShowAddNoteModal(true)}
+                                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700"
+                                >
+                                    <Plus className="w-3 h-3" />
+                                    Add Update
+                                </button>
                             </div>
-                        )}
-                    </div>
-                )}
+
+                            {loadingNotes ? (
+                                <div className="text-sm text-gray-400 text-center py-4">Loading...</div>
+                            ) : notes.length === 0 ? (
+                                <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-400 text-center">No notes yet.</div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {notes.map((note) => (
+                                        <div key={note.id} className="bg-gray-50 border border-gray-100 rounded-xl p-4">
+                                            <div className="text-xs font-medium text-indigo-600 mb-1.5">
+                                                {new Date(note.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                            </div>
+                                            <p className="text-sm text-gray-700 mb-2">{note.note_text}</p>
+                                            {note.action_items && note.action_items.length > 0 && (
+                                                <>
+                                                    <hr className="my-2 border-gray-200" />
+                                                    <div className="text-xs font-semibold text-gray-700 mb-1">Action Items:</div>
+                                                    <ul className="list-disc list-inside text-sm text-gray-600 space-y-0.5">
+                                                        {note.action_items.map((item, idx) => (
+                                                            <li key={idx}>{item}</li>
+                                                        ))}
+                                                    </ul>
+                                                </>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Modals */}

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ChevronLeft, Pencil, Calendar, User, ListChecks, MessageSquare, Clock, Plus, X } from 'lucide-react';
 import { api } from '../../lib/api';
 import type { Deliverable, DeliverableNote } from './constants';
-import { DELIVERABLE_STATUS_CONFIG } from './constants';
+import { getDeliverableStyle, HEALTH_CONFIG } from './constants';
 import { DeliverableEditForm } from './DeliverableEditForm';
 import { ChecklistModal } from './ChecklistModal';
 import { AddNoteModal } from './AddNoteModal';
@@ -79,7 +79,7 @@ export const DeliverableDetail: React.FC<DeliverableDetailProps> = ({ ventureId,
         }
     };
 
-    const statusConfig = DELIVERABLE_STATUS_CONFIG[deliverable.status] || DELIVERABLE_STATUS_CONFIG.pending;
+    const statusConfig = getDeliverableStyle(deliverable);
 
     if (editing) {
         return (
@@ -106,6 +106,24 @@ export const DeliverableDetail: React.FC<DeliverableDetailProps> = ({ ventureId,
                         <Clock className="w-3 h-3" />
                         {statusConfig.label}
                     </span>
+                    {deliverable.status === 'in_progress' && (
+                        <select
+                            value={deliverable.health || 'on_track'}
+                            onChange={async (e) => {
+                                try {
+                                    await api.updateDeliverableStatus(ventureId, deliverable.id, undefined, e.target.value);
+                                    onUpdate({ ...deliverable, health: e.target.value });
+                                } catch (err: any) {
+                                    alert(`Failed to update health: ${err.message || 'Unknown error'}`);
+                                }
+                            }}
+                            className={`text-xs px-2 py-1 rounded-full border font-medium cursor-pointer ${(HEALTH_CONFIG[deliverable.health || 'on_track'] || HEALTH_CONFIG.on_track).badge}`}
+                        >
+                            {Object.entries(HEALTH_CONFIG).map(([key, cfg]) => (
+                                <option key={key} value={key}>{cfg.label}</option>
+                            ))}
+                        </select>
+                    )}
                     <button onClick={() => setEditing(true)} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors" title="Edit">
                         <Pencil className="w-4 h-4 text-gray-400" />
                     </button>
@@ -125,6 +143,12 @@ export const DeliverableDetail: React.FC<DeliverableDetailProps> = ({ ventureId,
                 {/* Metadata bar */}
                 <div className="flex items-center gap-5 px-4 py-3 bg-gray-50 rounded-xl text-sm">
                     <div className="flex items-center gap-1.5">
+                        <User className="w-3.5 h-3.5 text-indigo-400" />
+                        <span className="text-gray-500">Owner:</span>
+                        <span className="font-medium text-gray-800">{deliverable.owner || '—'}</span>
+                    </div>
+                    <div className="w-px h-4 bg-gray-200" />
+                    <div className="flex items-center gap-1.5">
                         <Calendar className="w-3.5 h-3.5 text-indigo-400" />
                         <span className="text-gray-500">Start:</span>
                         <span className="font-medium text-gray-800">
@@ -132,12 +156,6 @@ export const DeliverableDetail: React.FC<DeliverableDetailProps> = ({ ventureId,
                                 ? new Date(deliverable.start_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
                                 : '—'}
                         </span>
-                    </div>
-                    <div className="w-px h-4 bg-gray-200" />
-                    <div className="flex items-center gap-1.5">
-                        <User className="w-3.5 h-3.5 text-indigo-400" />
-                        <span className="text-gray-500">Owner:</span>
-                        <span className="font-medium text-gray-800">{deliverable.owner || '—'}</span>
                     </div>
                     <div className="w-px h-4 bg-gray-200" />
                     <div className="flex items-center gap-1.5">
@@ -161,8 +179,8 @@ export const DeliverableDetail: React.FC<DeliverableDetailProps> = ({ ventureId,
                     ]).map(({ label, type }) => (
                         <button
                             key={type}
-                            onClick={() => setRecommendationType(type)}
-                            className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors"
+                            disabled
+                            className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-400 border border-gray-200 rounded-lg cursor-not-allowed"
                         >
                             <Plus className="w-3 h-3" />
                             Add {label}

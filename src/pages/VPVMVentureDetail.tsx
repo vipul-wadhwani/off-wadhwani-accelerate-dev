@@ -4,8 +4,8 @@ import { api } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { formatRevenue } from '../utils/formatters';
 import { InteractionsSection } from '../components/Interactions/InteractionsSection';
-import { CurrentStatusSection } from '../components/CurrentStatus/CurrentStatusSection';
 import { DeliverableDetail } from '../components/CurrentStatus/DeliverableDetail';
+import { getDeliverableStyle } from '../components/CurrentStatus/constants';
 import {
     Loader2,
     ChevronUp,
@@ -22,7 +22,6 @@ import {
     Truck,
     Settings,
     RefreshCw,
-    Activity,
 } from 'lucide-react';
 
 const STREAM_ICONS: Record<string, any> = {
@@ -49,12 +48,7 @@ const ROADMAP_LABELS: Record<string, string> = {
 };
 const SUPPORT_STATUS_OPTIONS = ['Need Deep Support', 'Need Some Guidance', 'Do Not Need Help'];
 
-const DELIVERABLE_STATUS_CONFIG: Record<string, { label: string; dot: string; badge: string }> = {
-    pending: { label: 'Not Started', dot: 'bg-gray-400', badge: 'text-gray-600 bg-gray-50 border-gray-200' },
-    in_progress: { label: 'Work In Progress', dot: 'bg-blue-500', badge: 'text-blue-600 bg-blue-50 border-blue-200' },
-    completed: { label: 'Completed', dot: 'bg-green-500', badge: 'text-green-600 bg-green-50 border-green-200' },
-};
-
+const HEALTH_CYCLE = ['on_track', 'needs_attention', 'at_risk'];
 const DELIVERABLE_STATUS_CYCLE = ['pending', 'in_progress', 'completed'];
 
 const RoadmapGrid: React.FC<{
@@ -64,8 +58,9 @@ const RoadmapGrid: React.FC<{
     deliverables?: any[];
     showDeliverables?: boolean;
     onDeliverableStatusChange?: (deliverableId: string, newStatus: string) => void;
+    onDeliverableHealthChange?: (deliverableId: string, newHealth: string) => void;
     onDeliverableClick?: (deliverable: any) => void;
-}> = ({ roadmapData, editing, onUpdate, deliverables = [], showDeliverables = false, onDeliverableStatusChange, onDeliverableClick }) => {
+}> = ({ roadmapData, editing, onUpdate, deliverables = [], showDeliverables = false, onDeliverableStatusChange, onDeliverableHealthChange, onDeliverableClick }) => {
     const [expandedStreams, setExpandedStreams] = useState<Set<string>>(new Set());
     const PREVIEW_COUNT = 2;
 
@@ -88,6 +83,12 @@ const RoadmapGrid: React.FC<{
             const statusStyle = status.toLowerCase().includes('deep') ? 'bg-red-50 text-red-600 border-red-200'
                 : status.toLowerCase().includes('not') || status.toLowerCase().includes("don't") ? 'bg-green-50 text-green-600 border-green-200'
                 : 'bg-amber-50 text-amber-600 border-amber-200';
+
+            const ragStatus = area.rag_status || 'Grey (Not Started Yet)';
+            const ragDot = ragStatus.includes('Red') ? 'bg-red-500'
+                : ragStatus.includes('Amber') ? 'bg-amber-500'
+                : ragStatus.includes('Green') ? 'bg-green-500'
+                : 'bg-gray-400';
 
             const STATUS_PRIORITY: Record<string, number> = { in_progress: 0, pending: 1, completed: 2 };
             const streamDeliverables = deliverables
@@ -115,6 +116,23 @@ const RoadmapGrid: React.FC<{
                             </span>
                         )}
                     </div>
+                    <div className="flex items-center gap-2 mb-3">
+                        <span className={`w-3 h-3 rounded-full flex-shrink-0 ${ragDot}`} />
+                        {editing ? (
+                            <select
+                                value={ragStatus}
+                                onChange={e => onUpdate(key, 'rag_status', e.target.value)}
+                                className="text-xs px-2 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            >
+                                <option value="Grey (Not Started Yet)">Grey (Not Started Yet)</option>
+                                <option value="Green (On Track)">Green (On Track)</option>
+                                <option value="Amber (Needs Attention)">Amber (Needs Attention)</option>
+                                <option value="Red (At Risk)">Red (At Risk)</option>
+                            </select>
+                        ) : (
+                            <span className="text-xs text-gray-500">{ragStatus}</span>
+                        )}
+                    </div>
                     <div>
                         <p className="text-xs font-medium text-gray-500 mb-1">Goal:</p>
                         {editing ? (
@@ -133,7 +151,7 @@ const RoadmapGrid: React.FC<{
                     {showDeliverables && streamDeliverables.length > 0 && (
                         <div className="mt-3 space-y-2">
                             {(expandedStreams.has(key) ? streamDeliverables : streamDeliverables.slice(0, PREVIEW_COUNT)).map((del) => {
-                                const cfg = DELIVERABLE_STATUS_CONFIG[del.status] || DELIVERABLE_STATUS_CONFIG.pending;
+                                const cfg = getDeliverableStyle(del);
                                 return (
                                     <div
                                         key={del.id}
@@ -145,17 +163,36 @@ const RoadmapGrid: React.FC<{
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-xs font-medium text-gray-900">{del.title}</p>
                                                 <div className="flex items-center gap-3 mt-2">
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            const currentIdx = DELIVERABLE_STATUS_CYCLE.indexOf(del.status);
-                                                            const nextStatus = DELIVERABLE_STATUS_CYCLE[(currentIdx + 1) % DELIVERABLE_STATUS_CYCLE.length];
-                                                            onDeliverableStatusChange?.(del.id, nextStatus);
-                                                        }}
-                                                        className={`text-[10px] font-medium px-2 py-0.5 rounded border ${cfg.badge} hover:opacity-80 transition-opacity`}
-                                                    >
-                                                        {cfg.label}
-                                                    </button>
+                                                    <span className={`inline-flex items-center text-[10px] font-medium rounded border ${cfg.badge}`}>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                const currentIdx = DELIVERABLE_STATUS_CYCLE.indexOf(del.status);
+                                                                const nextStatus = DELIVERABLE_STATUS_CYCLE[(currentIdx + 1) % DELIVERABLE_STATUS_CYCLE.length];
+                                                                onDeliverableStatusChange?.(del.id, nextStatus);
+                                                            }}
+                                                            className="px-2 py-0.5 hover:opacity-80 transition-opacity"
+                                                        >
+                                                            {cfg.label}
+                                                        </button>
+                                                        {del.status === 'in_progress' && (
+                                                            <>
+                                                                <span className="text-[8px] opacity-40">|</span>
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        const currentIdx = HEALTH_CYCLE.indexOf(del.health || 'on_track');
+                                                                        const nextHealth = HEALTH_CYCLE[(currentIdx + 1) % HEALTH_CYCLE.length];
+                                                                        onDeliverableHealthChange?.(del.id, nextHealth);
+                                                                    }}
+                                                                    className="px-2 py-0.5 hover:opacity-80 transition-opacity"
+                                                                    title="Click to change health"
+                                                                >
+                                                                    {del.health === 'at_risk' ? 'At Risk' : del.health === 'needs_attention' ? 'Needs Attention' : 'On Track'}
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                    </span>
                                                     <span className="text-[10px] text-gray-300">|</span>
                                                     <span className="text-[11px] font-medium text-gray-700 flex items-center gap-1">
                                                         <Users className="w-3 h-3 text-indigo-400" />
@@ -202,7 +239,6 @@ export const VPVMVentureDetail: React.FC = () => {
     // Collapsible sections
     const [roadmapOpen, setRoadmapOpen] = useState(true);
     const [interactionsOpen, setInteractionsOpen] = useState(false);
-    const [currentStatusOpen, setCurrentStatusOpen] = useState(true);
 
     // KPI edit mode
     const [kpiEditing, setKpiEditing] = useState(false);
@@ -357,15 +393,16 @@ export const VPVMVentureDetail: React.FC = () => {
                                         if (kpiForm.kpi_status) appUpdates.kpi_status = kpiForm.kpi_status;
 
                                         if (Object.keys(appUpdates).length > 0) {
-                                            await supabase.from('venture_applications').update(appUpdates).eq('venture_id', id);
+                                            await api.updateKPIs(id, appUpdates);
                                         }
 
                                         // Refresh data
                                         const result = await api.getVenture(id);
                                         setVenture(result.venture);
                                         setKpiEditing(false);
-                                    } catch (err) {
+                                    } catch (err: any) {
                                         console.error('Error saving KPIs:', err);
+                                        alert(`Failed to save KPIs: ${err.message || 'Unknown error'}`);
                                     } finally {
                                         setKpiSaving(false);
                                     }
@@ -485,16 +522,13 @@ export const VPVMVentureDetail: React.FC = () => {
                                         if (!id || !editedRoadmap) return;
                                         setRoadmapSaving(true);
                                         try {
-                                            // Update the roadmap in venture_roadmaps
-                                            await supabase.from('venture_roadmaps')
-                                                .update({ roadmap_data: editedRoadmap })
-                                                .eq('venture_id', id)
-                                                .eq('is_current', true);
-                                            setRoadmapData(editedRoadmap);
+                                            const result = await api.updateRoadmap(id, editedRoadmap);
+                                            setRoadmapData(result.roadmap?.roadmap_data || editedRoadmap);
                                             setRoadmapEditing(false);
                                             setEditedRoadmap(null);
-                                        } catch (err) {
+                                        } catch (err: any) {
                                             console.error('Error saving roadmap:', err);
+                                            alert(`Failed to save roadmap: ${err.message || 'Unknown error'}`);
                                         } finally {
                                             setRoadmapSaving(false);
                                         }
@@ -603,10 +637,23 @@ export const VPVMVentureDetail: React.FC = () => {
                             try {
                                 await api.updateDeliverableStatus(id, deliverableId, newStatus);
                                 setDeliverables(prev => prev.map(d =>
-                                    d.id === deliverableId ? { ...d, status: newStatus } : d
+                                    d.id === deliverableId ? { ...d, status: newStatus, ...(newStatus === 'in_progress' ? { health: d.health || 'on_track' } : {}) } : d
                                 ));
-                            } catch (err) {
+                            } catch (err: any) {
                                 console.error('Error updating deliverable:', err);
+                                alert(`Failed to update status: ${err.message || 'Unknown error'}`);
+                            }
+                        }}
+                        onDeliverableHealthChange={async (deliverableId, newHealth) => {
+                            if (!id) return;
+                            try {
+                                await api.updateDeliverableStatus(id, deliverableId, undefined as any, newHealth);
+                                setDeliverables(prev => prev.map(d =>
+                                    d.id === deliverableId ? { ...d, health: newHealth } : d
+                                ));
+                            } catch (err: any) {
+                                console.error('Error updating health:', err);
+                                alert(`Failed to update health: ${err.message || 'Unknown error'}`);
                             }
                         }}
                     />) : (
@@ -648,26 +695,6 @@ export const VPVMVentureDetail: React.FC = () => {
                         </button>
                     </div>
                 )
-            )}
-
-            {/* Current Status */}
-            {deliverables.length > 0 && (
-                <>
-                    <SectionHeader
-                        icon={Activity}
-                        title="Current Status"
-                        open={currentStatusOpen}
-                        onToggle={() => setCurrentStatusOpen(!currentStatusOpen)}
-                    />
-                    {currentStatusOpen && id && (
-                        <CurrentStatusSection
-                            ventureId={id}
-                            ventureName={venture?.name || ''}
-                            deliverables={deliverables}
-                            onDeliverablesChange={setDeliverables}
-                        />
-                    )}
-                </>
             )}
 
             {/* Interactions */}

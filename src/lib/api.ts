@@ -561,6 +561,50 @@ class ApiClient {
         return data; // Returns { roadmap }
     }
 
+    async updateRoadmap(ventureId: string, roadmapData: any) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error('Not authenticated');
+
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const response = await fetch(`${API_URL}/api/ventures/${ventureId}/roadmap`, {
+            method: 'PATCH',
+            headers: {
+                'Authorization': `Bearer ${session.access_token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ roadmap_data: roadmapData }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.message || 'Failed to update roadmap');
+        }
+
+        return response.json();
+    }
+
+    async updateKPIs(ventureId: string, kpis: { revenue_12m?: string; revenue_potential_3y?: string; full_time_employees?: string; incremental_hiring?: number; kpi_status?: string }) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error('Not authenticated');
+
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const response = await fetch(`${API_URL}/api/ventures/${ventureId}/kpis`, {
+            method: 'PATCH',
+            headers: {
+                'Authorization': `Bearer ${session.access_token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(kpis),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.message || 'Failed to update KPIs');
+        }
+
+        return response.json();
+    }
+
     // ============ DELIVERABLES ENDPOINTS ============
 
     async generateDeliverables(ventureId: string, regenerate = false) {
@@ -605,9 +649,13 @@ class ApiClient {
         return await response.json();
     }
 
-    async updateDeliverableStatus(ventureId: string, deliverableId: string, status: string) {
+    async updateDeliverableStatus(ventureId: string, deliverableId: string, status?: string, health?: string) {
         const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
         const session = await supabase.auth.getSession();
+
+        const body: any = {};
+        if (status) body.status = status;
+        if (health) body.health = health;
 
         const response = await fetch(`${API_URL}/api/ventures/${ventureId}/deliverables/${deliverableId}`, {
             method: 'PATCH',
@@ -615,7 +663,7 @@ class ApiClient {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${session.data.session?.access_token}`
             },
-            body: JSON.stringify({ status }),
+            body: JSON.stringify(body),
         });
 
         if (!response.ok) throw new Error('Failed to update deliverable');

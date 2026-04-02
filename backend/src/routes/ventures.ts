@@ -1386,6 +1386,83 @@ router.get(
     }
 );
 
+/**
+ * PATCH /api/ventures/:id/roadmap
+ * Update the current roadmap for a venture
+ */
+router.patch(
+    '/:id/roadmap',
+    authenticateUser,
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const { roadmap_data } = req.body;
+            if (!roadmap_data || typeof roadmap_data !== 'object') {
+                return res.status(400).json({ success: false, message: 'roadmap_data is required and must be an object' });
+            }
+
+            const serviceClient = createServiceRoleClient();
+            const { data, error } = await serviceClient
+                .from('venture_roadmaps')
+                .update({ roadmap_data })
+                .eq('venture_id', req.params.id)
+                .eq('is_current', true)
+                .select()
+                .single();
+
+            if (error) {
+                console.error('Error updating roadmap:', error);
+                return res.status(500).json({ success: false, message: 'Failed to update roadmap' });
+            }
+
+            successResponse(res, { roadmap: data });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
+/**
+ * PATCH /api/ventures/:id/kpis
+ * Update KPI fields on venture_applications
+ */
+router.patch(
+    '/:id/kpis',
+    authenticateUser,
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const { revenue_12m, revenue_potential_3y, full_time_employees, incremental_hiring, kpi_status } = req.body;
+
+            const updates: any = { updated_at: new Date().toISOString() };
+            if (revenue_12m !== undefined) updates.revenue_12m = revenue_12m;
+            if (revenue_potential_3y !== undefined) updates.revenue_potential_3y = revenue_potential_3y;
+            if (full_time_employees !== undefined) updates.full_time_employees = full_time_employees;
+            if (incremental_hiring !== undefined) updates.incremental_hiring = incremental_hiring;
+            if (kpi_status !== undefined) updates.kpi_status = kpi_status;
+
+            if (Object.keys(updates).length <= 1) {
+                return res.status(400).json({ success: false, message: 'At least one KPI field is required' });
+            }
+
+            const serviceClient = createServiceRoleClient();
+            const { data, error } = await serviceClient
+                .from('venture_applications')
+                .update(updates)
+                .eq('venture_id', req.params.id)
+                .select()
+                .single();
+
+            if (error) {
+                console.error('Error updating KPIs:', error);
+                return res.status(500).json({ success: false, message: 'Failed to update KPIs' });
+            }
+
+            successResponse(res, { application: data });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
 // ============ DELIVERABLE ROUTES ============
 
 /**
@@ -1523,13 +1600,17 @@ router.patch(
     async (req: Request, res: Response, next: NextFunction) => {
         try {
             const serviceClient = createServiceRoleClient();
-            const { status, notes, title, description, owner, start_date, due_date } = req.body;
+            const { status, notes, title, description, owner, start_date, due_date, health } = req.body;
 
             const updates: any = { updated_at: new Date().toISOString() };
             if (status) {
                 updates.status = status;
                 if (status === 'completed') updates.completed_at = new Date().toISOString();
+                // Auto-set health when status changes
+                if (status === 'in_progress' && !health) updates.health = 'on_track';
+                if (status === 'pending' || status === 'completed') updates.health = 'on_track';
             }
+            if (health !== undefined) updates.health = health;
             if (notes !== undefined) updates.notes = notes;
             if (title !== undefined) updates.title = title;
             if (description !== undefined) updates.description = description;

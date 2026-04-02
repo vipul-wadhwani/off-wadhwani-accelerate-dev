@@ -11,17 +11,32 @@ export const DeliverableEditForm: React.FC<DeliverableEditFormProps> = ({ delive
     const [form, setForm] = useState({
         title: deliverable.title || '',
         status: deliverable.status || 'pending',
+        health: deliverable.health || 'on_track',
         owner: deliverable.owner || '',
         start_date: deliverable.start_date || '',
         due_date: deliverable.due_date || '',
         description: deliverable.description || '',
     });
     const [saving, setSaving] = useState(false);
+    const [errors, setErrors] = useState<Record<string, string>>({});
+
+    const validate = (): boolean => {
+        const newErrors: Record<string, string> = {};
+        if (!form.title.trim()) newErrors.title = 'Name is required';
+        if (form.start_date && form.due_date && form.start_date > form.due_date) {
+            newErrors.due_date = 'End date must be after start date';
+        }
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+    };
 
     const handleSave = async () => {
+        if (!validate()) return;
         setSaving(true);
         try {
             await onSave(form);
+        } catch (err: any) {
+            alert(`Failed to save: ${err.message || 'Unknown error'}`);
         } finally {
             setSaving(false);
         }
@@ -35,9 +50,10 @@ export const DeliverableEditForm: React.FC<DeliverableEditFormProps> = ({ delive
                     <input
                         type="text"
                         value={form.title}
-                        onChange={(e) => setForm({ ...form, title: e.target.value })}
-                        className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-100 focus:border-indigo-300 outline-none text-sm"
+                        onChange={(e) => { setForm({ ...form, title: e.target.value }); setErrors(prev => ({ ...prev, title: '' })); }}
+                        className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-100 focus:border-indigo-300 outline-none text-sm ${errors.title ? 'border-red-300' : 'border-gray-200'}`}
                     />
+                    {errors.title && <p className="text-xs text-red-500 mt-1">{errors.title}</p>}
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">Status</label>
@@ -52,6 +68,20 @@ export const DeliverableEditForm: React.FC<DeliverableEditFormProps> = ({ delive
                     </select>
                 </div>
             </div>
+            {form.status === 'in_progress' && (
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Health</label>
+                    <select
+                        value={form.health}
+                        onChange={(e) => setForm({ ...form, health: e.target.value })}
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-100 focus:border-indigo-300 outline-none text-sm bg-white"
+                    >
+                        <option value="on_track">On Track</option>
+                        <option value="needs_attention">Needs Attention</option>
+                        <option value="at_risk">At Risk</option>
+                    </select>
+                </div>
+            )}
             <div className="grid grid-cols-3 gap-5">
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">Owner</label>
@@ -76,9 +106,10 @@ export const DeliverableEditForm: React.FC<DeliverableEditFormProps> = ({ delive
                     <input
                         type="date"
                         value={form.due_date}
-                        onChange={(e) => setForm({ ...form, due_date: e.target.value })}
-                        className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-100 focus:border-indigo-300 outline-none text-sm"
+                        onChange={(e) => { setForm({ ...form, due_date: e.target.value }); setErrors(prev => ({ ...prev, due_date: '' })); }}
+                        className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-100 focus:border-indigo-300 outline-none text-sm ${errors.due_date ? 'border-red-300' : 'border-gray-200'}`}
                     />
+                    {errors.due_date && <p className="text-xs text-red-500 mt-1">{errors.due_date}</p>}
                 </div>
             </div>
             <div>

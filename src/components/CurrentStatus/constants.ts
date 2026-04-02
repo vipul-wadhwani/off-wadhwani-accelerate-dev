@@ -1,8 +1,20 @@
 export const DELIVERABLE_STATUS_CONFIG: Record<string, { label: string; dot: string; badge: string }> = {
     pending: { label: 'Not Started', dot: 'bg-gray-400', badge: 'text-gray-600 bg-gray-50 border-gray-200' },
-    in_progress: { label: 'Work In Progress', dot: 'bg-blue-500', badge: 'text-blue-600 bg-blue-50 border-blue-200' },
     completed: { label: 'Completed', dot: 'bg-green-500', badge: 'text-green-600 bg-green-50 border-green-200' },
 };
+
+export const HEALTH_CONFIG: Record<string, { label: string; dot: string; badge: string }> = {
+    on_track: { label: 'On Track', dot: 'bg-green-500', badge: 'text-green-600 bg-green-50 border-green-200' },
+    needs_attention: { label: 'Needs Attention', dot: 'bg-amber-500', badge: 'text-amber-600 bg-amber-50 border-amber-200' },
+    at_risk: { label: 'At Risk', dot: 'bg-red-500', badge: 'text-red-600 bg-red-50 border-red-200' },
+};
+
+export function getDeliverableStyle(del: { status: string; health?: string }): { label: string; dot: string; badge: string } {
+    if (del.status === 'pending') return DELIVERABLE_STATUS_CONFIG.pending;
+    if (del.status === 'completed') return DELIVERABLE_STATUS_CONFIG.completed;
+    const hc = HEALTH_CONFIG[del.health || 'on_track'] || HEALTH_CONFIG.on_track;
+    return { label: 'Work In Progress', dot: hc.dot, badge: hc.badge };
+}
 
 export const STATUS_FILTER_OPTIONS = [
     { value: 'all', label: 'All Statuses' },
@@ -35,6 +47,7 @@ export interface Deliverable {
     title: string;
     description?: string;
     status: string;
+    health?: string;
     priority?: string;
     owner?: string;
     start_date?: string;

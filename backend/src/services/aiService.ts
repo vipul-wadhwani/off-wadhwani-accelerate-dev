@@ -1,9 +1,15 @@
 import Anthropic from '@anthropic-ai/sdk';
 
-// Initialize Anthropic client
-const anthropic = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY || '',
-});
+// Lazy-initialized so Key Vault secrets are available (loaded after module import)
+let _anthropic: Anthropic | null = null;
+function getAnthropic(): Anthropic {
+    if (!_anthropic) {
+        _anthropic = new Anthropic({
+            apiKey: process.env.ANTHROPIC_API_KEY || '',
+        });
+    }
+    return _anthropic;
+}
 
 export interface VentureData {
     id: string;
@@ -95,7 +101,7 @@ export async function generateVentureInsights(
     const prompt = buildInsightsPrompt(ventureData, vsmNotes);
 
     try {
-        const message = await anthropic.messages.create({
+        const message = await getAnthropic().messages.create({
             model: 'claude-sonnet-4-5-20250929',
             max_tokens: 2500,
             temperature: 0.7,
@@ -365,7 +371,7 @@ export async function generateVentureRoadmap(
     const prompt = buildRoadmapPrompt(ventureData, additionalContext);
 
     try {
-        const message = await anthropic.messages.create({
+        const message = await getAnthropic().messages.create({
             model: 'claude-sonnet-4-5-20250929',
             max_tokens: 8000,
             temperature: 0,
@@ -725,7 +731,7 @@ export async function generatePanelInsights(
     const prompt = buildPanelInsightsPrompt(ventureData, vsmNotes, panelNotes, screeningScorecard, interactionTranscripts);
 
     try {
-        const message = await anthropic.messages.create({
+        const message = await getAnthropic().messages.create({
             model: 'claude-sonnet-4-5-20250929',
             max_tokens: 2500,
             temperature: 0.3,
@@ -990,7 +996,7 @@ Return ONLY a JSON object with this structure:
 Return ONLY the JSON, no additional text.`;
 
     try {
-        const message = await anthropic.messages.create({
+        const message = await getAnthropic().messages.create({
             model: 'claude-sonnet-4-5-20250929',
             max_tokens: 4000,
             temperature: 0,
@@ -1066,7 +1072,7 @@ ${schemaByType[type]}
 Make recommendations specific and relevant to the deliverable and venture context. Use realistic but fictional names. For ratings, use values between 4.5 and 4.9. For masterclass dates, use dates within the next 3 months from today.`;
 
     try {
-        const response = await anthropic.messages.create({
+        const response = await getAnthropic().messages.create({
             model: 'claude-sonnet-4-5-20250929',
             max_tokens: 2000,
             messages: [{ role: 'user', content: prompt }],

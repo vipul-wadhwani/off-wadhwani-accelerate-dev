@@ -237,10 +237,9 @@ const RoadmapGrid: React.FC<{
 interface VPVMVentureDetailProps {
     ventureId?: string;
     readOnly?: boolean;
-    onClose?: () => void;
 }
 
-export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId: propVentureId, readOnly = false, onClose }) => {
+export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId: propVentureId, readOnly = false }) => {
     const params = useParams<{ id: string }>();
     const id = propVentureId || params.id;
     const navigate = useNavigate();

@@ -1652,7 +1652,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
                         <VPVMVentureDetail
                             ventureId={ventureDetailId}
                             readOnly
-                            onClose={() => { setVentureDetailId(null); }}
                         />
                     </div>
                 </div>

@@ -4,7 +4,6 @@ import { api } from '../../lib/api';
 import type { Deliverable, DeliverableNote } from './constants';
 import { getDeliverableStyle, HEALTH_CONFIG } from './constants';
 import { DeliverableEditForm } from './DeliverableEditForm';
-import { AddNoteModal } from './AddNoteModal';
 import { ResourceRecommendationModal } from './ResourceRecommendationModal';
 
 type RecommendationType = 'expert_connect' | 'service_provider' | 'masterclass' | 'research';
@@ -20,7 +19,10 @@ interface DeliverableDetailProps {
 export const DeliverableDetail: React.FC<DeliverableDetailProps> = ({ ventureId, deliverable, ventureName, onBack, onUpdate }) => {
     const [editing, setEditing] = useState(false);
     const [activeTab, setActiveTab] = useState<'checklist' | 'notes'>('checklist');
-    const [showAddNoteModal, setShowAddNoteModal] = useState(false);
+    const [showAddNoteForm, setShowAddNoteForm] = useState(false);
+    const [noteText, setNoteText] = useState('');
+    const [actionItemsText, setActionItemsText] = useState('');
+    const [savingNote, setSavingNote] = useState(false);
     const [recommendationType, setRecommendationType] = useState<RecommendationType | null>(null);
     const [checklistItems, setChecklistItems] = useState<any[]>([]);
     const [newItemText, setNewItemText] = useState('');
@@ -98,14 +100,24 @@ export const DeliverableDetail: React.FC<DeliverableDetailProps> = ({ ventureId,
         }
     };
 
-    const handleAddNote = async (data: { note_text: string; action_items: string[] }) => {
+    const handleAddNote = async () => {
+        if (!noteText.trim()) return;
+        setSavingNote(true);
         try {
-            await api.addDeliverableNote(ventureId, deliverable.id, data);
+            const action_items = actionItemsText
+                .split('\n')
+                .map((line) => line.replace(/^[-*]\s*/, '').trim())
+                .filter(Boolean);
+            await api.addDeliverableNote(ventureId, deliverable.id, { note_text: noteText.trim(), action_items });
             await fetchNotes();
-            setShowAddNoteModal(false);
+            setNoteText('');
+            setActionItemsText('');
+            setShowAddNoteForm(false);
         } catch (err: any) {
             console.error('Error adding note:', err);
             alert(`Failed to add note: ${err.message || 'Unknown error'}`);
+        } finally {
+            setSavingNote(false);
         }
     };
 
@@ -298,18 +310,60 @@ export const DeliverableDetail: React.FC<DeliverableDetailProps> = ({ ventureId,
                         <div>
                             <div className="flex items-center justify-between mb-3">
                                 <span className="text-sm text-gray-500">{notes.length} note{notes.length !== 1 ? 's' : ''}</span>
-                                <button
-                                    onClick={() => setShowAddNoteModal(true)}
-                                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700"
-                                >
-                                    <Plus className="w-3 h-3" />
-                                    Add Update
-                                </button>
+                                {!showAddNoteForm && (
+                                    <button
+                                        onClick={() => setShowAddNoteForm(true)}
+                                        className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700"
+                                    >
+                                        <Plus className="w-3 h-3" />
+                                        Add Update
+                                    </button>
+                                )}
                             </div>
+
+                            {showAddNoteForm && (
+                                <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4 space-y-3">
+                                    <div>
+                                        <label className="block text-xs font-medium text-indigo-600 mb-1">Notes / Update</label>
+                                        <textarea
+                                            value={noteText}
+                                            onChange={(e) => setNoteText(e.target.value)}
+                                            rows={3}
+                                            placeholder="What's the latest progress?"
+                                            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-100 focus:border-indigo-300 outline-none text-sm resize-y"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-indigo-600 mb-1">Action Items (one per line)</label>
+                                        <textarea
+                                            value={actionItemsText}
+                                            onChange={(e) => setActionItemsText(e.target.value)}
+                                            rows={2}
+                                            placeholder={"- Follow up with design team\n- Schedule review meeting"}
+                                            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-100 focus:border-indigo-300 outline-none text-sm resize-y"
+                                        />
+                                    </div>
+                                    <div className="flex justify-end gap-2">
+                                        <button
+                                            onClick={() => { setShowAddNoteForm(false); setNoteText(''); setActionItemsText(''); }}
+                                            className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={handleAddNote}
+                                            disabled={savingNote || !noteText.trim()}
+                                            className="px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                                        >
+                                            {savingNote ? 'Saving...' : 'Save Update'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
 
                             {loadingNotes ? (
                                 <div className="text-sm text-gray-400 text-center py-4">Loading...</div>
-                            ) : notes.length === 0 ? (
+                            ) : notes.length === 0 && !showAddNoteForm ? (
                                 <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-400 text-center">No notes yet.</div>
                             ) : (
                                 <div className="space-y-3">
@@ -340,12 +394,6 @@ export const DeliverableDetail: React.FC<DeliverableDetailProps> = ({ ventureId,
             </div>
 
             {/* Modals */}
-            {showAddNoteModal && (
-                <AddNoteModal
-                    onSave={handleAddNote}
-                    onClose={() => setShowAddNoteModal(false)}
-                />
-            )}
             {recommendationType && (
                 <ResourceRecommendationModal
                     ventureId={ventureId}

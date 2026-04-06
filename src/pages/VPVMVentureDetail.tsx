@@ -60,7 +60,8 @@ const RoadmapGrid: React.FC<{
     onDeliverableStatusChange?: (deliverableId: string, newStatus: string) => void;
     onDeliverableHealthChange?: (deliverableId: string, newHealth: string) => void;
     onDeliverableClick?: (deliverable: any) => void;
-}> = ({ roadmapData, editing, onUpdate, deliverables = [], showDeliverables = false, onDeliverableStatusChange, onDeliverableHealthChange, onDeliverableClick }) => {
+    readOnly?: boolean;
+}> = ({ roadmapData, editing, onUpdate, deliverables = [], showDeliverables = false, onDeliverableStatusChange, onDeliverableHealthChange, onDeliverableClick, readOnly = false }) => {
     const [expandedStreams, setExpandedStreams] = useState<Set<string>>(new Set());
     const PREVIEW_COUNT = 2;
 
@@ -164,32 +165,38 @@ const RoadmapGrid: React.FC<{
                                                 <p className="text-xs font-medium text-gray-900">{del.title}</p>
                                                 <div className="flex items-center gap-3 mt-2">
                                                     <span className={`inline-flex items-center text-[10px] font-medium rounded border ${cfg.badge}`}>
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                const currentIdx = DELIVERABLE_STATUS_CYCLE.indexOf(del.status);
-                                                                const nextStatus = DELIVERABLE_STATUS_CYCLE[(currentIdx + 1) % DELIVERABLE_STATUS_CYCLE.length];
-                                                                onDeliverableStatusChange?.(del.id, nextStatus);
-                                                            }}
-                                                            className="px-2 py-0.5 hover:opacity-80 transition-opacity"
-                                                        >
-                                                            {cfg.label}
-                                                        </button>
-                                                        {del.status === 'in_progress' && (
+                                                        {readOnly ? (
+                                                            <span className="px-2 py-0.5">{cfg.label}{del.status === 'in_progress' && ` · ${del.health === 'at_risk' ? 'At Risk' : del.health === 'needs_attention' ? 'Needs Attention' : 'On Track'}`}</span>
+                                                        ) : (
                                                             <>
-                                                                <span className="text-[8px] opacity-40">|</span>
                                                                 <button
                                                                     onClick={(e) => {
                                                                         e.stopPropagation();
-                                                                        const currentIdx = HEALTH_CYCLE.indexOf(del.health || 'on_track');
-                                                                        const nextHealth = HEALTH_CYCLE[(currentIdx + 1) % HEALTH_CYCLE.length];
-                                                                        onDeliverableHealthChange?.(del.id, nextHealth);
+                                                                        const currentIdx = DELIVERABLE_STATUS_CYCLE.indexOf(del.status);
+                                                                        const nextStatus = DELIVERABLE_STATUS_CYCLE[(currentIdx + 1) % DELIVERABLE_STATUS_CYCLE.length];
+                                                                        onDeliverableStatusChange?.(del.id, nextStatus);
                                                                     }}
                                                                     className="px-2 py-0.5 hover:opacity-80 transition-opacity"
-                                                                    title="Click to change health"
                                                                 >
-                                                                    {del.health === 'at_risk' ? 'At Risk' : del.health === 'needs_attention' ? 'Needs Attention' : 'On Track'}
+                                                                    {cfg.label}
                                                                 </button>
+                                                                {del.status === 'in_progress' && (
+                                                                    <>
+                                                                        <span className="text-[8px] opacity-40">|</span>
+                                                                        <button
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                const currentIdx = HEALTH_CYCLE.indexOf(del.health || 'on_track');
+                                                                                const nextHealth = HEALTH_CYCLE[(currentIdx + 1) % HEALTH_CYCLE.length];
+                                                                                onDeliverableHealthChange?.(del.id, nextHealth);
+                                                                            }}
+                                                                            className="px-2 py-0.5 hover:opacity-80 transition-opacity"
+                                                                            title="Click to change health"
+                                                                        >
+                                                                            {del.health === 'at_risk' ? 'At Risk' : del.health === 'needs_attention' ? 'Needs Attention' : 'On Track'}
+                                                                        </button>
+                                                                    </>
+                                                                )}
                                                             </>
                                                         )}
                                                     </span>
@@ -227,8 +234,15 @@ const RoadmapGrid: React.FC<{
     );
 };
 
-export const VPVMVentureDetail: React.FC = () => {
-    const { id } = useParams<{ id: string }>();
+interface VPVMVentureDetailProps {
+    ventureId?: string;
+    readOnly?: boolean;
+    onClose?: () => void;
+}
+
+export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId: propVentureId, readOnly = false, onClose }) => {
+    const params = useParams<{ id: string }>();
+    const id = propVentureId || params.id;
     const navigate = useNavigate();
     const [venture, setVenture] = useState<any>(null);
     const [currentUserId, setCurrentUserId] = useState<string>('');
@@ -347,10 +361,12 @@ export const VPVMVentureDetail: React.FC = () => {
     return (
         <div className="space-y-5">
             {/* Back button */}
-            <button onClick={() => navigate('/vpvm/dashboard')} className="flex items-center gap-1 text-sm text-gray-500 hover:text-indigo-600 transition-colors">
-                <ArrowLeft className="w-4 h-4" />
-                Back to portfolio
-            </button>
+            {!readOnly && (
+                <button onClick={() => navigate('/vpvm/dashboard')} className="flex items-center gap-1 text-sm text-gray-500 hover:text-indigo-600 transition-colors">
+                    <ArrowLeft className="w-4 h-4" />
+                    Back to portfolio
+                </button>
+            )}
 
             {/* Venture Header */}
             <div className="bg-white border border-gray-200 rounded-xl p-6">
@@ -363,18 +379,20 @@ export const VPVMVentureDetail: React.FC = () => {
                             <span className="flex items-center gap-1"><Package className="w-4 h-4" /> Program: {programLabel}</span>
                         </div>
                     </div>
-                    <button
-                        onClick={() => navigate(`/vpvm/dashboard/venture/${id}/details`)}
-                        className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                    >
-                        View Details
-                    </button>
+                    {!readOnly && (
+                        <button
+                            onClick={() => navigate(`/vpvm/dashboard/venture/${id}/details`)}
+                            className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
+                            View Details
+                        </button>
+                    )}
                 </div>
             </div>
 
             {/* KPI Section */}
             <div className="flex items-center justify-end mb-1">
-                {kpiEditing ? (
+                {readOnly ? null : kpiEditing ? (
                     <div className="flex items-center gap-2">
                         <button
                             onClick={() => setKpiEditing(false)}
@@ -510,6 +528,7 @@ export const VPVMVentureDetail: React.FC = () => {
                 open={roadmapOpen}
                 onToggle={() => setRoadmapOpen(!roadmapOpen)}
                 action={
+                    readOnly ? undefined :
                     roadmapData ? (
                         roadmapEditing ? (
                             <div className="flex items-center gap-2">
@@ -623,6 +642,7 @@ export const VPVMVentureDetail: React.FC = () => {
                     <RoadmapGrid
                         roadmapData={roadmapEditing && editedRoadmap ? editedRoadmap : roadmapData}
                         editing={roadmapEditing}
+                        readOnly={readOnly}
                         onUpdate={(key, field, value) => {
                             if (!editedRoadmap) return;
                             const updated = { ...editedRoadmap };
@@ -630,7 +650,7 @@ export const VPVMVentureDetail: React.FC = () => {
                             setEditedRoadmap(updated);
                         }}
                         deliverables={roadmapStatusFilter === 'all' ? deliverables : deliverables.filter(d => d.status === roadmapStatusFilter)}
-                        showDeliverables={showDeliverables}
+                        showDeliverables={readOnly ? deliverables.length > 0 : showDeliverables}
                         onDeliverableClick={(del) => setSelectedRoadmapDeliverable(del)}
                         onDeliverableStatusChange={async (deliverableId, newStatus) => {
                             if (!id) return;
@@ -656,7 +676,11 @@ export const VPVMVentureDetail: React.FC = () => {
                                 alert(`Failed to update health: ${err.message || 'Unknown error'}`);
                             }
                         }}
-                    />) : (
+                    />) : readOnly ? (
+                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-8 text-center">
+                        <p className="text-sm text-gray-400">No roadmap generated yet.</p>
+                    </div>
+                ) : (
                     <div className="bg-gray-50 border border-gray-200 rounded-xl p-8 text-center">
                         <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center mx-auto mb-3">
                             <Sparkles className="w-6 h-6 text-indigo-600" />

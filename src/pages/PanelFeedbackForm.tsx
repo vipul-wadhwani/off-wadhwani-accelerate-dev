@@ -360,12 +360,10 @@ export const PanelFeedbackForm: React.FC = () => {
 
             // Send selection welcome email if panel recommends proceeding
             if (finalRecommendation === 'proceed') {
-                const category = programCategory || (isPrime ? 'prime' : '');
-                if (category) {
-                    api.sendSelectionEmail(ventureId!, category)
-                        .then(() => console.log('Selection welcome email sent'))
-                        .catch((err) => console.error('Failed to send selection email:', err));
-                }
+                const category = programCategory || (isPrime ? 'prime' : 'core');
+                api.sendSelectionEmail(ventureId!, category)
+                    .then(() => console.log('Selection welcome email sent'))
+                    .catch((err) => console.error('Failed to send selection email:', err));
             }
 
             setSubmitted(true);

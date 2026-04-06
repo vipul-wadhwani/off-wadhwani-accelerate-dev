@@ -28,6 +28,7 @@ import { VPVMLayout } from './layouts/VPVMLayout';
 import { VPVMDashboard } from './pages/VPVMDashboard';
 import { VPVMVentureDetail } from './pages/VPVMVentureDetail';
 import { VPVMApplicationDetails } from './pages/VPVMApplicationDetails';
+import { VPVMAvailability } from './pages/VPVMAvailability';
 
 const Header = () => (
   <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 fixed top-0 w-full z-50">
@@ -81,6 +82,7 @@ function App() {
             <Route path="new-application" element={<NewApplication />} />
             <Route path="venture/:id" element={<VentureDetails />} />
             <Route path="venture/:id/workbench" element={<VentureWorkbench />} />
+            <Route path="venture/:id/plan" element={<VPVMVentureDetail readOnly hideKPIs backPath="/dashboard" backLabel="Back to my ventures" />} />
           </Route>
 
           {/* Success Manager Dashboard Routes */}
@@ -125,14 +127,15 @@ function App() {
           </Route>
 
           {/* VP/VM Dashboard Routes */}
-          <Route path="/vpvm/dashboard" element={
+          <Route path="/vpvm" element={
             <ProtectedRoute allowedRoles={['venture_mgr', 'committee_member']}>
               <VPVMLayout />
             </ProtectedRoute>
           }>
-            <Route index element={<VPVMDashboard />} />
-            <Route path="venture/:id" element={<VPVMVentureDetail />} />
-            <Route path="venture/:id/details" element={<VPVMApplicationDetails />} />
+            <Route path="dashboard" element={<VPVMDashboard />} />
+            <Route path="dashboard/venture/:id" element={<VPVMVentureDetail />} />
+            <Route path="dashboard/venture/:id/details" element={<VPVMApplicationDetails />} />
+            <Route path="availability" element={<VPVMAvailability />} />
           </Route>
 
           {/* Admin Dashboard Routes */}

@@ -1138,7 +1138,7 @@ router.post(
 
             const founderName = venture.founder_name || 'Founder';
             const ventureName = venture.name || 'Your Venture';
-            const loginUrl = 'https://devaccelerate.wadhwaniliftoff.ai';
+            const loginUrl = process.env.FRONTEND_URL || 'https://devaccelerate.wadhwaniliftoff.ai';
 
             // Create Supabase auth account for the founder if not already linked
             const adminClient = createServiceRoleClient();

@@ -12,6 +12,7 @@ const SECRET_MAP: Record<string, string> = {
     'zoom-client-secret': 'ZOOM_CLIENT_SECRET',
     'zoom-client-id': 'ZOOM_CLIENT_ID',
     'zoom-account-id': 'ZOOM_ACCOUNT_ID',
+    'frontend-url': 'FRONTEND_URL',
 };
 
 export async function loadSecretsFromKeyVault(): Promise<void> {

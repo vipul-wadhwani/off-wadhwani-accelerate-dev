@@ -14,9 +14,10 @@ interface DeliverableDetailProps {
     ventureName: string;
     onBack: () => void;
     onUpdate: (updated: Deliverable) => void;
+    readOnly?: boolean;
 }
 
-export const DeliverableDetail: React.FC<DeliverableDetailProps> = ({ ventureId, deliverable, ventureName, onBack, onUpdate }) => {
+export const DeliverableDetail: React.FC<DeliverableDetailProps> = ({ ventureId, deliverable, ventureName, onBack, onUpdate, readOnly = false }) => {
     const [editing, setEditing] = useState(false);
     const [activeTab, setActiveTab] = useState<'checklist' | 'notes'>('checklist');
     const [showAddNoteForm, setShowAddNoteForm] = useState(false);
@@ -148,7 +149,7 @@ export const DeliverableDetail: React.FC<DeliverableDetailProps> = ({ ventureId,
                         <Clock className="w-3 h-3" />
                         {statusConfig.label}
                     </span>
-                    {deliverable.status === 'in_progress' && (
+                    {deliverable.status === 'in_progress' && !readOnly && (
                         <select
                             value={deliverable.health || 'on_track'}
                             onChange={async (e) => {
@@ -166,9 +167,16 @@ export const DeliverableDetail: React.FC<DeliverableDetailProps> = ({ ventureId,
                             ))}
                         </select>
                     )}
-                    <button onClick={() => setEditing(true)} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors" title="Edit">
-                        <Pencil className="w-4 h-4 text-gray-400" />
-                    </button>
+                    {deliverable.status === 'in_progress' && readOnly && (
+                        <span className={`text-xs px-2 py-1 rounded-full border font-medium ${(HEALTH_CONFIG[deliverable.health || 'on_track'] || HEALTH_CONFIG.on_track).badge}`}>
+                            {(HEALTH_CONFIG[deliverable.health || 'on_track'] || HEALTH_CONFIG.on_track).label}
+                        </span>
+                    )}
+                    {!readOnly && (
+                        <button onClick={() => setEditing(true)} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors" title="Edit">
+                            <Pencil className="w-4 h-4 text-gray-400" />
+                        </button>
+                    )}
                     <button onClick={onBack} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors" title="Close">
                         <X className="w-4 h-4 text-gray-400" />
                     </button>
@@ -212,7 +220,7 @@ export const DeliverableDetail: React.FC<DeliverableDetailProps> = ({ ventureId,
                 </div>
 
                 {/* Action buttons */}
-                <div className="flex flex-wrap gap-2">
+                {!readOnly && <div className="flex flex-wrap gap-2">
                     {([
                         { label: 'Expert Connect', type: 'expert_connect' as RecommendationType },
                         { label: 'Service Provider', type: 'service_provider' as RecommendationType },
@@ -228,7 +236,7 @@ export const DeliverableDetail: React.FC<DeliverableDetailProps> = ({ ventureId,
                             Add {label}
                         </button>
                     ))}
-                </div>
+                </div>}
 
                 {/* Tabs */}
                 <div className="border-t border-gray-100 pt-4">
@@ -267,13 +275,14 @@ export const DeliverableDetail: React.FC<DeliverableDetailProps> = ({ ventureId,
                                 {checklistItems.map((item) => (
                                     <div
                                         key={item.id}
-                                        className="flex items-center gap-3 bg-white rounded-lg px-3 py-2.5 cursor-pointer hover:bg-gray-50 transition-colors"
-                                        onClick={() => handleToggleItem(item)}
+                                        className={`flex items-center gap-3 bg-white rounded-lg px-3 py-2.5 ${readOnly ? '' : 'cursor-pointer hover:bg-gray-50'} transition-colors`}
+                                        onClick={readOnly ? undefined : () => handleToggleItem(item)}
                                     >
                                         <input
                                             type="checkbox"
                                             checked={item.is_completed}
-                                            onChange={() => handleToggleItem(item)}
+                                            disabled={readOnly}
+                                            onChange={readOnly ? undefined : () => handleToggleItem(item)}
                                             onClick={(e) => e.stopPropagation()}
                                             className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                                         />
@@ -286,6 +295,7 @@ export const DeliverableDetail: React.FC<DeliverableDetailProps> = ({ ventureId,
                             {checklistItems.length === 0 && (
                                 <p className="text-sm text-gray-400 text-center py-2">No checklist items yet</p>
                             )}
+                            {!readOnly && (
                             <div className="flex items-center gap-2 mt-3">
                                 <input
                                     type="text"
@@ -303,6 +313,7 @@ export const DeliverableDetail: React.FC<DeliverableDetailProps> = ({ ventureId,
                                     + Add Item
                                 </button>
                             </div>
+                            )}
                         </div>
                     )}
 
@@ -310,7 +321,7 @@ export const DeliverableDetail: React.FC<DeliverableDetailProps> = ({ ventureId,
                         <div>
                             <div className="flex items-center justify-between mb-3">
                                 <span className="text-sm text-gray-500">{notes.length} note{notes.length !== 1 ? 's' : ''}</span>
-                                {!showAddNoteForm && (
+                                {!readOnly && !showAddNoteForm && (
                                     <button
                                         onClick={() => setShowAddNoteForm(true)}
                                         className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700"
@@ -321,7 +332,7 @@ export const DeliverableDetail: React.FC<DeliverableDetailProps> = ({ ventureId,
                                 )}
                             </div>
 
-                            {showAddNoteForm && (
+                            {!readOnly && showAddNoteForm && (
                                 <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4 space-y-3">
                                     <div>
                                         <label className="block text-xs font-medium text-indigo-600 mb-1">Notes / Update</label>

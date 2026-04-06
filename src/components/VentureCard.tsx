@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, LayoutGrid, Calendar, Sparkles } from 'lucide-react';
+import { Eye, LayoutGrid, Calendar } from 'lucide-react';
 
 export interface Venture {
     id: string;
@@ -107,53 +107,16 @@ export const VentureCard: React.FC<VentureCardProps> = ({ venture }) => {
                             <LayoutGrid className="w-3.5 h-3.5" />
                             Declined
                         </button>
-                    ) : venture.status === 'Joined Program' ? (
+                    ) : (venture.status === 'Joined Program' || venture.workbench_locked || venture.status === 'Contract Sent' || venture.agreement_status === 'Signed') ? (
                         <button
                             className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold bg-brand-600 text-white hover:bg-brand-700 transition-colors shadow-sm"
                             onClick={(e) => {
                                 e.stopPropagation();
-                                navigate(`/dashboard/venture/${venture.id}/workbench`);
+                                navigate(`/dashboard/venture/${venture.id}/plan`);
                             }}
                         >
-                            <LayoutGrid className="w-3.5 h-3.5" />
-                            Workbench
-                        </button>
-                    ) : venture.workbench_locked ? (
-                        <button
-                            className="flex-1 relative inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-bold bg-gradient-to-r from-brand-500 to-brand-600 text-white hover:from-brand-600 hover:to-brand-700 transition-all shadow-lg shadow-brand-500/30 animate-pulse hover:animate-none"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/dashboard/venture/${venture.id}/workbench`);
-                            }}
-                        >
-                            <span className="absolute inset-0 rounded-xl bg-gradient-to-r from-brand-400 to-brand-500 opacity-0 hover:opacity-100 transition-opacity" />
-                            <span className="absolute -inset-0.5 rounded-xl bg-gradient-to-r from-brand-400 via-amber-400 to-brand-500 opacity-30 blur-sm animate-pulse" />
-                            <span className="relative flex items-center gap-2">
-                                <Sparkles className="w-4 h-4" />
-                                Review Plan
-                            </span>
-                        </button>
-                    ) : venture.status === 'Contract Sent' ? (
-                        <button
-                            className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold bg-brand-50 text-brand-700 border border-brand-200 hover:bg-brand-100 transition-colors"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/dashboard/venture/${venture.id}/workbench`);
-                            }}
-                        >
-                            <LayoutGrid className="w-3.5 h-3.5" />
-                            Review Contract
-                        </button>
-                    ) : venture.agreement_status === 'Signed' ? (
-                        <button
-                            className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold bg-brand-600 text-white hover:bg-brand-700 transition-colors shadow-sm"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/dashboard/venture/${venture.id}/workbench`);
-                            }}
-                        >
-                            <LayoutGrid className="w-3.5 h-3.5" />
-                            Workbench
+                            <Eye className="w-3.5 h-3.5" />
+                            View My Plan
                         </button>
                     ) : (
                         <button

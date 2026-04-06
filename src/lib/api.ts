@@ -1318,6 +1318,68 @@ class ApiClient {
         if (error) throw error;
         return data || [];
     }
+
+    // ============ VP/VM AVAILABILITY ============
+
+    async getVPVMWeeklyAvailability(userId: string) {
+        const { data, error } = await supabase
+            .from('vpvm_availability')
+            .select('*')
+            .eq('user_id', userId)
+            .order('day_of_week')
+            .order('start_time');
+
+        if (error) throw error;
+        return data || [];
+    }
+
+    async saveVPVMWeeklyAvailability(userId: string, slots: { day_of_week: number; start_time: string; end_time: string }[]) {
+        const { error: deleteError } = await supabase
+            .from('vpvm_availability')
+            .delete()
+            .eq('user_id', userId);
+
+        if (deleteError) throw deleteError;
+
+        if (slots.length > 0) {
+            const { error: insertError } = await supabase
+                .from('vpvm_availability')
+                .insert(slots.map(s => ({ user_id: userId, ...s })));
+
+            if (insertError) throw insertError;
+        }
+    }
+
+    async getVPVMBlockedDates(userId: string) {
+        const { data, error } = await supabase
+            .from('vpvm_blocked_dates')
+            .select('*')
+            .eq('user_id', userId)
+            .order('blocked_date');
+
+        if (error) throw error;
+        return data || [];
+    }
+
+    async addVPVMBlockedDate(userId: string, date: string) {
+        const { data, error } = await supabase
+            .from('vpvm_blocked_dates')
+            .insert({ user_id: userId, blocked_date: date })
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data;
+    }
+
+    async removeVPVMBlockedDate(id: string) {
+        const { error } = await supabase
+            .from('vpvm_blocked_dates')
+            .delete()
+            .eq('id', id);
+
+        if (error) throw error;
+    }
 }
 
 export const api = new ApiClient();

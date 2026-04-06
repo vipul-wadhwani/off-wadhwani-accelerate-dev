@@ -237,9 +237,12 @@ const RoadmapGrid: React.FC<{
 interface VPVMVentureDetailProps {
     ventureId?: string;
     readOnly?: boolean;
+    hideKPIs?: boolean;
+    backPath?: string;
+    backLabel?: string;
 }
 
-export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId: propVentureId, readOnly = false }) => {
+export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId: propVentureId, readOnly = false, hideKPIs = false, backPath, backLabel }) => {
     const params = useParams<{ id: string }>();
     const id = propVentureId || params.id;
     const navigate = useNavigate();
@@ -360,10 +363,10 @@ export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId:
     return (
         <div className="space-y-5">
             {/* Back button */}
-            {!readOnly && (
-                <button onClick={() => navigate('/vpvm/dashboard')} className="flex items-center gap-1 text-sm text-gray-500 hover:text-indigo-600 transition-colors">
+            {(!readOnly || backPath) && (
+                <button onClick={() => navigate(backPath || '/vpvm/dashboard')} className="flex items-center gap-1 text-sm text-gray-500 hover:text-indigo-600 transition-colors">
                     <ArrowLeft className="w-4 h-4" />
-                    Back to portfolio
+                    {backLabel || 'Back to portfolio'}
                 </button>
             )}
 
@@ -390,6 +393,7 @@ export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId:
             </div>
 
             {/* KPI Section */}
+            {!hideKPIs && (<>
             <div className="flex items-center justify-end mb-1">
                 {readOnly ? null : kpiEditing ? (
                     <div className="flex items-center gap-2">
@@ -519,6 +523,7 @@ export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId:
                         )}
                     </div>
                 </div>
+            </>)}
 
             {/* Roadmap */}
             <SectionHeader
@@ -729,7 +734,7 @@ export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId:
             />
             {interactionsOpen && id && (
                 <div className="bg-white border border-gray-200 rounded-xl p-5">
-                    <InteractionsSection ventureId={id} createdByOnly={currentUserId} />
+                    <InteractionsSection ventureId={id} createdByOnly={readOnly ? undefined : currentUserId} readOnly={readOnly} />
                 </div>
             )}
 
@@ -741,6 +746,7 @@ export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId:
                             ventureId={id}
                             deliverable={selectedRoadmapDeliverable}
                             ventureName={venture?.name || ''}
+                            readOnly={readOnly}
                             onBack={() => {
                                 setSelectedRoadmapDeliverable(null);
                                 // Refresh deliverables to pick up any changes

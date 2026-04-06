@@ -4,7 +4,6 @@ import { api } from '../../lib/api';
 import type { Deliverable, DeliverableNote } from './constants';
 import { getDeliverableStyle, HEALTH_CONFIG } from './constants';
 import { DeliverableEditForm } from './DeliverableEditForm';
-import { ChecklistModal } from './ChecklistModal';
 import { AddNoteModal } from './AddNoteModal';
 import { ResourceRecommendationModal } from './ResourceRecommendationModal';
 
@@ -21,28 +20,56 @@ interface DeliverableDetailProps {
 export const DeliverableDetail: React.FC<DeliverableDetailProps> = ({ ventureId, deliverable, ventureName, onBack, onUpdate }) => {
     const [editing, setEditing] = useState(false);
     const [activeTab, setActiveTab] = useState<'checklist' | 'notes'>('checklist');
-    const [showChecklistModal, setShowChecklistModal] = useState(false);
     const [showAddNoteModal, setShowAddNoteModal] = useState(false);
     const [recommendationType, setRecommendationType] = useState<RecommendationType | null>(null);
-    const [checklistCount, setChecklistCount] = useState({ completed: 0, total: 0 });
+    const [checklistItems, setChecklistItems] = useState<any[]>([]);
+    const [newItemText, setNewItemText] = useState('');
     const [notes, setNotes] = useState<DeliverableNote[]>([]);
     const [loadingNotes, setLoadingNotes] = useState(false);
 
+    const checklistCount = {
+        completed: checklistItems.filter((i) => i.is_completed).length,
+        total: checklistItems.length,
+    };
+
     useEffect(() => {
-        fetchChecklistCount();
+        fetchChecklistItems();
         fetchNotes();
     }, [deliverable.id]);
 
-    const fetchChecklistCount = async () => {
+    const fetchChecklistItems = async () => {
         try {
             const result = await api.getChecklistItems(ventureId, deliverable.id);
-            const items = result?.items || [];
-            setChecklistCount({
-                completed: items.filter((i: any) => i.is_completed).length,
-                total: items.length,
-            });
+            setChecklistItems(result?.items || []);
         } catch (err) {
-            console.error('Error fetching checklist count:', err);
+            console.error('Error fetching checklist:', err);
+        }
+    };
+
+    const handleToggleItem = async (item: any) => {
+        const prev = [...checklistItems];
+        const updated = checklistItems.map((i) => (i.id === item.id ? { ...i, is_completed: !i.is_completed } : i));
+        setChecklistItems(updated);
+        try {
+            await api.updateChecklistItem(ventureId, deliverable.id, item.id, { is_completed: !item.is_completed });
+        } catch (err: any) {
+            console.error('Error toggling checklist item:', err);
+            setChecklistItems(prev);
+            alert(`Failed to update checklist: ${err.message || 'Unknown error'}`);
+        }
+    };
+
+    const handleAddItem = async () => {
+        if (!newItemText.trim()) return;
+        try {
+            const result = await api.addChecklistItem(ventureId, deliverable.id, newItemText.trim());
+            if (result?.item) {
+                setChecklistItems(prev => [...prev, result.item]);
+                setNewItemText('');
+            }
+        } catch (err: any) {
+            console.error('Error adding checklist item:', err);
+            alert(`Failed to add item: ${err.message || 'Unknown error'}`);
         }
     };
 
@@ -65,8 +92,9 @@ export const DeliverableDetail: React.FC<DeliverableDetailProps> = ({ ventureId,
                 onUpdate(result.deliverable);
             }
             setEditing(false);
-        } catch (err) {
+        } catch (err: any) {
             console.error('Error saving deliverable:', err);
+            alert(`Failed to save: ${err.message || 'Unknown error'}`);
         }
     };
 
@@ -74,8 +102,10 @@ export const DeliverableDetail: React.FC<DeliverableDetailProps> = ({ ventureId,
         try {
             await api.addDeliverableNote(ventureId, deliverable.id, data);
             await fetchNotes();
-        } catch (err) {
+            setShowAddNoteModal(false);
+        } catch (err: any) {
             console.error('Error adding note:', err);
+            alert(`Failed to add note: ${err.message || 'Unknown error'}`);
         }
     };
 
@@ -218,27 +248,49 @@ export const DeliverableDetail: React.FC<DeliverableDetailProps> = ({ ventureId,
                     {/* Tab content */}
                     {activeTab === 'checklist' && (
                         <div className="bg-gray-50 rounded-xl p-4">
-                            {checklistCount.total > 0 ? (
-                                <div className="flex items-center justify-between">
-                                    <span className="text-sm text-gray-600">{checklistCount.completed} of {checklistCount.total} items completed</span>
-                                    <button
-                                        onClick={() => setShowChecklistModal(true)}
-                                        className="text-sm text-indigo-600 font-medium hover:text-indigo-700"
-                                    >
-                                        View / Edit
-                                    </button>
-                                </div>
-                            ) : (
-                                <div className="text-center py-2">
-                                    <p className="text-sm text-gray-400 mb-2">No checklist items yet</p>
-                                    <button
-                                        onClick={() => setShowChecklistModal(true)}
-                                        className="text-sm text-indigo-600 font-medium hover:text-indigo-700"
-                                    >
-                                        + Add Checklist Items
-                                    </button>
-                                </div>
+                            {checklistCount.total > 0 && (
+                                <p className="text-xs text-gray-500 mb-3">{checklistCount.completed} of {checklistCount.total} completed</p>
                             )}
+                            <div className="space-y-2">
+                                {checklistItems.map((item) => (
+                                    <div
+                                        key={item.id}
+                                        className="flex items-center gap-3 bg-white rounded-lg px-3 py-2.5 cursor-pointer hover:bg-gray-50 transition-colors"
+                                        onClick={() => handleToggleItem(item)}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={item.is_completed}
+                                            onChange={() => handleToggleItem(item)}
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                        />
+                                        <span className={`text-sm ${item.is_completed ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+                                            {item.text}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                            {checklistItems.length === 0 && (
+                                <p className="text-sm text-gray-400 text-center py-2">No checklist items yet</p>
+                            )}
+                            <div className="flex items-center gap-2 mt-3">
+                                <input
+                                    type="text"
+                                    value={newItemText}
+                                    onChange={(e) => setNewItemText(e.target.value)}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') handleAddItem(); }}
+                                    placeholder="Add a new item..."
+                                    className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-100 focus:border-indigo-300 outline-none"
+                                />
+                                <button
+                                    onClick={handleAddItem}
+                                    disabled={!newItemText.trim()}
+                                    className="text-sm font-medium text-indigo-600 hover:text-indigo-700 disabled:opacity-40 whitespace-nowrap"
+                                >
+                                    + Add Item
+                                </button>
+                            </div>
                         </div>
                     )}
 
@@ -288,14 +340,6 @@ export const DeliverableDetail: React.FC<DeliverableDetailProps> = ({ ventureId,
             </div>
 
             {/* Modals */}
-            {showChecklistModal && (
-                <ChecklistModal
-                    ventureId={ventureId}
-                    deliverable={deliverable}
-                    onClose={() => setShowChecklistModal(false)}
-                    onCountChange={setChecklistCount}
-                />
-            )}
             {showAddNoteModal && (
                 <AddNoteModal
                     onSave={handleAddNote}

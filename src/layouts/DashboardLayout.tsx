@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { Rocket, Grid, LogOut, Bell, Video, Calendar, Clock, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
+import { Rocket, Grid, LogOut, Bell, Video, Calendar, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 

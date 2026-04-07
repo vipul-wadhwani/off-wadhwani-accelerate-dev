@@ -1380,6 +1380,163 @@ class ApiClient {
 
         if (error) throw error;
     }
+    // ============ MENTOR SESSION ENDPOINTS ============
+
+    async getMyMentorSessions() {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error('Not authenticated');
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const response = await fetch(`${API_URL}/api/ventures/my-mentor-sessions`, {
+            headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        if (!response.ok) return [];
+        const data = await response.json();
+        return data.sessions || [];
+    }
+
+    async getVentureMentors(ventureId: string) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error('Not authenticated');
+
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+        const response = await fetch(`${API_URL}/api/ventures/${ventureId}/mentors`, {
+            headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.message || 'Failed to fetch mentors');
+        }
+
+        const data = await response.json();
+        return data.mentors || data.data?.mentors || [];
+    }
+
+    async getVentureMentorSessions(ventureId: string, status?: string) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error('Not authenticated');
+
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const params = status ? `?status=${status}` : '';
+
+        const response = await fetch(`${API_URL}/api/ventures/${ventureId}/mentor-sessions${params}`, {
+            headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.message || 'Failed to fetch mentor sessions');
+        }
+
+        const data = await response.json();
+        return data.sessions || data.data?.sessions || [];
+    }
+
+    async createMentorSession(ventureId: string, sessionData: {
+        mentor_id: string;
+        topic?: string;
+        scheduled_date: string;
+        scheduled_time: string;
+        duration_minutes?: number;
+    }) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error('Not authenticated');
+
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+        const response = await fetch(`${API_URL}/api/ventures/${ventureId}/mentor-sessions`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`
+            },
+            body: JSON.stringify(sessionData)
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.message || 'Failed to create mentor session');
+        }
+
+        const data = await response.json();
+        return data.session || data.data?.session;
+    }
+
+    async getMentorProfile() {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error('Not authenticated');
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const response = await fetch(`${API_URL}/api/mentor/profile`, {
+            headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        if (!response.ok) throw new Error('Failed to fetch mentor profile');
+        const data = await response.json();
+        return data.profile;
+    }
+
+    async updateMentorProfile(profileData: { bio?: string; expertise_areas?: string[]; max_sessions_per_week?: number; full_name?: string }) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error('Not authenticated');
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const response = await fetch(`${API_URL}/api/mentor/profile`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+            body: JSON.stringify(profileData)
+        });
+        if (!response.ok) throw new Error('Failed to update profile');
+        const data = await response.json();
+        return data.profile;
+    }
+
+    async getMentorVentures() {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error('Not authenticated');
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const response = await fetch(`${API_URL}/api/mentor/ventures`, {
+            headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        if (!response.ok) throw new Error('Failed to fetch ventures');
+        const data = await response.json();
+        return data.ventures || [];
+    }
+
+    async getMentorSessions(status?: string) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error('Not authenticated');
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const params = status ? `?status=${status}` : '';
+        const response = await fetch(`${API_URL}/api/mentor/sessions${params}`, {
+            headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        if (!response.ok) throw new Error('Failed to fetch sessions');
+        const data = await response.json();
+        return data.sessions || [];
+    }
+
+    async assignMentorToVenture(ventureId: string, mentorId: string) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error('Not authenticated');
+
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+        const response = await fetch(`${API_URL}/api/ventures/${ventureId}/assign-mentor`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`
+            },
+            body: JSON.stringify({ mentor_id: mentorId })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.message || 'Failed to assign mentor');
+        }
+
+        const data = await response.json();
+        return data.assignment || data.data?.assignment;
+    }
 }
 
 export const api = new ApiClient();

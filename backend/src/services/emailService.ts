@@ -350,3 +350,78 @@ Team Wadhwani Accelerate`;
 
     await sendEmail(toEmail, subject, htmlBody, plainText);
 }
+
+export async function sendMentorSessionEmail(
+    toEmail: string,
+    recipientName: string,
+    ventureName: string,
+    otherPartyName: string,
+    topic: string,
+    date: string,
+    time: string,
+    joinUrl: string,
+    isEntrepreneur: boolean = false
+): Promise<void> {
+    const subject = `Mentor Session Scheduled: ${ventureName} — ${topic}`;
+
+    const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #0d9488; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { padding: 20px; background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0 0 8px 8px; }
+        .detail-box { background-color: #f0fdfa; border: 1px solid #99f6e4; border-radius: 8px; padding: 16px; margin: 16px 0; }
+        .detail-row { margin: 6px 0; }
+        .detail-label { font-weight: bold; color: #0f766e; }
+        .join-btn { display: inline-block; background-color: #0d9488; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; margin: 12px 0; }
+        .footer { text-align: center; padding: 20px; font-size: 12px; color: #6b7280; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Wadhwani Accelerate</h1>
+            <p style="margin: 8px 0 0 0; opacity: 0.9;">Mentor Session Scheduled</p>
+        </div>
+        <div class="content">
+            <p>Hi ${recipientName},</p>
+            <p>A mentoring session has been scheduled for <strong>${ventureName}</strong>.</p>
+            <div class="detail-box">
+                <div class="detail-row"><span class="detail-label">Topic:</span> ${topic}</div>
+                <div class="detail-row"><span class="detail-label">Date:</span> ${date}</div>
+                <div class="detail-row"><span class="detail-label">Time:</span> ${time}</div>
+                <div class="detail-row"><span class="detail-label">${isEntrepreneur ? 'Mentor' : 'Entrepreneur'}:</span> ${otherPartyName}</div>
+            </div>
+            <p style="text-align: center;"><a href="${joinUrl}" class="join-btn">Join Session</a></p>
+            <p>Please be ready a few minutes before the scheduled time.</p>
+            <p>Best regards,<br>Team Wadhwani Accelerate</p>
+        </div>
+        <div class="footer">
+            <p>&copy; Wadhwani Foundation. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>`;
+
+    const plainText = `Hi ${recipientName},
+
+A mentoring session has been scheduled for ${ventureName}.
+
+Topic: ${topic}
+Date: ${date}
+Time: ${time}
+${isEntrepreneur ? 'Mentor' : 'Entrepreneur'}: ${otherPartyName}
+
+Join Link: ${joinUrl}
+
+Please be ready a few minutes before the scheduled time.
+
+Best regards,
+Team Wadhwani Accelerate`;
+
+    await sendEmail(toEmail, subject, htmlBody, plainText);
+}

@@ -7,6 +7,7 @@ import { extractDocumentText } from '../services/documentService';
 import { authenticateUser, requireRole } from '../middleware/auth';
 import { validateBody, validateQuery } from '../middleware/validate';
 import { createAuthenticatedClient } from '../config/supabase';
+import { isZoomConfigured, generateMeetingLink } from '../services/zoomService';
 import {
     createVentureSchema,
     updateVentureSchema,
@@ -15,7 +16,7 @@ import {
     ventureQuerySchema
 } from '../types/schemas';
 import { successResponse, createdResponse, noContentResponse } from '../utils/response';
-import { sendPanelInvitationEmail, sendWelcomeEmail, sendSelectionWelcomeEmail, sendSelfserveEmail } from '../services/emailService';
+import { sendPanelInvitationEmail, sendWelcomeEmail, sendSelectionWelcomeEmail, sendSelfserveEmail, sendMentorSessionEmail } from '../services/emailService';
 import { createServiceRoleClient } from '../config/supabase';
 
 const upload = multer({
@@ -344,6 +345,66 @@ router.get(
             );
 
             successResponse(res, { candidates });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
+/**
+ * GET /api/ventures/my-mentor-sessions
+ * Get upcoming mentor sessions for ventures owned by the current user (entrepreneur)
+ */
+router.get(
+    '/my-mentor-sessions',
+    authenticateUser,
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const serviceClient = createServiceRoleClient();
+
+            // Get ventures owned by this user
+            const { data: ventures } = await serviceClient
+                .from('ventures')
+                .select('id, name')
+                .eq('user_id', req.user.id);
+
+            if (!ventures || ventures.length === 0) {
+                return successResponse(res, { sessions: [] });
+            }
+
+            const ventureIds = ventures.map((v: any) => v.id);
+            const ventureMap: Record<string, string> = {};
+            for (const v of ventures) ventureMap[v.id] = v.name;
+
+            // Get upcoming sessions for these ventures
+            const { data: sessions } = await serviceClient
+                .from('mentor_sessions')
+                .select('id, topic, scheduled_date, scheduled_time, duration_minutes, join_url, status, venture_id, mentor_id')
+                .in('venture_id', ventureIds)
+                .eq('status', 'scheduled')
+                .gte('scheduled_date', new Date().toISOString().split('T')[0])
+                .order('scheduled_date', { ascending: true })
+                .order('scheduled_time', { ascending: true })
+                .limit(10);
+
+            // Get mentor names
+            const mentorIds = [...new Set((sessions || []).map((s: any) => s.mentor_id))];
+            let mentorMap: Record<string, string> = {};
+            if (mentorIds.length > 0) {
+                const { data: mentors } = await serviceClient
+                    .from('profiles')
+                    .select('id, full_name')
+                    .in('id', mentorIds);
+                for (const m of (mentors || [])) mentorMap[m.id] = m.full_name;
+            }
+
+            const enriched = (sessions || []).map((s: any) => ({
+                ...s,
+                venture_name: ventureMap[s.venture_id] || '',
+                mentor_name: mentorMap[s.mentor_id] || 'Mentor',
+            }));
+
+            successResponse(res, { sessions: enriched });
         } catch (error) {
             next(error);
         }
@@ -2043,6 +2104,304 @@ router.delete(
 
             await ventureService.deleteStream(supabase, req.params.id);
             noContentResponse(res);
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
+// ============ MENTOR SESSION ROUTES ============
+
+/**
+ * GET /api/ventures/:id/mentors
+ * List mentors assigned to a venture
+ */
+router.get(
+    '/:id/mentors',
+    authenticateUser,
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const { role } = await getContext(req);
+
+            if (!['venture_mgr', 'committee_member', 'admin', 'ops_manager', 'success_mgr'].includes(role)) {
+                return res.status(403).json({ success: false, message: 'Access denied' });
+            }
+
+            // Use service role client to bypass RLS for mentor data lookups
+            const serviceClient = createServiceRoleClient();
+
+            // Step 1: Get assignments for this venture
+            const { data: assignments, error } = await serviceClient
+                .from('mentor_venture_assignments')
+                .select('id, mentor_id, status, assigned_at')
+                .eq('venture_id', req.params.id)
+                .eq('status', 'active');
+
+            if (error) {
+                console.error('Error fetching venture mentors:', error);
+                return res.status(500).json({ success: false, message: 'Failed to fetch mentors' });
+            }
+
+            const mentorIds = (assignments || []).map((a: any) => a.mentor_id).filter(Boolean);
+            if (mentorIds.length === 0) {
+                return successResponse(res, { mentors: [] });
+            }
+
+            // Step 2: Get profiles for these mentor IDs
+            const { data: profilesData } = await serviceClient
+                .from('profiles')
+                .select('id, full_name, email')
+                .in('id', mentorIds);
+
+            // Step 3: Get mentor_profiles for expertise/bio
+            const { data: mentorProfilesData } = await serviceClient
+                .from('mentor_profiles')
+                .select('id, expertise_areas, bio')
+                .in('id', mentorIds);
+
+            const profilesMap: Record<string, any> = {};
+            for (const p of (profilesData || [])) profilesMap[p.id] = p;
+            const mentorProfilesMap: Record<string, any> = {};
+            for (const mp of (mentorProfilesData || [])) mentorProfilesMap[mp.id] = mp;
+
+            const mentors = (assignments || []).map((a: any) => ({
+                id: a.mentor_id,
+                full_name: profilesMap[a.mentor_id]?.full_name || '',
+                email: profilesMap[a.mentor_id]?.email || '',
+                expertise_areas: mentorProfilesMap[a.mentor_id]?.expertise_areas || [],
+                bio: mentorProfilesMap[a.mentor_id]?.bio || '',
+                assignment_id: a.id,
+                assigned_at: a.assigned_at,
+            }));
+
+            successResponse(res, { mentors });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
+/**
+ * GET /api/ventures/:id/mentor-sessions
+ * List mentor sessions for a venture
+ */
+router.get(
+    '/:id/mentor-sessions',
+    authenticateUser,
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const { role } = await getContext(req);
+
+            if (!['venture_mgr', 'committee_member', 'admin', 'ops_manager', 'success_mgr', 'mentor', 'entrepreneur'].includes(role)) {
+                return res.status(403).json({ success: false, message: 'Access denied' });
+            }
+
+            const serviceClient = createServiceRoleClient();
+
+            let query = serviceClient
+                .from('mentor_sessions')
+                .select(`
+                    *,
+                    mentor:profiles!mentor_sessions_mentor_id_fkey(id, full_name, email),
+                    venture:ventures!mentor_sessions_venture_id_fkey(id, name, founder_name)
+                `)
+                .eq('venture_id', req.params.id)
+                .order('scheduled_date', { ascending: true })
+                .order('scheduled_time', { ascending: true });
+
+            const { status } = req.query;
+            if (status) {
+                query = query.eq('status', status as string);
+            }
+
+            const { data, error } = await query;
+
+            if (error) {
+                console.error('Error fetching mentor sessions:', error);
+                return res.status(500).json({ success: false, message: 'Failed to fetch mentor sessions' });
+            }
+
+            successResponse(res, { sessions: data || [] });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
+/**
+ * POST /api/ventures/:id/mentor-sessions
+ * Schedule a new mentor session for a venture
+ */
+router.post(
+    '/:id/mentor-sessions',
+    authenticateUser,
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const { role } = await getContext(req);
+
+            if (!['venture_mgr', 'committee_member', 'admin'].includes(role)) {
+                return res.status(403).json({ success: false, message: 'Access denied' });
+            }
+
+            const { mentor_id, topic, scheduled_date, scheduled_time, duration_minutes } = req.body;
+
+            if (!mentor_id || !scheduled_date || !scheduled_time) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'mentor_id, scheduled_date, and scheduled_time are required',
+                });
+            }
+
+            const ventureId = req.params.id;
+            const serviceClient = createServiceRoleClient();
+
+            // Fetch venture details for email
+            const { data: venture } = await serviceClient
+                .from('ventures')
+                .select('id, name, founder_name, user_id')
+                .eq('id', ventureId)
+                .single();
+
+            if (!venture) {
+                return res.status(404).json({ success: false, message: 'Venture not found' });
+            }
+
+            // Fetch mentor details for email
+            const { data: mentor } = await serviceClient
+                .from('profiles')
+                .select('id, full_name, email')
+                .eq('id', mentor_id)
+                .single();
+
+            if (!mentor) {
+                return res.status(404).json({ success: false, message: 'Mentor not found' });
+            }
+
+            // Generate meeting ID and meeting link (Zoom with Jitsi fallback)
+            const timestamp = Date.now();
+            const meetingId = `mentor-${ventureId.slice(0, 8)}-${timestamp}`;
+            const jitsiFallback = `https://meet.jit.si/wadhwani-mentor-${ventureId.slice(0, 8)}-${timestamp}`;
+            const join_url = (isZoomConfigured()
+                ? await generateMeetingLink(
+                    `Mentor Session: ${venture.name}`,
+                    duration_minutes || 60,
+                    `${scheduled_date}T${scheduled_time}`,
+                )
+                : null) || jitsiFallback;
+
+            const { data: session, error } = await serviceClient
+                .from('mentor_sessions')
+                .insert({
+                    meeting_id: meetingId,
+                    mentor_id,
+                    venture_id: ventureId,
+                    scheduled_by: req.user.id,
+                    topic: topic || null,
+                    mentee_name: venture.founder_name || null,
+                    duration_minutes: duration_minutes || 60,
+                    join_url,
+                    status: 'scheduled',
+                    scheduled_date,
+                    scheduled_time,
+                })
+                .select()
+                .single();
+
+            if (error) {
+                console.error('Error creating mentor session:', error);
+                return res.status(500).json({ success: false, message: 'Failed to create mentor session' });
+            }
+
+            // Send email notifications (fire and forget)
+            const formattedDate = new Date(scheduled_date).toLocaleDateString('en-IN', {
+                weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+            });
+            const formattedTime = scheduled_time.slice(0, 5); // HH:MM
+
+            // Email to mentor
+            if (mentor.email) {
+                sendMentorSessionEmail(
+                    mentor.email,
+                    mentor.full_name || 'Mentor',
+                    venture.name,
+                    venture.founder_name || 'Entrepreneur',
+                    topic || 'Mentoring Session',
+                    formattedDate,
+                    formattedTime,
+                    join_url
+                ).catch(err => console.error('[MentorSession] Failed to email mentor:', err.message));
+            }
+
+            // Email to entrepreneur
+            if (venture.user_id) {
+                const { data: entrepreneur } = await serviceClient
+                    .from('profiles')
+                    .select('email, full_name')
+                    .eq('id', venture.user_id)
+                    .single();
+
+                if (entrepreneur?.email) {
+                    sendMentorSessionEmail(
+                        entrepreneur.email,
+                        entrepreneur.full_name || venture.founder_name || 'Founder',
+                        venture.name,
+                        mentor.full_name || 'Mentor',
+                        topic || 'Mentoring Session',
+                        formattedDate,
+                        formattedTime,
+                        join_url,
+                        true // isEntrepreneur
+                    ).catch(err => console.error('[MentorSession] Failed to email entrepreneur:', err.message));
+                }
+            }
+
+            createdResponse(res, { session });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
+/**
+ * POST /api/ventures/:id/assign-mentor
+ * Assign a mentor to a venture
+ */
+router.post(
+    '/:id/assign-mentor',
+    authenticateUser,
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const { role } = await getContext(req);
+
+            if (!['admin', 'venture_mgr', 'committee_member'].includes(role)) {
+                return res.status(403).json({ success: false, message: 'Access denied' });
+            }
+
+            const { mentor_id } = req.body;
+            if (!mentor_id) {
+                return res.status(400).json({ success: false, message: 'mentor_id is required' });
+            }
+
+            const { data, error } = await createServiceRoleClient()
+                .from('mentor_venture_assignments')
+                .insert({
+                    mentor_id,
+                    venture_id: req.params.id,
+                    assigned_by: req.user.id,
+                    status: 'active',
+                })
+                .select()
+                .single();
+
+            if (error) {
+                if (error.code === '23505') {
+                    return res.status(409).json({ success: false, message: 'Mentor already assigned to this venture' });
+                }
+                console.error('Error assigning mentor:', error);
+                return res.status(500).json({ success: false, message: 'Failed to assign mentor' });
+            }
+
+            createdResponse(res, { assignment: data });
         } catch (error) {
             next(error);
         }

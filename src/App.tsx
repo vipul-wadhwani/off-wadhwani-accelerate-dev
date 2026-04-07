@@ -29,6 +29,11 @@ import { VPVMDashboard } from './pages/VPVMDashboard';
 import { VPVMVentureDetail } from './pages/VPVMVentureDetail';
 import { VPVMApplicationDetails } from './pages/VPVMApplicationDetails';
 import { VPVMAvailability } from './pages/VPVMAvailability';
+import { MentorLayout } from './layouts/MentorLayout';
+import { MentorDashboard } from './pages/MentorDashboard';
+import { MentorProfile } from './pages/MentorProfile';
+import { MentorSessions } from './pages/MentorSessions';
+import { MentorVentureDetail } from './pages/MentorVentureDetail';
 
 const Header = () => (
   <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 fixed top-0 w-full z-50">
@@ -136,6 +141,18 @@ function App() {
             <Route path="dashboard/venture/:id" element={<VPVMVentureDetail />} />
             <Route path="dashboard/venture/:id/details" element={<VPVMApplicationDetails />} />
             <Route path="availability" element={<VPVMAvailability />} />
+          </Route>
+
+          {/* Mentor Routes */}
+          <Route path="/mentor" element={
+            <ProtectedRoute allowedRoles={['mentor']}>
+              <MentorLayout />
+            </ProtectedRoute>
+          }>
+            <Route path="dashboard" element={<MentorDashboard />} />
+            <Route path="sessions" element={<MentorSessions />} />
+            <Route path="profile" element={<MentorProfile />} />
+            <Route path="venture/:id" element={<MentorVentureDetail />} />
           </Route>
 
           {/* Admin Dashboard Routes */}

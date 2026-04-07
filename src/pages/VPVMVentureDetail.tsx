@@ -6,6 +6,7 @@ import { formatRevenue } from '../utils/formatters';
 import { InteractionsSection } from '../components/Interactions/InteractionsSection';
 import { DeliverableDetail } from '../components/CurrentStatus/DeliverableDetail';
 import { getDeliverableStyle } from '../components/CurrentStatus/constants';
+import { ScheduleMentorSessionModal } from '../components/ScheduleMentorSessionModal';
 import {
     Loader2,
     ChevronUp,
@@ -22,6 +23,9 @@ import {
     Truck,
     Settings,
     RefreshCw,
+    Video,
+    Clock,
+    ExternalLink,
 } from 'lucide-react';
 
 const STREAM_ICONS: Record<string, any> = {
@@ -273,6 +277,12 @@ export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId:
     const [selectedRoadmapDeliverable, setSelectedRoadmapDeliverable] = useState<any>(null);
     const [roadmapStatusFilter, setRoadmapStatusFilter] = useState<string>('all');
 
+    // Mentor sessions
+    const [mentorSessionsOpen, setMentorSessionsOpen] = useState(false);
+    const [mentorSessions, setMentorSessions] = useState<any[]>([]);
+    const [loadingMentorSessions, setLoadingMentorSessions] = useState(false);
+    const [showScheduleMentorModal, setShowScheduleMentorModal] = useState(false);
+
     useEffect(() => {
         if (!id) return;
         const fetchData = async () => {
@@ -301,6 +311,13 @@ export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId:
                     }
                 } catch (delErr) {
                     console.error('[VPVMDetail] Error fetching deliverables:', delErr);
+                }
+                // Fetch mentor sessions
+                try {
+                    const sessions = await api.getVentureMentorSessions(id);
+                    setMentorSessions(sessions);
+                } catch (msErr) {
+                    console.error('[VPVMDetail] Error fetching mentor sessions:', msErr);
                 }
             } catch (err) {
                 console.error('Error fetching venture:', err);
@@ -381,14 +398,25 @@ export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId:
                             <span className="flex items-center gap-1"><Package className="w-4 h-4" /> Program: {programLabel}</span>
                         </div>
                     </div>
-                    {!readOnly && (
-                        <button
-                            onClick={() => navigate(`/vpvm/dashboard/venture/${id}/details`)}
-                            className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                        >
-                            View Details
-                        </button>
-                    )}
+                    <div className="flex items-center gap-2">
+                        {!readOnly && (
+                            <button
+                                onClick={() => setShowScheduleMentorModal(true)}
+                                className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition-colors flex items-center gap-2"
+                            >
+                                <Video className="w-4 h-4" />
+                                Schedule Mentor Session
+                            </button>
+                        )}
+                        {!readOnly && (
+                            <button
+                                onClick={() => navigate(`/vpvm/dashboard/venture/${id}/details`)}
+                                className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                            >
+                                View Details
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -736,6 +764,123 @@ export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId:
                 <div className="bg-white border border-gray-200 rounded-xl p-5">
                     <InteractionsSection ventureId={id} createdByOnly={readOnly ? undefined : currentUserId} readOnly={readOnly} />
                 </div>
+            )}
+
+            {/* Mentor Sessions Section */}
+            <SectionHeader
+                icon={Video}
+                title={`Mentor Sessions${mentorSessions.length > 0 ? ` (${mentorSessions.length})` : ''}`}
+                open={mentorSessionsOpen}
+                onToggle={() => {
+                    setMentorSessionsOpen(!mentorSessionsOpen);
+                    if (!mentorSessionsOpen && mentorSessions.length === 0 && id) {
+                        setLoadingMentorSessions(true);
+                        api.getVentureMentorSessions(id).then(s => setMentorSessions(s)).catch(() => {}).finally(() => setLoadingMentorSessions(false));
+                    }
+                }}
+                action={!readOnly ? (
+                    <button
+                        onClick={() => setShowScheduleMentorModal(true)}
+                        className="px-3 py-1.5 text-xs font-medium text-teal-700 bg-teal-50 border border-teal-200 rounded-lg hover:bg-teal-100 transition-colors"
+                    >
+                        + Schedule
+                    </button>
+                ) : undefined}
+            />
+            {mentorSessionsOpen && (
+                <div className="bg-white border border-gray-200 rounded-xl p-5">
+                    {loadingMentorSessions ? (
+                        <div className="flex items-center justify-center py-6">
+                            <Loader2 className="w-5 h-5 animate-spin text-teal-600" />
+                            <span className="ml-2 text-sm text-gray-500">Loading sessions...</span>
+                        </div>
+                    ) : mentorSessions.length === 0 ? (
+                        <div className="text-center py-8 text-gray-500">
+                            <Video className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                            <p className="text-sm">No mentor sessions scheduled yet.</p>
+                            {!readOnly && (
+                                <button
+                                    onClick={() => setShowScheduleMentorModal(true)}
+                                    className="mt-3 text-sm text-teal-600 hover:text-teal-700 font-medium"
+                                >
+                                    Schedule the first session
+                                </button>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            {mentorSessions.map((session: any) => {
+                                const statusColors: Record<string, string> = {
+                                    scheduled: 'bg-blue-50 text-blue-700 border-blue-200',
+                                    active: 'bg-green-50 text-green-700 border-green-200',
+                                    ended: 'bg-gray-50 text-gray-600 border-gray-200',
+                                    cancelled: 'bg-red-50 text-red-600 border-red-200',
+                                };
+                                const dateStr = session.scheduled_date
+                                    ? new Date(session.scheduled_date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
+                                    : '-';
+                                const timeStr = session.scheduled_time ? session.scheduled_time.slice(0, 5) : '-';
+
+                                return (
+                                    <div key={session.id} className="flex items-center justify-between p-4 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-10 h-10 rounded-full bg-teal-50 flex items-center justify-center">
+                                                <Video className="w-5 h-5 text-teal-600" />
+                                            </div>
+                                            <div>
+                                                <div className="text-sm font-semibold text-gray-900">
+                                                    {session.topic || 'Mentoring Session'}
+                                                </div>
+                                                <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
+                                                    <span className="flex items-center gap-1">
+                                                        <Calendar className="w-3 h-3" /> {dateStr}
+                                                    </span>
+                                                    <span className="flex items-center gap-1">
+                                                        <Clock className="w-3 h-3" /> {timeStr}
+                                                    </span>
+                                                    <span className="flex items-center gap-1">
+                                                        <Users className="w-3 h-3" /> {session.mentor?.full_name || 'Mentor'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium border ${statusColors[session.status] || statusColors.scheduled}`}>
+                                                {session.status}
+                                            </span>
+                                            {session.join_url && session.status === 'scheduled' && (
+                                                <a
+                                                    href={session.join_url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="flex items-center gap-1 px-3 py-1 text-xs font-medium text-teal-700 bg-teal-50 border border-teal-200 rounded-lg hover:bg-teal-100 transition-colors"
+                                                >
+                                                    <ExternalLink className="w-3 h-3" /> Join
+                                                </a>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Schedule Mentor Session Modal */}
+            {showScheduleMentorModal && id && venture && (
+                <ScheduleMentorSessionModal
+                    ventureId={id}
+                    ventureName={venture.name}
+                    founderName={venture.founder_name}
+                    onClose={() => setShowScheduleMentorModal(false)}
+                    onScheduled={() => {
+                        setShowScheduleMentorModal(false);
+                        setMentorSessionsOpen(true);
+                        // Refresh sessions
+                        api.getVentureMentorSessions(id).then(s => setMentorSessions(s)).catch(() => {});
+                    }}
+                />
             )}
 
             {/* Deliverable Detail Modal (from roadmap click) */}

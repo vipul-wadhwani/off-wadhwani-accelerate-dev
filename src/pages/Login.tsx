@@ -38,6 +38,8 @@ export const Login: React.FC = () => {
             } catch {
                 target = role === 'venture_mgr' ? '/vmanager/dashboard' : '/committee/dashboard';
             }
+        } else if (role === 'mentor') {
+            target = '/mentor/dashboard';
         } else if (role === 'ops_manager') {
             target = '/ops/dashboard';
         } else if (role === 'admin') {

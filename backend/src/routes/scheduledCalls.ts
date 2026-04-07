@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { authenticateUser } from '../middleware/auth';
 import { createAuthenticatedClient } from '../config/supabase';
 import { successResponse, createdResponse } from '../utils/response';
+import { isZoomConfigured, generateMeetingLink } from '../services/zoomService';
 
 const router = Router();
 
@@ -134,9 +135,16 @@ router.post(
                 });
             }
 
-            // Use user-provided link or fallback to auto-generated Jitsi link
+            // Use user-provided link, or Zoom auto-generated, or Jitsi fallback
             const timestamp = Date.now();
-            const meet_link = provided_meet_link || `https://meet.jit.si/wadhwani-${venture_id.slice(0, 8)}-${timestamp}`;
+            const jitsiFallback = `https://meet.jit.si/wadhwani-${venture_id.slice(0, 8)}-${timestamp}`;
+            const meet_link = provided_meet_link
+                || (isZoomConfigured() ? await generateMeetingLink(
+                    `Scheduled Call`,
+                    Math.round((new Date(`1970-01-01T${end_time}`).getTime() - new Date(`1970-01-01T${start_time}`).getTime()) / 60000),
+                    `${call_date}T${start_time}`,
+                ) : null)
+                || jitsiFallback;
 
             const { data, error } = await supabase
                 .from('scheduled_calls')

@@ -8,6 +8,8 @@ import adminRoutes from './admin';
 import mentorRoutes from './mentor';
 import { zoomRoutes } from '../modules/zoom';
 import { availabilityRoutes } from '../modules/availability';
+import { matchingRoutes } from '../modules/expertMatching';
+import { requestRoutes } from '../modules/meetingRequests';
 
 const router = Router();
 
@@ -21,5 +23,7 @@ router.use('/admin', adminRoutes);
 router.use('/mentor', mentorRoutes);
 router.use('/zoom', zoomRoutes);
 router.use('/availability', availabilityRoutes);
+router.use('/matching', matchingRoutes);
+router.use('/meeting-requests', requestRoutes);
 
 export default router;

@@ -36,6 +36,8 @@ import { ExpertSessions } from './pages/ExpertSessions';
 import { ExpertVentureDetail } from './pages/ExpertVentureDetail';
 import { ManageAvailabilityPage } from './modules/Availability';
 import { LiveSessionPage } from './modules/LiveSession';
+import { DiscoverExpertsPage } from './modules/ExpertMatching';
+import { RequestListPage } from './modules/MeetingRequests';
 
 const Header = () => (
   <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 fixed top-0 w-full z-50">
@@ -90,6 +92,8 @@ function App() {
             <Route path="venture/:id" element={<VentureDetails />} />
             <Route path="venture/:id/workbench" element={<VentureWorkbench />} />
             <Route path="venture/:id/plan" element={<VPVMVentureDetail readOnly hideKPIs backPath="/dashboard" backLabel="Back to my ventures" />} />
+            <Route path="venture/:id/discover-experts" element={<DiscoverExpertsPage />} />
+            <Route path="my-requests" element={<RequestListPage role="venture" />} />
           </Route>
 
           {/* Success Manager Dashboard Routes */}
@@ -153,6 +157,7 @@ function App() {
           }>
             <Route path="dashboard" element={<ExpertDashboard />} />
             <Route path="sessions" element={<ExpertSessions />} />
+            <Route path="requests" element={<RequestListPage role="expert" />} />
             <Route path="profile" element={<ExpertProfile />} />
             <Route path="availability" element={<ManageAvailabilityPage />} />
             <Route path="venture/:id" element={<ExpertVentureDetail />} />

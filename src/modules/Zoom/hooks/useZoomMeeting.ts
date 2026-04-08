@@ -53,7 +53,7 @@ export function useZoomMeeting(
 
         try {
             // Dynamic import for code splitting (SDK is ~2MB)
-            // @ts-expect-error -- @zoom/meetingsdk is installed at deploy time
+            // @ts-ignore -- @zoom/meetingsdk types may not be available
             const ZoomMtgEmbedded = (await import(/* @vite-ignore */ '@zoom/meetingsdk/embedded')).default;
 
             const { signature, sdkKey } = await getSignature(params.meetingNumber, params.role || 0);

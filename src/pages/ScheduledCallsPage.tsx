@@ -37,6 +37,13 @@ interface ScheduledCall {
         email: string;
         program: string;
     };
+    participant_type?: string;
+    participant_profile_id?: string;
+    vpvm_profile?: {
+        id: string;
+        full_name: string;
+        email: string;
+    };
 }
 
 type Tab = 'upcoming' | 'history';
@@ -320,7 +327,7 @@ export const ScheduledCallsPage: React.FC = () => {
                                                 )}
                                             </td>
                                             <td className="px-4 py-3 text-gray-600">
-                                                {call.panelist?.name || '-'}
+                                                {call.panelist?.name || call.vpvm_profile?.full_name || '-'}
                                             </td>
                                             <td className="px-4 py-3">
                                                 <div className="font-medium text-gray-900">{formatDateBold(call.call_date)}</div>

@@ -463,26 +463,17 @@ export const OpsManagerDashboard: React.FC = () => {
                                                         Assign VP/VM
                                                     </button>
                                                 ) : venture.status === 'With VP/VM' ? (
-                                                    <div className="flex flex-col gap-1">
-                                                        <button
-                                                            onClick={() => setScheduleModalVenture(venture)}
-                                                            className="inline-flex items-center gap-1 text-indigo-600 text-sm font-medium hover:text-indigo-700 transition-colors"
-                                                        >
-                                                            <Calendar className="w-3.5 h-3.5" />
-                                                            Schedule Panel Call
-                                                        </button>
-                                                        <button
-                                                            onClick={async () => {
-                                                                const vp = await api.getAssignedVPVM(venture.id);
-                                                                setVpvmProfile(vp);
-                                                                setVpvmCallVenture(venture);
-                                                            }}
-                                                            className="inline-flex items-center gap-1 text-purple-600 text-sm font-medium hover:text-purple-700 transition-colors"
-                                                        >
-                                                            <Users className="w-3.5 h-3.5" />
-                                                            Schedule VP/VM Call
-                                                        </button>
-                                                    </div>
+                                                    <button
+                                                        onClick={async () => {
+                                                            const vp = await api.getAssignedVPVM(venture.id);
+                                                            setVpvmProfile(vp);
+                                                            setVpvmCallVenture(venture);
+                                                        }}
+                                                        className="inline-flex items-center gap-1 text-purple-600 text-sm font-medium hover:text-purple-700 transition-colors"
+                                                    >
+                                                        <Calendar className="w-3.5 h-3.5" />
+                                                        Schedule VP/VM Call
+                                                    </button>
                                                 ) : cc.total > 0 ? (
                                                     <button
                                                         onClick={() => setScheduleModalVenture(venture)}

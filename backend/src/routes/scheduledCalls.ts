@@ -62,7 +62,27 @@ router.get(
                 return res.status(500).json({ success: false, message: 'Failed to fetch scheduled calls' });
             }
 
-            successResponse(res, { scheduled_calls: data || [] });
+            // Resolve VP/VM profile names for vpvm calls
+            const calls = data || [];
+            const vpvmIds = calls
+                .filter((c: any) => c.participant_type === 'vpvm' && c.participant_profile_id)
+                .map((c: any) => c.participant_profile_id);
+
+            if (vpvmIds.length > 0) {
+                const { data: vpvmProfiles } = await supabase
+                    .from('profiles')
+                    .select('id, full_name, email')
+                    .in('id', vpvmIds);
+
+                const profileMap = new Map((vpvmProfiles || []).map((p: any) => [p.id, p]));
+                calls.forEach((c: any) => {
+                    if (c.participant_type === 'vpvm' && c.participant_profile_id) {
+                        c.vpvm_profile = profileMap.get(c.participant_profile_id) || null;
+                    }
+                });
+            }
+
+            successResponse(res, { scheduled_calls: calls });
         } catch (error) {
             next(error);
         }

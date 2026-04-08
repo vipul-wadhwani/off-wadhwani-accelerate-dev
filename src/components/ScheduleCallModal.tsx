@@ -120,12 +120,47 @@ export const ScheduleCallModal: React.FC<ScheduleCallModalProps> = ({
             return;
         }
 
-        // VP/VM mode: use default time slots, no panelist availability check
-        if (isVPVM) {
-            setAvailableSlots(DEFAULT_TIME_SLOTS);
-            setBookedSlots([]);
-            setLoadingAvailability(false);
-            return;
+        // VP/VM mode: check vpvm_availability table
+        if (isVPVM && vpvm) {
+            let cancelled = false;
+            const fetchVPVMAvailability = async () => {
+                setLoadingAvailability(true);
+                setNoSlotsMessage(null);
+                try {
+                    const selectedDayOfWeek = new Date(selectedDate).getDay();
+                    const weeklySlots = await api.getVPVMWeeklyAvailability(vpvm.id);
+                    const blockedDates = await api.getVPVMBlockedDates(vpvm.id);
+
+                    if (!cancelled) {
+                        const isBlocked = blockedDates.some((b: any) => b.blocked_date === selectedDate);
+                        if (isBlocked) {
+                            setAvailableSlots([]);
+                            setNoSlotsMessage('VP/VM is unavailable on this date');
+                        } else {
+                            const daySlots = weeklySlots.filter((s: any) => s.day_of_week === selectedDayOfWeek);
+                            if (daySlots.length > 0) {
+                                setAvailableSlots(daySlots.map((s: any) => toSlotObject({
+                                    start_time: s.start_time,
+                                    end_time: s.end_time,
+                                })));
+                            } else {
+                                // No availability set for this day — fallback to defaults
+                                setAvailableSlots(DEFAULT_TIME_SLOTS);
+                            }
+                        }
+                        setBookedSlots([]);
+                    }
+                } catch {
+                    if (!cancelled) {
+                        setAvailableSlots(DEFAULT_TIME_SLOTS);
+                        setBookedSlots([]);
+                    }
+                } finally {
+                    if (!cancelled) setLoadingAvailability(false);
+                }
+            };
+            fetchVPVMAvailability();
+            return () => { cancelled = true; };
         }
 
         let cancelled = false;
@@ -207,7 +242,7 @@ export const ScheduleCallModal: React.FC<ScheduleCallModalProps> = ({
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
                     <div>
@@ -391,7 +426,7 @@ export const ScheduleCallModal: React.FC<ScheduleCallModalProps> = ({
                     </button>
                     <button
                         onClick={handleConfirm}
-                        disabled={!selectedDate || selectedSlot === null || !selectedPanelistId || submitting}
+                        disabled={!selectedDate || selectedSlot === null || (!isVPVM && !selectedPanelistId) || submitting}
                         className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                     >
                         {submitting ? (

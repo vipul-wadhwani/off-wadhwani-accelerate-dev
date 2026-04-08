@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../lib/api';
+import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { Loader2, Video, Calendar, Clock, Users } from 'lucide-react';
 
@@ -12,15 +12,68 @@ export const UpcomingMeetingsPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        if (!user?.id || !role) return;
         const fetchSessions = async () => {
             try {
+                // Get ventures for this user (by ownership or assignment)
+                let ventureIds: string[] = [];
+
                 if (role === 'venture_mgr' || role === 'committee_member') {
-                    const data = await api.getVPVMUpcomingSessions();
-                    setSessions(data);
+                    // VP/VM: ventures assigned to them
+                    const { data: ventures } = await supabase
+                        .from('ventures')
+                        .select('id, name, founder_name')
+                        .eq('assigned_vm_id', user.id);
+                    ventureIds = (ventures || []).map((v: any) => v.id);
                 } else {
-                    const data = await api.getMyMentorSessions();
-                    setSessions(data);
+                    // Entrepreneur: ventures they own
+                    const { data: ventures } = await supabase
+                        .from('ventures')
+                        .select('id, name, founder_name')
+                        .eq('user_id', user.id);
+                    ventureIds = (ventures || []).map((v: any) => v.id);
                 }
+
+                if (ventureIds.length === 0) {
+                    setSessions([]);
+                    return;
+                }
+
+                // Fetch scheduled sessions for those ventures
+                const { data: sessionData } = await supabase
+                    .from('mentor_sessions')
+                    .select('id, topic, scheduled_date, scheduled_time, duration_minutes, join_url, zoom_meeting_id, status, venture_id, mentor_id')
+                    .in('venture_id', ventureIds)
+                    .eq('status', 'scheduled')
+                    .gte('scheduled_date', new Date().toISOString().split('T')[0])
+                    .order('scheduled_date', { ascending: true })
+                    .order('scheduled_time', { ascending: true })
+                    .limit(20);
+
+                // Get venture names + mentor names
+                const { data: ventures } = await supabase
+                    .from('ventures')
+                    .select('id, name')
+                    .in('id', ventureIds);
+                const ventureMap = new Map((ventures || []).map((v: any) => [v.id, v.name]));
+
+                const mentorIds = [...new Set((sessionData || []).map((s: any) => s.mentor_id))];
+                let mentorMap = new Map<string, string>();
+                if (mentorIds.length > 0) {
+                    const { data: mentors } = await supabase
+                        .from('profiles')
+                        .select('id, full_name')
+                        .in('id', mentorIds);
+                    mentorMap = new Map((mentors || []).map((m: any) => [m.id, m.full_name]));
+                }
+
+                const enriched = (sessionData || []).map((s: any) => ({
+                    ...s,
+                    venture_name: ventureMap.get(s.venture_id) || '',
+                    expert_name: mentorMap.get(s.mentor_id) || 'Expert',
+                }));
+
+                setSessions(enriched);
             } catch (err) {
                 console.error('Error fetching sessions:', err);
             } finally {
@@ -28,7 +81,7 @@ export const UpcomingMeetingsPage: React.FC = () => {
             }
         };
         fetchSessions();
-    }, [role]);
+    }, [user?.id, role]);
 
     if (loading) {
         return (

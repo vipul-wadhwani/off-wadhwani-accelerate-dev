@@ -1416,7 +1416,7 @@ class ApiClient {
         });
         if (!response.ok) return [];
         const data = await response.json();
-        return data.sessions || [];
+        return data.data?.sessions || data.sessions || [];
     }
 
     async getVentureMentors(ventureId: string) {

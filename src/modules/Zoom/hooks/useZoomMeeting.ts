@@ -52,8 +52,7 @@ export function useZoomMeeting(
         setError(null);
 
         try {
-            // Dynamic import for code splitting (SDK is ~2MB)
-            // @ts-ignore -- @zoom/meetingsdk types may not be available
+            // @ts-ignore
             const ZoomMtgEmbedded = (await import(/* @vite-ignore */ '@zoom/meetingsdk/embedded')).default;
 
             const { signature, sdkKey } = await getSignature(params.meetingNumber, params.role || 0);
@@ -64,11 +63,29 @@ export function useZoomMeeting(
             const container = document.getElementById(containerId);
             if (!container) throw new Error(`Container element #${containerId} not found`);
 
+            // Calculate 70% of viewport for video (leave room for right panel in Phase 3)
+            const videoWidth = Math.floor(window.innerWidth * 0.65);
+            const videoHeight = Math.floor(window.innerHeight - 100);
+
             await client.init({
                 zoomAppRoot: container,
                 language: 'en-US',
                 patchJsMedia: true,
                 leaveOnPageUnload: true,
+                customize: {
+                    video: {
+                        isResizable: true,
+                        viewSizes: {
+                            default: {
+                                width: videoWidth,
+                                height: videoHeight,
+                            },
+                        },
+                        popper: {
+                            disableDraggable: true,
+                        },
+                    },
+                },
             });
 
             await client.join({

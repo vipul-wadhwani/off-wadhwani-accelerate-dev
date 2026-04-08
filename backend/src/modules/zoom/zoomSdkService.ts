@@ -1,4 +1,5 @@
-import crypto from 'crypto';
+// @ts-ignore — no type declarations for jsonwebtoken
+import jwt from 'jsonwebtoken';
 
 /**
  * Generates a Zoom Meeting SDK signature (JWT) for joining meetings embedded in the browser.
@@ -15,21 +16,20 @@ export function generateSdkSignature(meetingNumber: string, role: number): strin
     const iat = Math.round(Date.now() / 1000) - 30;
     const exp = iat + 60 * 60 * 2; // 2 hours
 
-    const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
-    const payload = Buffer.from(JSON.stringify({
+    const payload = {
+        appKey: sdkKey,
         sdkKey,
         mn: meetingNumber,
-        role,
+        role: Number(role),
         iat,
         exp,
         tokenExp: exp,
-    })).toString('base64url');
+    };
 
-    const message = `${header}.${payload}`;
-    const signature = crypto
-        .createHmac('sha256', sdkSecret)
-        .update(message)
-        .digest('base64url');
+    const signature = jwt.sign(payload, sdkSecret, {
+        algorithm: 'HS256',
+        header: { alg: 'HS256', typ: 'JWT' },
+    });
 
-    return `${message}.${signature}`;
+    return signature;
 }

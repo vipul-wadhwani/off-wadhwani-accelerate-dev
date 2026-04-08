@@ -360,6 +360,7 @@ router.get(
     authenticateUser,
     async (req: Request, res: Response, next: NextFunction) => {
         try {
+            res.set('Cache-Control', 'no-store');
             const serviceClient = createServiceRoleClient();
 
             // Get ventures owned by this user
@@ -420,6 +421,8 @@ router.get(
     authenticateUser,
     async (req: Request, res: Response, next: NextFunction) => {
         try {
+            // Prevent caching — always return fresh data
+            res.set('Cache-Control', 'no-store');
             const serviceClient = createServiceRoleClient();
 
             // Get ventures assigned to this VP/VM

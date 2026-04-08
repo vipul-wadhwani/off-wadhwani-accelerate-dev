@@ -32,8 +32,10 @@ export const LiveSessionPage: React.FC = () => {
     const pendingChunksRef = useRef<Array<{ speaker: string; text: string; time: string }>>([]);
 
     // Determine user's role in the meeting
+    const userRole = user?.user_metadata?.role;
     const isMentor = session?.mentorId === user?.id;
     const zoomRole = isMentor ? 1 : 0; // 1=host, 0=participant
+    const showRightPanel = userRole !== 'entrepreneur'; // VP/VM, experts see the panel
 
     // Auto-save transcript every 30 seconds
     useEffect(() => {
@@ -108,8 +110,29 @@ export const LiveSessionPage: React.FC = () => {
     }, [sessionId]);
 
     const handleTranscriptChunk = useCallback((chunk: { speaker: string; text: string; time: string }) => {
-        setTranscriptChunks(prev => [...prev, chunk]);
-        pendingChunksRef.current.push(chunk);
+        // Zoom SDK sends progressive updates (same sentence gets longer).
+        // Replace the last chunk from the same speaker instead of appending duplicates.
+        setTranscriptChunks(prev => {
+            if (prev.length > 0) {
+                const last = prev[prev.length - 1];
+                if (last.speaker === chunk.speaker && chunk.text.startsWith(last.text.slice(0, 10))) {
+                    // Same speaker, text is a continuation — replace last entry
+                    return [...prev.slice(0, -1), chunk];
+                }
+            }
+            return [...prev, chunk];
+        });
+
+        // For saving: only keep final versions (replace last from same speaker)
+        const pending = pendingChunksRef.current;
+        if (pending.length > 0) {
+            const last = pending[pending.length - 1];
+            if (last.speaker === chunk.speaker && chunk.text.startsWith(last.text.slice(0, 10))) {
+                pending[pending.length - 1] = chunk;
+                return;
+            }
+        }
+        pending.push(chunk);
     }, []);
 
     const goBack = () => {
@@ -217,11 +240,15 @@ export const LiveSessionPage: React.FC = () => {
                         onTranscriptChunk={handleTranscriptChunk}
                     />
                 </div>
-                <RightPanel
-                    sessionId={session.sessionId}
-                    transcriptChunks={transcriptChunks}
-                    topic={session.topic}
-                />
+                {showRightPanel && (
+                    <RightPanel
+                        sessionId={session.sessionId}
+                        ventureId={session.ventureId}
+                        ventureName={session.topic?.replace('VP/VM Session: ', '').replace('Expert Session: ', '')}
+                        transcriptChunks={transcriptChunks}
+                        topic={session.topic}
+                    />
+                )}
             </div>
         </div>
     );

@@ -1,8 +1,8 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { authenticateUser } from '../middleware/auth';
-import { createAuthenticatedClient } from '../config/supabase';
+import { createAuthenticatedClient, createServiceRoleClient } from '../config/supabase';
 import { successResponse, createdResponse } from '../utils/response';
-import { isZoomConfigured, generateMeetingLink } from '../services/zoomService';
+import { isZoomConfigured, generateMeetingLink, generateMeetingWithDetails } from '../services/zoomService';
 
 const router = Router();
 
@@ -167,14 +167,21 @@ router.post(
 
             // Use user-provided link, or Zoom auto-generated, or Jitsi fallback
             const timestamp = Date.now();
+            const durationMins = Math.round((new Date(`1970-01-01T${end_time}`).getTime() - new Date(`1970-01-01T${start_time}`).getTime()) / 60000);
             const jitsiFallback = `https://meet.jit.si/wadhwani-${venture_id.slice(0, 8)}-${timestamp}`;
-            const meet_link = provided_meet_link
-                || (isZoomConfigured() ? await generateMeetingLink(
-                    callTopic,
-                    Math.round((new Date(`1970-01-01T${end_time}`).getTime() - new Date(`1970-01-01T${start_time}`).getTime()) / 60000),
-                    `${call_date}T${start_time}`,
-                ) : null)
-                || jitsiFallback;
+
+            let meet_link = provided_meet_link || jitsiFallback;
+            let zoom_meeting_id: number | null = null;
+            let zoom_meeting_password: string | null = null;
+
+            if (!provided_meet_link && isZoomConfigured()) {
+                const zoomResult = await generateMeetingWithDetails(callTopic, durationMins, `${call_date}T${start_time}`);
+                if (zoomResult) {
+                    meet_link = zoomResult.joinUrl;
+                    zoom_meeting_id = zoomResult.meetingId;
+                    zoom_meeting_password = zoomResult.password;
+                }
+            }
 
             const { data, error } = await supabase
                 .from('scheduled_calls')
@@ -201,6 +208,45 @@ router.post(
             if (error) {
                 console.error('Error creating scheduled call:', error);
                 return res.status(500).json({ success: false, message: 'Failed to create scheduled call' });
+            }
+
+            // For VP/VM calls, also create a mentor_session so it appears in both dashboards
+            if (participant_type === 'vpvm' && participant_profile_id) {
+                const serviceClient = createServiceRoleClient();
+                const meetingIdStr = `vpvm-${venture_id.slice(0, 8)}-${timestamp}`;
+
+                // Get venture name for topic
+                const { data: ventureData } = await serviceClient
+                    .from('ventures')
+                    .select('name, founder_name')
+                    .eq('id', venture_id)
+                    .single();
+
+                const sessionTopic = `VP/VM Session: ${ventureData?.name || 'Venture'}`;
+
+                const { error: sessionErr } = await serviceClient
+                    .from('mentor_sessions')
+                    .insert({
+                        meeting_id: meetingIdStr,
+                        mentor_id: participant_profile_id,
+                        venture_id,
+                        scheduled_by: req.user.id,
+                        topic: sessionTopic,
+                        mentee_name: ventureData?.founder_name || null,
+                        duration_minutes: durationMins,
+                        join_url: meet_link,
+                        zoom_meeting_id,
+                        zoom_meeting_password,
+                        status: 'scheduled',
+                        scheduled_date: call_date,
+                        scheduled_time: start_time,
+                        source: 'ops_scheduled',
+                    });
+
+                if (sessionErr) {
+                    console.error('[ScheduledCalls] Failed to create mentor_session for VP/VM call:', sessionErr);
+                    // Non-blocking — the scheduled_call was already created
+                }
             }
 
             createdResponse(res, { scheduled_call: data });

@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
-import { Loader2, Video, Calendar, Clock, Users, ExternalLink } from 'lucide-react';
+import { Loader2, Video, Calendar, Clock, Users } from 'lucide-react';
 
 export const ExpertSessions: React.FC = () => {
+    const navigate = useNavigate();
     const [sessions, setSessions] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState<string>('');
@@ -91,14 +93,12 @@ export const ExpertSessions: React.FC = () => {
                                         {session.status}
                                     </span>
                                     {session.join_url && session.status === 'scheduled' && (
-                                        <a
-                                            href={session.join_url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
+                                        <button
+                                            onClick={() => navigate(`/meeting/${session.id}`)}
                                             className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-700 transition-colors"
                                         >
-                                            <ExternalLink className="w-3.5 h-3.5" /> Join
-                                        </a>
+                                            <Video className="w-3.5 h-3.5" /> Join
+                                        </button>
                                     )}
                                 </div>
                             </div>

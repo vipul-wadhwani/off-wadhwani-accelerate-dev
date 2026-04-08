@@ -6,6 +6,8 @@ import interactionRoutes from './interactions';
 import scheduledCallRoutes from './scheduledCalls';
 import adminRoutes from './admin';
 import mentorRoutes from './mentor';
+import { zoomRoutes } from '../modules/zoom';
+import { availabilityRoutes } from '../modules/availability';
 
 const router = Router();
 
@@ -17,5 +19,7 @@ router.use('/api', interactionRoutes); // Interactions routes (nested under vent
 router.use('/scheduled-calls', scheduledCallRoutes);
 router.use('/admin', adminRoutes);
 router.use('/mentor', mentorRoutes);
+router.use('/zoom', zoomRoutes);
+router.use('/availability', availabilityRoutes);
 
 export default router;

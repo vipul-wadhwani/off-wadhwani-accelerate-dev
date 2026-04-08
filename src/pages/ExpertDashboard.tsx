@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
-import { Loader2, Video, Calendar, Clock, Users, ExternalLink, ArrowRight } from 'lucide-react';
+import { Loader2, Video, Calendar, Clock, Users, ArrowRight } from 'lucide-react';
 
 export const ExpertDashboard: React.FC = () => {
     const navigate = useNavigate();
@@ -72,14 +72,12 @@ export const ExpertDashboard: React.FC = () => {
                                         </div>
                                     </div>
                                     {session.join_url && (
-                                        <a
-                                            href={session.join_url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
+                                        <button
+                                            onClick={() => navigate(`/meeting/${session.id}`)}
                                             className="flex items-center gap-1 px-4 py-2 text-sm font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-700 transition-colors"
                                         >
-                                            <ExternalLink className="w-3.5 h-3.5" /> Join
-                                        </a>
+                                            <Video className="w-3.5 h-3.5" /> Join
+                                        </button>
                                     )}
                                 </div>
                             );

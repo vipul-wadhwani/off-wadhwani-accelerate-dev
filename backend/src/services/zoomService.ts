@@ -49,11 +49,21 @@ async function getAccessToken(): Promise<string | null> {
     }
 }
 
-export async function generateMeetingLink(
+export interface ZoomMeetingResult {
+    joinUrl: string;
+    meetingId: number;
+    password: string;
+}
+
+/**
+ * Creates a Zoom meeting and returns join_url, meeting ID, and password.
+ * Returns null on failure (caller should fall back to Jitsi).
+ */
+export async function generateMeetingWithDetails(
     topic: string,
     durationMinutes: number,
     startTime?: string,
-): Promise<string | null> {
+): Promise<ZoomMeetingResult | null> {
     const token = await getAccessToken();
     if (!token) return null;
 
@@ -65,10 +75,10 @@ export async function generateMeetingLink(
             settings: {
                 join_before_host: true,
                 waiting_room: false,
+                auto_recording: 'none',
             },
         };
         if (startTime) {
-            // Zoom requires ISO 8601 format: 2026-04-08T10:00:00Z
             const dt = new Date(startTime);
             body.start_time = isNaN(dt.getTime()) ? undefined : dt.toISOString();
         }
@@ -88,11 +98,27 @@ export async function generateMeetingLink(
             return null;
         }
 
-        const data = await res.json() as { join_url: string };
-        console.log(`[Zoom] Meeting created: ${data.join_url}`);
-        return data.join_url;
+        const data = await res.json() as { id: number; join_url: string; password: string };
+        console.log(`[Zoom] Meeting created: ${data.join_url} (ID: ${data.id})`);
+        return {
+            joinUrl: data.join_url,
+            meetingId: data.id,
+            password: data.password,
+        };
     } catch (err) {
         console.warn('[Zoom] Create meeting error:', err);
         return null;
     }
+}
+
+/**
+ * Convenience wrapper that returns just the join URL (backwards compatible).
+ */
+export async function generateMeetingLink(
+    topic: string,
+    durationMinutes: number,
+    startTime?: string,
+): Promise<string | null> {
+    const result = await generateMeetingWithDetails(topic, durationMinutes, startTime);
+    return result?.joinUrl ?? null;
 }

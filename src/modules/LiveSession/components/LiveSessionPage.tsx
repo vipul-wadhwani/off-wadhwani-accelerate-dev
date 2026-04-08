@@ -1,0 +1,177 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { ZoomMeetingRoom } from '../../Zoom';
+import { useAuth } from '../../../context/AuthContext';
+import { Loader2, ArrowLeft, Video, AlertCircle } from 'lucide-react';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+interface SessionInfo {
+    sessionId: string;
+    meetingId: string;
+    zoomMeetingId: number;
+    zoomPassword: string;
+    joinUrl: string;
+    topic: string;
+    status: string;
+    mentorId: string;
+    ventureId: string;
+}
+
+export const LiveSessionPage: React.FC = () => {
+    const { sessionId } = useParams<{ sessionId: string }>();
+    const navigate = useNavigate();
+    const { user } = useAuth();
+
+    const [session, setSession] = useState<SessionInfo | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [meetingEnded, setMeetingEnded] = useState(false);
+
+    // Determine user's role in the meeting
+    const isMentor = session?.mentorId === user?.id;
+    const zoomRole = isMentor ? 1 : 0; // 1=host, 0=participant
+
+    useEffect(() => {
+        const fetchSession = async () => {
+            if (!sessionId) return;
+            try {
+                const { supabase } = await import('../../../lib/supabase');
+                const token = (await supabase.auth.getSession()).data.session?.access_token;
+                const res = await fetch(`${API_URL}/api/zoom/meeting/${sessionId}`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                const data = await res.json();
+                if (data.success) {
+                    setSession(data.data);
+                } else {
+                    setError(data.message || 'Session not found');
+                }
+            } catch (err: any) {
+                setError('Failed to load session details');
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchSession();
+    }, [sessionId]);
+
+    const handleMeetingEnd = useCallback(() => {
+        setMeetingEnded(true);
+    }, []);
+
+    const handleTranscriptChunk = useCallback((chunk: { speaker: string; text: string; time: string }) => {
+        // Phase 3 will store these — for now just log
+        console.log('[Transcript]', chunk.speaker, ':', chunk.text);
+    }, []);
+
+    const goBack = () => {
+        const role = user?.user_metadata?.role;
+        if (role === 'mentor') navigate('/expert/dashboard');
+        else if (role === 'entrepreneur') navigate('/dashboard');
+        else navigate('/vpvm/dashboard');
+    };
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+                <div className="text-center">
+                    <Loader2 className="w-10 h-10 animate-spin text-teal-400 mx-auto mb-3" />
+                    <span className="text-gray-300 text-sm">Loading meeting...</span>
+                </div>
+            </div>
+        );
+    }
+
+    if (error || !session) {
+        return (
+            <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+                <div className="text-center">
+                    <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
+                    <span className="text-white text-sm mb-2 block">{error || 'Session not found'}</span>
+                    <button onClick={goBack} className="mt-4 px-4 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700">
+                        Go Back
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    if (!session.zoomMeetingId || !session.zoomPassword) {
+        return (
+            <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+                <div className="text-center max-w-md">
+                    <Video className="w-10 h-10 text-yellow-400 mx-auto mb-3" />
+                    <span className="text-white text-sm block mb-2">Embedded Zoom not available for this session</span>
+                    <p className="text-gray-400 text-xs mb-4">This session was created before embedded Zoom was enabled. You can still join via the external link.</p>
+                    {session.joinUrl && (
+                        <a href={session.joinUrl} target="_blank" rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700">
+                            <Video className="w-4 h-4" /> Join via Zoom
+                        </a>
+                    )}
+                    <button onClick={goBack} className="block mx-auto mt-3 text-gray-400 text-sm hover:text-white">
+                        Go Back
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    if (meetingEnded) {
+        return (
+            <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+                <div className="text-center">
+                    <Video className="w-10 h-10 text-teal-400 mx-auto mb-3" />
+                    <span className="text-white text-lg font-semibold block mb-1">Meeting Ended</span>
+                    <span className="text-gray-400 text-sm block mb-4">{session.topic}</span>
+                    {/* Phase 3 will add: post-meeting summary view here */}
+                    <button onClick={goBack} className="px-4 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700">
+                        Return to Dashboard
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="min-h-screen bg-gray-900 flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 bg-gray-800 border-b border-gray-700">
+                <div className="flex items-center gap-3">
+                    <button onClick={goBack} className="text-gray-400 hover:text-white">
+                        <ArrowLeft className="w-5 h-5" />
+                    </button>
+                    <div>
+                        <h1 className="text-white text-sm font-semibold">{session.topic || 'Expert Session'}</h1>
+                        <span className="text-gray-400 text-xs">
+                            {isMentor ? 'You are the host' : 'You are a participant'}
+                        </span>
+                    </div>
+                </div>
+                <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-900/50 text-green-400 rounded text-xs">
+                        <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+                        Live
+                    </span>
+                </div>
+            </div>
+
+            {/* Meeting area — Phase 3 will add a right panel here */}
+            <div className="flex-1 flex">
+                <div className="flex-1 p-4">
+                    <ZoomMeetingRoom
+                        meetingNumber={String(session.zoomMeetingId)}
+                        password={session.zoomPassword}
+                        userName={user?.user_metadata?.full_name || user?.email || 'Participant'}
+                        userEmail={user?.email}
+                        role={zoomRole}
+                        onMeetingEnd={handleMeetingEnd}
+                        onTranscriptChunk={handleTranscriptChunk}
+                    />
+                </div>
+                {/* Right panel placeholder — Phase 3 adds: Brief, Transcript, Insights, Actions tabs */}
+            </div>
+        </div>
+    );
+};

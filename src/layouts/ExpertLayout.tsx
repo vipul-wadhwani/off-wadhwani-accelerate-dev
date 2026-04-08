@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { Rocket, LayoutDashboard, LogOut, User, Video } from 'lucide-react';
+import { Rocket, LayoutDashboard, LogOut, User, Video, CalendarClock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export const ExpertLayout: React.FC = () => {
@@ -38,6 +38,10 @@ export const ExpertLayout: React.FC = () => {
                         <NavLink to="/expert/sessions" className={linkClass}>
                             <Video className="w-5 h-5" />
                             Sessions
+                        </NavLink>
+                        <NavLink to="/expert/availability" className={linkClass}>
+                            <CalendarClock className="w-5 h-5" />
+                            Availability
                         </NavLink>
                         <NavLink to="/expert/profile" className={linkClass}>
                             <User className="w-5 h-5" />

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Calendar, Loader2, Clock, MessageSquare } from 'lucide-react';
 import { api } from '../lib/api';
 
-interface Mentor {
+interface Expert {
     id: string;
     full_name: string;
     email: string;
@@ -10,7 +10,7 @@ interface Mentor {
     bio: string;
 }
 
-interface ScheduleMentorSessionModalProps {
+interface ScheduleExpertSessionModalProps {
     ventureId: string;
     ventureName: string;
     founderName?: string;
@@ -53,14 +53,14 @@ const TIME_SLOTS = [
     { label: '5:00 PM', value: '17:00' },
 ];
 
-export const ScheduleMentorSessionModal: React.FC<ScheduleMentorSessionModalProps> = ({
+export const ScheduleExpertSessionModal: React.FC<ScheduleExpertSessionModalProps> = ({
     ventureId,
     ventureName,
     founderName,
     onClose,
     onScheduled,
 }) => {
-    const [mentors, setMentors] = useState<Mentor[]>([]);
+    const [mentors, setMentors] = useState<Expert[]>([]);
     const [loadingMentors, setLoadingMentors] = useState(true);
     const [selectedMentorId, setSelectedMentorId] = useState('');
     const [selectedDate, setSelectedDate] = useState('');
@@ -71,7 +71,7 @@ export const ScheduleMentorSessionModal: React.FC<ScheduleMentorSessionModalProp
     const [error, setError] = useState<string | null>(null);
 
     const nextWeekdays = getNextWeekdays(10);
-    const selectedMentor = mentors.find(m => m.id === selectedMentorId);
+    const selectedExpert = mentors.find(m => m.id === selectedMentorId);
 
     useEffect(() => {
         const fetchMentors = async () => {
@@ -80,7 +80,7 @@ export const ScheduleMentorSessionModal: React.FC<ScheduleMentorSessionModalProp
                 setMentors(data);
                 if (data.length === 1) setSelectedMentorId(data[0].id);
             } catch (err: any) {
-                setError('Failed to load mentors. Please try again.');
+                setError('Failed to load experts. Please try again.');
             } finally {
                 setLoadingMentors(false);
             }
@@ -118,7 +118,7 @@ export const ScheduleMentorSessionModal: React.FC<ScheduleMentorSessionModalProp
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white rounded-t-2xl">
                     <div>
-                        <h2 className="text-lg font-bold text-gray-900">Schedule Mentor Session</h2>
+                        <h2 className="text-lg font-bold text-gray-900">Schedule Expert Session</h2>
                         <span className="text-sm text-gray-600">
                             For <span className="font-semibold">{ventureName}</span>
                         </span>
@@ -141,27 +141,27 @@ export const ScheduleMentorSessionModal: React.FC<ScheduleMentorSessionModalProp
                     {loadingMentors ? (
                         <div className="flex items-center justify-center py-4">
                             <Loader2 className="w-5 h-5 animate-spin text-teal-600" />
-                            <span className="ml-2 text-sm text-gray-500">Loading mentors...</span>
+                            <span className="ml-2 text-sm text-gray-500">Loading experts...</span>
                         </div>
                     ) : mentors.length === 0 ? (
                         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
-                            No mentors assigned to this venture yet. Please assign a mentor first.
+                            No experts assigned to this venture yet. Please assign an expert first.
                         </div>
                     ) : (
                         <>
                             {/* Step 1: Select Mentor */}
                             <div>
                                 <div className="mb-3">
-                                    <span className="text-sm font-medium text-gray-700">1. Select Mentor</span>
+                                    <span className="text-sm font-medium text-gray-700">1. Select Expert</span>
                                 </div>
                                 <div className="bg-teal-50 border border-teal-100 rounded-lg p-4">
                                     {mentors.length === 1 ? (
                                         <div>
-                                            <div className="text-sm font-bold text-gray-900">{selectedMentor?.full_name}</div>
-                                            <div className="text-xs text-gray-500">{selectedMentor?.email}</div>
-                                            {selectedMentor?.expertise_areas && selectedMentor.expertise_areas.length > 0 && (
+                                            <div className="text-sm font-bold text-gray-900">{selectedExpert?.full_name}</div>
+                                            <div className="text-xs text-gray-500">{selectedExpert?.email}</div>
+                                            {selectedExpert?.expertise_areas && selectedExpert.expertise_areas.length > 0 && (
                                                 <div className="flex flex-wrap gap-1 mt-2">
-                                                    {selectedMentor.expertise_areas.map((area, i) => (
+                                                    {selectedExpert.expertise_areas.map((area, i) => (
                                                         <span key={i} className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-teal-100 text-teal-700">
                                                             {area}
                                                         </span>
@@ -171,20 +171,20 @@ export const ScheduleMentorSessionModal: React.FC<ScheduleMentorSessionModalProp
                                         </div>
                                     ) : (
                                         <>
-                                            <div className="text-xs font-semibold text-teal-600 uppercase tracking-wide mb-2">Assigned Mentors</div>
+                                            <div className="text-xs font-semibold text-teal-600 uppercase tracking-wide mb-2">Assigned Experts</div>
                                             <select
                                                 value={selectedMentorId}
                                                 onChange={(e) => setSelectedMentorId(e.target.value)}
                                                 className="w-full px-3 py-1.5 bg-white border border-teal-200 rounded-lg text-sm text-teal-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
                                             >
-                                                <option value="">Choose a mentor...</option>
+                                                <option value="">Choose an expert...</option>
                                                 {mentors.map(m => (
                                                     <option key={m.id} value={m.id}>{m.full_name}</option>
                                                 ))}
                                             </select>
-                                            {selectedMentor?.expertise_areas && selectedMentor.expertise_areas.length > 0 && (
+                                            {selectedExpert?.expertise_areas && selectedExpert.expertise_areas.length > 0 && (
                                                 <div className="flex flex-wrap gap-1 mt-2">
-                                                    {selectedMentor.expertise_areas.map((area, i) => (
+                                                    {selectedExpert.expertise_areas.map((area, i) => (
                                                         <span key={i} className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-teal-100 text-teal-700">
                                                             {area}
                                                         </span>

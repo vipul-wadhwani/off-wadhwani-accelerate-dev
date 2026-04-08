@@ -3,7 +3,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { Rocket, LayoutDashboard, LogOut, User, Video } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-export const MentorLayout: React.FC = () => {
+export const ExpertLayout: React.FC = () => {
     const { signOut, user, loading } = useAuth();
     const navigate = useNavigate();
 
@@ -31,15 +31,15 @@ export const MentorLayout: React.FC = () => {
                     </div>
 
                     <nav className="space-y-1">
-                        <NavLink to="/mentor/dashboard" end className={linkClass}>
+                        <NavLink to="/expert/dashboard" end className={linkClass}>
                             <LayoutDashboard className="w-5 h-5" />
                             My Ventures
                         </NavLink>
-                        <NavLink to="/mentor/sessions" className={linkClass}>
+                        <NavLink to="/expert/sessions" className={linkClass}>
                             <Video className="w-5 h-5" />
                             Sessions
                         </NavLink>
-                        <NavLink to="/mentor/profile" className={linkClass}>
+                        <NavLink to="/expert/profile" className={linkClass}>
                             <User className="w-5 h-5" />
                             My Profile
                         </NavLink>
@@ -52,7 +52,7 @@ export const MentorLayout: React.FC = () => {
                             {user?.user_metadata?.full_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'M'}
                         </div>
                         <div className="overflow-hidden">
-                            <div className="font-medium text-gray-900 truncate">Mentor</div>
+                            <div className="font-medium text-gray-900 truncate">Expert</div>
                             <div className="text-xs text-gray-500 truncate">{user?.email}</div>
                         </div>
                     </div>

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { Loader2, Video, Calendar, Clock, Users, ExternalLink, ArrowRight } from 'lucide-react';
 
-export const MentorDashboard: React.FC = () => {
+export const ExpertDashboard: React.FC = () => {
     const navigate = useNavigate();
     const [ventures, setVentures] = useState<any[]>([]);
     const [sessions, setSessions] = useState<any[]>([]);
@@ -19,7 +19,7 @@ export const MentorDashboard: React.FC = () => {
                 setVentures(v);
                 setSessions(s);
             } catch (err) {
-                console.error('Error loading mentor dashboard:', err);
+                console.error('Error loading expert dashboard:', err);
             } finally {
                 setLoading(false);
             }
@@ -38,7 +38,7 @@ export const MentorDashboard: React.FC = () => {
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-2xl font-bold text-gray-900">Mentor Dashboard</h1>
+                <h1 className="text-2xl font-bold text-gray-900">Expert Dashboard</h1>
                 <p className="text-sm text-gray-500 mt-1">Your assigned ventures and upcoming sessions</p>
             </div>
 
@@ -61,7 +61,7 @@ export const MentorDashboard: React.FC = () => {
                                         </div>
                                         <div>
                                             <div className="text-sm font-semibold text-gray-900">
-                                                {session.topic || 'Mentoring Session'}
+                                                {session.topic || 'Expert Session'}
                                             </div>
                                             <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
                                                 <span className="font-medium text-teal-700">{session.venture_name}</span>
@@ -101,7 +101,7 @@ export const MentorDashboard: React.FC = () => {
                         {ventures.map((venture: any) => (
                             <div
                                 key={venture.id}
-                                onClick={() => navigate(`/mentor/venture/${venture.id}`)}
+                                onClick={() => navigate(`/expert/venture/${venture.id}`)}
                                 className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md hover:border-teal-200 transition-all cursor-pointer group"
                             >
                                 <div className="flex items-start justify-between mb-3">

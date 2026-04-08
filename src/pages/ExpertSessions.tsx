@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { Loader2, Video, Calendar, Clock, Users, ExternalLink } from 'lucide-react';
 
-export const MentorSessions: React.FC = () => {
+export const ExpertSessions: React.FC = () => {
     const [sessions, setSessions] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState<string>('');
@@ -41,7 +41,7 @@ export const MentorSessions: React.FC = () => {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900">My Sessions</h1>
-                    <p className="text-sm text-gray-500 mt-1">All your mentoring sessions</p>
+                    <p className="text-sm text-gray-500 mt-1">All your expert sessions</p>
                 </div>
                 <select
                     value={filter}
@@ -76,7 +76,7 @@ export const MentorSessions: React.FC = () => {
                                     </div>
                                     <div>
                                         <div className="text-sm font-semibold text-gray-900">
-                                            {session.topic || 'Mentoring Session'}
+                                            {session.topic || 'Expert Session'}
                                         </div>
                                         <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
                                             <span className="font-medium text-teal-700">{session.venture_name}</span>

@@ -29,11 +29,11 @@ import { VPVMDashboard } from './pages/VPVMDashboard';
 import { VPVMVentureDetail } from './pages/VPVMVentureDetail';
 import { VPVMApplicationDetails } from './pages/VPVMApplicationDetails';
 import { VPVMAvailability } from './pages/VPVMAvailability';
-import { MentorLayout } from './layouts/MentorLayout';
-import { MentorDashboard } from './pages/MentorDashboard';
-import { MentorProfile } from './pages/MentorProfile';
-import { MentorSessions } from './pages/MentorSessions';
-import { MentorVentureDetail } from './pages/MentorVentureDetail';
+import { ExpertLayout } from './layouts/ExpertLayout';
+import { ExpertDashboard } from './pages/ExpertDashboard';
+import { ExpertProfile } from './pages/ExpertProfile';
+import { ExpertSessions } from './pages/ExpertSessions';
+import { ExpertVentureDetail } from './pages/ExpertVentureDetail';
 
 const Header = () => (
   <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 fixed top-0 w-full z-50">
@@ -143,16 +143,16 @@ function App() {
             <Route path="availability" element={<VPVMAvailability />} />
           </Route>
 
-          {/* Mentor Routes */}
-          <Route path="/mentor" element={
+          {/* Expert Routes */}
+          <Route path="/expert" element={
             <ProtectedRoute allowedRoles={['mentor']}>
-              <MentorLayout />
+              <ExpertLayout />
             </ProtectedRoute>
           }>
-            <Route path="dashboard" element={<MentorDashboard />} />
-            <Route path="sessions" element={<MentorSessions />} />
-            <Route path="profile" element={<MentorProfile />} />
-            <Route path="venture/:id" element={<MentorVentureDetail />} />
+            <Route path="dashboard" element={<ExpertDashboard />} />
+            <Route path="sessions" element={<ExpertSessions />} />
+            <Route path="profile" element={<ExpertProfile />} />
+            <Route path="venture/:id" element={<ExpertVentureDetail />} />
           </Route>
 
           {/* Admin Dashboard Routes */}

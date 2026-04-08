@@ -6,7 +6,7 @@ import { formatRevenue } from '../utils/formatters';
 import { InteractionsSection } from '../components/Interactions/InteractionsSection';
 import { DeliverableDetail } from '../components/CurrentStatus/DeliverableDetail';
 import { getDeliverableStyle } from '../components/CurrentStatus/constants';
-import { ScheduleMentorSessionModal } from '../components/ScheduleMentorSessionModal';
+import { ScheduleExpertSessionModal } from '../components/ScheduleExpertSessionModal';
 import {
     Loader2,
     ChevronUp,
@@ -277,11 +277,11 @@ export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId:
     const [selectedRoadmapDeliverable, setSelectedRoadmapDeliverable] = useState<any>(null);
     const [roadmapStatusFilter, setRoadmapStatusFilter] = useState<string>('all');
 
-    // Mentor sessions
-    const [mentorSessionsOpen, setMentorSessionsOpen] = useState(false);
-    const [mentorSessions, setMentorSessions] = useState<any[]>([]);
-    const [loadingMentorSessions, setLoadingMentorSessions] = useState(false);
-    const [showScheduleMentorModal, setShowScheduleMentorModal] = useState(false);
+    // Expert sessions
+    const [expertSessionsOpen, setExpertSessionsOpen] = useState(false);
+    const [expertSessions, setExpertSessions] = useState<any[]>([]);
+    const [loadingExpertSessions, setLoadingExpertSessions] = useState(false);
+    const [showScheduleExpertModal, setShowScheduleExpertModal] = useState(false);
 
     useEffect(() => {
         if (!id) return;
@@ -312,12 +312,12 @@ export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId:
                 } catch (delErr) {
                     console.error('[VPVMDetail] Error fetching deliverables:', delErr);
                 }
-                // Fetch mentor sessions
+                // Fetch expert sessions
                 try {
                     const sessions = await api.getVentureMentorSessions(id);
-                    setMentorSessions(sessions);
+                    setExpertSessions(sessions);
                 } catch (msErr) {
-                    console.error('[VPVMDetail] Error fetching mentor sessions:', msErr);
+                    console.error('[VPVMDetail] Error fetching expert sessions:', msErr);
                 }
             } catch (err) {
                 console.error('Error fetching venture:', err);
@@ -401,11 +401,11 @@ export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId:
                     <div className="flex items-center gap-2">
                         {!readOnly && (
                             <button
-                                onClick={() => setShowScheduleMentorModal(true)}
+                                onClick={() => setShowScheduleExpertModal(true)}
                                 className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition-colors flex items-center gap-2"
                             >
                                 <Video className="w-4 h-4" />
-                                Schedule Mentor Session
+                                Schedule Expert Session
                             </button>
                         )}
                         {!readOnly && (
@@ -766,41 +766,41 @@ export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId:
                 </div>
             )}
 
-            {/* Mentor Sessions Section */}
+            {/* Expert Sessions Section */}
             <SectionHeader
                 icon={Video}
-                title={`Mentor Sessions${mentorSessions.length > 0 ? ` (${mentorSessions.length})` : ''}`}
-                open={mentorSessionsOpen}
+                title={`Expert Sessions${expertSessions.length > 0 ? ` (${expertSessions.length})` : ''}`}
+                open={expertSessionsOpen}
                 onToggle={() => {
-                    setMentorSessionsOpen(!mentorSessionsOpen);
-                    if (!mentorSessionsOpen && mentorSessions.length === 0 && id) {
-                        setLoadingMentorSessions(true);
-                        api.getVentureMentorSessions(id).then(s => setMentorSessions(s)).catch(() => {}).finally(() => setLoadingMentorSessions(false));
+                    setExpertSessionsOpen(!expertSessionsOpen);
+                    if (!expertSessionsOpen && expertSessions.length === 0 && id) {
+                        setLoadingExpertSessions(true);
+                        api.getVentureMentorSessions(id).then(s => setExpertSessions(s)).catch(() => {}).finally(() => setLoadingExpertSessions(false));
                     }
                 }}
                 action={!readOnly ? (
                     <button
-                        onClick={() => setShowScheduleMentorModal(true)}
+                        onClick={() => setShowScheduleExpertModal(true)}
                         className="px-3 py-1.5 text-xs font-medium text-teal-700 bg-teal-50 border border-teal-200 rounded-lg hover:bg-teal-100 transition-colors"
                     >
                         + Schedule
                     </button>
                 ) : undefined}
             />
-            {mentorSessionsOpen && (
+            {expertSessionsOpen && (
                 <div className="bg-white border border-gray-200 rounded-xl p-5">
-                    {loadingMentorSessions ? (
+                    {loadingExpertSessions ? (
                         <div className="flex items-center justify-center py-6">
                             <Loader2 className="w-5 h-5 animate-spin text-teal-600" />
                             <span className="ml-2 text-sm text-gray-500">Loading sessions...</span>
                         </div>
-                    ) : mentorSessions.length === 0 ? (
+                    ) : expertSessions.length === 0 ? (
                         <div className="text-center py-8 text-gray-500">
                             <Video className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                            <p className="text-sm">No mentor sessions scheduled yet.</p>
+                            <p className="text-sm">No expert sessions scheduled yet.</p>
                             {!readOnly && (
                                 <button
-                                    onClick={() => setShowScheduleMentorModal(true)}
+                                    onClick={() => setShowScheduleExpertModal(true)}
                                     className="mt-3 text-sm text-teal-600 hover:text-teal-700 font-medium"
                                 >
                                     Schedule the first session
@@ -809,7 +809,7 @@ export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId:
                         </div>
                     ) : (
                         <div className="space-y-3">
-                            {mentorSessions.map((session: any) => {
+                            {expertSessions.map((session: any) => {
                                 const statusColors: Record<string, string> = {
                                     scheduled: 'bg-blue-50 text-blue-700 border-blue-200',
                                     active: 'bg-green-50 text-green-700 border-green-200',
@@ -829,7 +829,7 @@ export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId:
                                             </div>
                                             <div>
                                                 <div className="text-sm font-semibold text-gray-900">
-                                                    {session.topic || 'Mentoring Session'}
+                                                    {session.topic || 'Expert Session'}
                                                 </div>
                                                 <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
                                                     <span className="flex items-center gap-1">
@@ -839,7 +839,7 @@ export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId:
                                                         <Clock className="w-3 h-3" /> {timeStr}
                                                     </span>
                                                     <span className="flex items-center gap-1">
-                                                        <Users className="w-3 h-3" /> {session.mentor?.full_name || 'Mentor'}
+                                                        <Users className="w-3 h-3" /> {session.mentor?.full_name || 'Expert'}
                                                     </span>
                                                 </div>
                                             </div>
@@ -867,18 +867,18 @@ export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId:
                 </div>
             )}
 
-            {/* Schedule Mentor Session Modal */}
-            {showScheduleMentorModal && id && venture && (
-                <ScheduleMentorSessionModal
+            {/* Schedule Expert Session Modal */}
+            {showScheduleExpertModal && id && venture && (
+                <ScheduleExpertSessionModal
                     ventureId={id}
                     ventureName={venture.name}
                     founderName={venture.founder_name}
-                    onClose={() => setShowScheduleMentorModal(false)}
+                    onClose={() => setShowScheduleExpertModal(false)}
                     onScheduled={() => {
-                        setShowScheduleMentorModal(false);
-                        setMentorSessionsOpen(true);
+                        setShowScheduleExpertModal(false);
+                        setExpertSessionsOpen(true);
                         // Refresh sessions
-                        api.getVentureMentorSessions(id).then(s => setMentorSessions(s)).catch(() => {});
+                        api.getVentureMentorSessions(id).then(s => setExpertSessions(s)).catch(() => {});
                     }}
                 />
             )}

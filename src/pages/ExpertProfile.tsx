@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { Loader2, Save, Plus, X } from 'lucide-react';
 
-export const MentorProfile: React.FC = () => {
+export const ExpertProfile: React.FC = () => {
     const [profile, setProfile] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -75,7 +75,7 @@ export const MentorProfile: React.FC = () => {
         <div className="max-w-2xl space-y-6">
             <div>
                 <h1 className="text-2xl font-bold text-gray-900">My Profile</h1>
-                <p className="text-sm text-gray-500 mt-1">Manage your mentor profile and expertise</p>
+                <p className="text-sm text-gray-500 mt-1">Manage your expert profile and expertise</p>
             </div>
 
             <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-5">

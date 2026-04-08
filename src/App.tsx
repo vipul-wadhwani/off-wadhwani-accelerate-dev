@@ -38,6 +38,7 @@ import { ManageAvailabilityPage } from './modules/Availability';
 import { LiveSessionPage } from './modules/LiveSession';
 import { DiscoverExpertsPage } from './modules/ExpertMatching';
 import { RequestListPage } from './modules/MeetingRequests';
+import { UpcomingMeetingsPage } from './pages/UpcomingMeetingsPage';
 
 const Header = () => (
   <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 fixed top-0 w-full z-50">
@@ -94,6 +95,7 @@ function App() {
             <Route path="venture/:id/plan" element={<VPVMVentureDetail readOnly hideKPIs backPath="/dashboard" backLabel="Back to my ventures" />} />
             <Route path="venture/:id/discover-experts" element={<DiscoverExpertsPage />} />
             <Route path="my-requests" element={<RequestListPage role="venture" />} />
+            <Route path="my-meetings" element={<UpcomingMeetingsPage />} />
           </Route>
 
           {/* Success Manager Dashboard Routes */}
@@ -148,6 +150,7 @@ function App() {
             <Route path="dashboard/venture/:id/details" element={<VPVMApplicationDetails />} />
             <Route path="dashboard/venture/:id/discover-experts" element={<DiscoverExpertsPage />} />
             <Route path="availability" element={<VPVMAvailability />} />
+            <Route path="meetings" element={<UpcomingMeetingsPage />} />
           </Route>
 
           {/* Expert Routes */}

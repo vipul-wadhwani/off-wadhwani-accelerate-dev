@@ -25,7 +25,6 @@ import {
     RefreshCw,
     Video,
     Clock,
-    ExternalLink,
 } from 'lucide-react';
 
 const STREAM_ICONS: Record<string, any> = {

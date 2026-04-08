@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { Rocket, Grid, LogOut, Bell, MessageSquare } from 'lucide-react';
+import { Rocket, Grid, LogOut, Bell, MessageSquare, Video } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export const DashboardLayout: React.FC = () => {
@@ -53,6 +53,18 @@ export const DashboardLayout: React.FC = () => {
                     >
                         <MessageSquare className="w-5 h-5" />
                         My Requests
+                    </NavLink>
+                    <NavLink
+                        to="/dashboard/my-meetings"
+                        className={({ isActive }) =>
+                            `flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${isActive
+                                ? 'bg-blue-50 text-blue-700'
+                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                            }`
+                        }
+                    >
+                        <Video className="w-5 h-5" />
+                        My Meetings
                     </NavLink>
 
                 </nav>

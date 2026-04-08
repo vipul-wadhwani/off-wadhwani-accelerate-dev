@@ -113,6 +113,8 @@ export const OpsManagerDashboard: React.FC = () => {
     const [programFilter, setProgramFilter] = useState<ProgramFilter>('');
     const [callStatusFilter, setCallStatusFilter] = useState<CallStatusFilter>('');
     const [scheduleModalVenture, setScheduleModalVenture] = useState<Venture | null>(null);
+    const [vpvmCallVenture, setVpvmCallVenture] = useState<Venture | null>(null);
+    const [vpvmProfile, setVpvmProfile] = useState<{ id: string; full_name: string; email: string } | null>(null);
     const [assignVPVMVenture, setAssignVPVMVenture] = useState<Venture | null>(null);
     const [profileVenture, setProfileVenture] = useState<any | null>(null);
     const [profileLoading, setProfileLoading] = useState(false);
@@ -461,13 +463,26 @@ export const OpsManagerDashboard: React.FC = () => {
                                                         Assign VP/VM
                                                     </button>
                                                 ) : venture.status === 'With VP/VM' ? (
-                                                    <button
-                                                        onClick={() => setScheduleModalVenture(venture)}
-                                                        className="inline-flex items-center gap-1 text-indigo-600 text-sm font-medium hover:text-indigo-700 transition-colors"
-                                                    >
-                                                        <Calendar className="w-3.5 h-3.5" />
-                                                        Schedule Call
-                                                    </button>
+                                                    <div className="flex flex-col gap-1">
+                                                        <button
+                                                            onClick={() => setScheduleModalVenture(venture)}
+                                                            className="inline-flex items-center gap-1 text-indigo-600 text-sm font-medium hover:text-indigo-700 transition-colors"
+                                                        >
+                                                            <Calendar className="w-3.5 h-3.5" />
+                                                            Schedule Panel Call
+                                                        </button>
+                                                        <button
+                                                            onClick={async () => {
+                                                                const vp = await api.getAssignedVPVM(venture.id);
+                                                                setVpvmProfile(vp);
+                                                                setVpvmCallVenture(venture);
+                                                            }}
+                                                            className="inline-flex items-center gap-1 text-purple-600 text-sm font-medium hover:text-purple-700 transition-colors"
+                                                        >
+                                                            <Users className="w-3.5 h-3.5" />
+                                                            Schedule VP/VM Call
+                                                        </button>
+                                                    </div>
                                                 ) : cc.total > 0 ? (
                                                     <button
                                                         onClick={() => setScheduleModalVenture(venture)}
@@ -499,7 +514,7 @@ export const OpsManagerDashboard: React.FC = () => {
                 </div>
             </div>
 
-            {/* Schedule Call Modal */}
+            {/* Schedule Panelist Call Modal */}
             {scheduleModalVenture && (
                 <ScheduleCallModal
                     venture={scheduleModalVenture}
@@ -512,6 +527,22 @@ export const OpsManagerDashboard: React.FC = () => {
                     onClose={() => setScheduleModalVenture(null)}
                     onScheduled={() => {
                         setScheduleModalVenture(null);
+                        fetchData();
+                    }}
+                />
+            )}
+
+            {/* Schedule VP/VM Call Modal */}
+            {vpvmCallVenture && (
+                <ScheduleCallModal
+                    venture={vpvmCallVenture}
+                    panelists={[]}
+                    mode="vpvm"
+                    vpvm={vpvmProfile}
+                    onClose={() => { setVpvmCallVenture(null); setVpvmProfile(null); }}
+                    onScheduled={() => {
+                        setVpvmCallVenture(null);
+                        setVpvmProfile(null);
                         fetchData();
                     }}
                 />

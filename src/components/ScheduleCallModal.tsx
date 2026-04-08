@@ -21,6 +21,8 @@ interface ScheduleCallModalProps {
     panelists: Panelist[];
     onClose: () => void;
     onScheduled: () => void;
+    mode?: 'panelist' | 'vpvm';
+    vpvm?: { id: string; full_name: string; email: string } | null;
 }
 
 interface BookedSlot {
@@ -91,7 +93,10 @@ export const ScheduleCallModal: React.FC<ScheduleCallModalProps> = ({
     panelists,
     onClose,
     onScheduled,
+    mode = 'panelist',
+    vpvm,
 }) => {
+    const isVPVM = mode === 'vpvm';
     const [selectedDate, setSelectedDate] = useState<string>('');
     const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
     const [selectedPanelistId, setSelectedPanelistId] = useState<string>(panelists[0]?.id || '');
@@ -108,10 +113,18 @@ export const ScheduleCallModal: React.FC<ScheduleCallModalProps> = ({
 
     // Fetch availability when date or panelist changes
     useEffect(() => {
-        if (!selectedDate || !selectedPanelistId) {
+        if (!selectedDate || (!selectedPanelistId && !isVPVM)) {
             setBookedSlots([]);
             setAvailableSlots(null);
             setNoSlotsMessage(null);
+            return;
+        }
+
+        // VP/VM mode: use default time slots, no panelist availability check
+        if (isVPVM) {
+            setAvailableSlots(DEFAULT_TIME_SLOTS);
+            setBookedSlots([]);
+            setLoadingAvailability(false);
             return;
         }
 
@@ -165,7 +178,8 @@ export const ScheduleCallModal: React.FC<ScheduleCallModalProps> = ({
     }, [selectedDate]);
 
     const handleConfirm = async () => {
-        if (!selectedDate || selectedSlot === null || !selectedPanelistId) return;
+        if (!selectedDate || selectedSlot === null) return;
+        if (!isVPVM && !selectedPanelistId) return;
 
         setSubmitting(true);
         setError(null);
@@ -175,7 +189,9 @@ export const ScheduleCallModal: React.FC<ScheduleCallModalProps> = ({
             const slot = slotsToUse[selectedSlot];
             await api.createScheduledCall({
                 venture_id: venture.id,
-                panelist_id: selectedPanelistId,
+                ...(isVPVM && vpvm
+                    ? { participant_profile_id: vpvm.id }
+                    : { panelist_id: selectedPanelistId }),
                 call_date: selectedDate,
                 start_time: slot.start,
                 end_time: slot.end,
@@ -195,7 +211,7 @@ export const ScheduleCallModal: React.FC<ScheduleCallModalProps> = ({
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
                     <div>
-                        <h2 className="text-lg font-bold text-gray-900">Schedule Panelist Call</h2>
+                        <h2 className="text-lg font-bold text-gray-900">{isVPVM ? 'Schedule VP/VM Call' : 'Schedule Panelist Call'}</h2>
                         <div className="flex items-center gap-2 mt-1">
                             <span className="text-sm text-gray-600">For <span className="font-semibold">{venture.name}</span></span>
                             {venture.program_recommendation && (
@@ -221,8 +237,17 @@ export const ScheduleCallModal: React.FC<ScheduleCallModalProps> = ({
                 </div>
 
                 <div className="px-6 py-5 space-y-5">
+                    {/* Assigned VP/VM Box (vpvm mode) */}
+                    {isVPVM && vpvm && (
+                        <div className="bg-teal-50 border border-teal-100 rounded-lg p-4">
+                            <div className="text-xs font-semibold text-teal-600 uppercase tracking-wide mb-2">Assigned VP/VM</div>
+                            <div className="text-sm font-bold text-gray-900">{vpvm.full_name}</div>
+                            <div className="text-xs text-gray-500">{vpvm.email}</div>
+                        </div>
+                    )}
+
                     {/* Assigned Panelist Box */}
-                    {panelists.length > 0 && (
+                    {!isVPVM && panelists.length > 0 && (
                         <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-4">
                             <div className="text-xs font-semibold text-indigo-600 uppercase tracking-wide mb-2">Assigned Panelist</div>
                             {panelists.length === 1 ? (

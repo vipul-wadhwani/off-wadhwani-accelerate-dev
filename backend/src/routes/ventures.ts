@@ -412,6 +412,39 @@ router.get(
 );
 
 /**
+ * GET /api/ventures/:id/assigned-vpvm
+ * Get the assigned VP/VM for a venture
+ */
+router.get(
+    '/:id/assigned-vpvm',
+    authenticateUser,
+    async (req, res, next) => {
+        try {
+            const serviceClient = createServiceRoleClient();
+            const { data: venture } = await serviceClient
+                .from('ventures')
+                .select('assigned_vm_id')
+                .eq('id', req.params.id)
+                .single();
+
+            if (!venture?.assigned_vm_id) {
+                return res.json({ success: true, data: null });
+            }
+
+            const { data: profile } = await serviceClient
+                .from('profiles')
+                .select('id, full_name, email')
+                .eq('id', venture.assigned_vm_id)
+                .single();
+
+            return res.json({ success: true, data: profile });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
+/**
  * POST /api/ventures/:id/assign-vpvm
  * Assign a VP/VM to a venture (ops_manager, admin only)
  */

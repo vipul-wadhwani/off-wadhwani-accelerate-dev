@@ -1008,9 +1008,22 @@ class ApiClient {
         return data;
     }
 
+    async getAssignedVPVM(ventureId: string) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error('Not authenticated');
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const response = await fetch(`${API_URL}/api/ventures/${ventureId}/assigned-vpvm`, {
+            headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        if (!response.ok) return null;
+        const result = await response.json();
+        return result.data;
+    }
+
     async createScheduledCall(callData: {
         venture_id: string;
-        panelist_id: string;
+        panelist_id?: string;
+        participant_profile_id?: string;
         call_date: string;
         start_time: string;
         end_time: string;

@@ -126,21 +126,31 @@ router.post(
                 return res.status(403).json({ success: false, message: 'Access denied' });
             }
 
-            const { venture_id, panelist_id, call_date, start_time, end_time, meet_link: provided_meet_link, notes } = req.body;
+            const { venture_id, panelist_id, participant_profile_id, call_date, start_time, end_time, meet_link: provided_meet_link, notes } = req.body;
 
-            if (!venture_id || !panelist_id || !call_date || !start_time || !end_time) {
+            // Either panelist_id (panel call) or participant_profile_id (VP/VM call) is required
+            if (!venture_id || !call_date || !start_time || !end_time) {
                 return res.status(400).json({
                     success: false,
-                    message: 'venture_id, panelist_id, call_date, start_time, and end_time are required'
+                    message: 'venture_id, call_date, start_time, and end_time are required'
                 });
             }
+            if (!panelist_id && !participant_profile_id) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Either panelist_id or participant_profile_id is required'
+                });
+            }
+
+            const participant_type = participant_profile_id ? 'vpvm' : 'panelist';
+            const callTopic = participant_type === 'vpvm' ? 'VP/VM Call' : 'Scheduled Call';
 
             // Use user-provided link, or Zoom auto-generated, or Jitsi fallback
             const timestamp = Date.now();
             const jitsiFallback = `https://meet.jit.si/wadhwani-${venture_id.slice(0, 8)}-${timestamp}`;
             const meet_link = provided_meet_link
                 || (isZoomConfigured() ? await generateMeetingLink(
-                    `Scheduled Call`,
+                    callTopic,
                     Math.round((new Date(`1970-01-01T${end_time}`).getTime() - new Date(`1970-01-01T${start_time}`).getTime()) / 60000),
                     `${call_date}T${start_time}`,
                 ) : null)
@@ -150,7 +160,9 @@ router.post(
                 .from('scheduled_calls')
                 .insert({
                     venture_id,
-                    panelist_id,
+                    panelist_id: panelist_id || null,
+                    participant_profile_id: participant_profile_id || null,
+                    participant_type,
                     scheduled_by: req.user.id,
                     call_date,
                     start_time,

@@ -12,7 +12,8 @@ export const AvailabilityGrid: React.FC<AvailabilityGridProps> = ({ slots, onCha
     const [selected, setSelected] = useState<Set<string>>(new Set());
 
     useEffect(() => {
-        const keys = new Set(slots.map(s => `${s.day_of_week}-${s.start_time}`));
+        // Normalize time: DB returns "11:00:00", grid uses "11:00"
+        const keys = new Set(slots.map(s => `${s.day_of_week}-${s.start_time.slice(0, 5)}`));
         setSelected(keys);
     }, [slots]);
 

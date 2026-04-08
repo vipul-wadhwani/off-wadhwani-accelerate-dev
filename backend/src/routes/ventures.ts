@@ -7,7 +7,7 @@ import { extractDocumentText } from '../services/documentService';
 import { authenticateUser, requireRole } from '../middleware/auth';
 import { validateBody, validateQuery } from '../middleware/validate';
 import { createAuthenticatedClient } from '../config/supabase';
-import { isZoomConfigured, generateMeetingLink } from '../services/zoomService';
+import { isZoomConfigured, generateMeetingWithDetails } from '../services/zoomService';
 import {
     createVentureSchema,
     updateVentureSchema,
@@ -2281,13 +2281,23 @@ router.post(
             const timestamp = Date.now();
             const meetingId = `mentor-${ventureId.slice(0, 8)}-${timestamp}`;
             const jitsiFallback = `https://meet.jit.si/wadhwani-mentor-${ventureId.slice(0, 8)}-${timestamp}`;
-            const join_url = (isZoomConfigured()
-                ? await generateMeetingLink(
-                    `Mentor Session: ${venture.name}`,
+
+            let join_url = jitsiFallback;
+            let zoom_meeting_id: number | null = null;
+            let zoom_meeting_password: string | null = null;
+
+            if (isZoomConfigured()) {
+                const zoomResult = await generateMeetingWithDetails(
+                    `Expert Session: ${venture.name}`,
                     duration_minutes || 60,
                     `${scheduled_date}T${scheduled_time}`,
-                )
-                : null) || jitsiFallback;
+                );
+                if (zoomResult) {
+                    join_url = zoomResult.joinUrl;
+                    zoom_meeting_id = zoomResult.meetingId;
+                    zoom_meeting_password = zoomResult.password;
+                }
+            }
 
             const { data: session, error } = await serviceClient
                 .from('mentor_sessions')
@@ -2300,6 +2310,9 @@ router.post(
                     mentee_name: venture.founder_name || null,
                     duration_minutes: duration_minutes || 60,
                     join_url,
+                    zoom_meeting_id,
+                    zoom_meeting_password,
+                    source: 'vp_scheduled',
                     status: 'scheduled',
                     scheduled_date,
                     scheduled_time,

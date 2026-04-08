@@ -2,19 +2,25 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useExpertMatch } from '../hooks/useExpertMatch';
 import { ExpertMatchCard } from './ExpertMatchCard';
-import { Loader2, Search, Sparkles, Users } from 'lucide-react';
+import { CreateRequestModal, useRequests } from '../../MeetingRequests';
+import { Loader2, Search, Sparkles, Users, CheckCircle } from 'lucide-react';
 
 interface DiscoverExpertsPageProps {
     ventureId?: string;
-    onSendRequest?: (expertId: string) => void;
+    ventureName?: string;
 }
 
-export const DiscoverExpertsPage: React.FC<DiscoverExpertsPageProps> = ({ ventureId: propVentureId, onSendRequest }) => {
+export const DiscoverExpertsPage: React.FC<DiscoverExpertsPageProps> = ({ ventureId: propVentureId, ventureName }) => {
     const params = useParams<{ id: string }>();
     const ventureId = propVentureId || params.id || '';
     const { matches, allExperts, loading, searching, findMatches, searchExperts } = useExpertMatch();
+    const { createRequest } = useRequests();
     const [searchQuery, setSearchQuery] = useState('');
     const [hasMatchedOnce, setHasMatchedOnce] = useState(false);
+
+    // Request modal state
+    const [requestExpert, setRequestExpert] = useState<{ id: string; name: string } | null>(null);
+    const [requestSent, setRequestSent] = useState<string | null>(null);
 
     useEffect(() => {
         searchExperts();
@@ -30,6 +36,28 @@ export const DiscoverExpertsPage: React.FC<DiscoverExpertsPageProps> = ({ ventur
         searchExperts({ search: searchQuery });
     };
 
+    const handleSendRequest = (expertId: string) => {
+        const expert = [...matches, ...allExperts].find(e => (e as any).expert_id === expertId || e.id === expertId);
+        if (expert) {
+            setRequestExpert({ id: expertId, name: expert.full_name });
+        }
+    };
+
+    const handleRequestSubmit = async (data: {
+        venture_id: string;
+        expert_id: string;
+        meeting_goal?: string;
+        preferred_date?: string;
+        preferred_time?: string;
+    }) => {
+        const success = await createRequest(data);
+        if (success) {
+            setRequestSent(data.expert_id);
+            setTimeout(() => setRequestSent(null), 5000);
+        }
+        return success;
+    };
+
     // Filter out already-matched experts from the "all" list
     const matchedIds = new Set(matches.map(m => m.expert_id));
     const remainingExperts = allExperts.filter(e => !matchedIds.has(e.id));
@@ -37,11 +65,19 @@ export const DiscoverExpertsPage: React.FC<DiscoverExpertsPageProps> = ({ ventur
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-2xl font-bold text-gray-900">Discover Experts</h1>
+                <h2 className="text-xl font-bold text-gray-900">Discover Experts</h2>
                 <p className="text-sm text-gray-500 mt-1">
                     Find the best experts for your venture using AI matching or browse all available experts
                 </p>
             </div>
+
+            {/* Success toast */}
+            {requestSent && (
+                <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+                    <CheckCircle className="w-4 h-4" />
+                    Meeting request sent successfully!
+                </div>
+            )}
 
             {/* Search + AI Match */}
             <div className="flex items-center gap-3">
@@ -89,7 +125,7 @@ export const DiscoverExpertsPage: React.FC<DiscoverExpertsPageProps> = ({ ventur
                                 key={expert.expert_id}
                                 expert={expert}
                                 isAiMatch
-                                onSendRequest={onSendRequest}
+                                onSendRequest={handleSendRequest}
                             />
                         ))}
                     </div>
@@ -125,12 +161,24 @@ export const DiscoverExpertsPage: React.FC<DiscoverExpertsPageProps> = ({ ventur
                             <ExpertMatchCard
                                 key={expert.id}
                                 expert={expert}
-                                onSendRequest={onSendRequest}
+                                onSendRequest={handleSendRequest}
                             />
                         ))}
                     </div>
                 )}
             </div>
+
+            {/* Request Modal */}
+            {requestExpert && (
+                <CreateRequestModal
+                    expertId={requestExpert.id}
+                    expertName={requestExpert.name}
+                    ventureId={ventureId}
+                    ventureName={ventureName}
+                    onClose={() => setRequestExpert(null)}
+                    onSubmit={handleRequestSubmit}
+                />
+            )}
         </div>
     );
 };

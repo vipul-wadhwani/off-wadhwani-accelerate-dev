@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, LayoutGrid, Calendar } from 'lucide-react';
+import { Eye, LayoutGrid, Calendar, Users } from 'lucide-react';
 
 export interface Venture {
     id: string;
@@ -97,10 +97,10 @@ export const VentureCard: React.FC<VentureCardProps> = ({ venture }) => {
                 </div>
 
                 {/* Action buttons */}
-                <div className="flex items-center gap-2.5 pt-4 border-t border-gray-100">
+                <div className="grid grid-cols-3 gap-2 pt-4 border-t border-gray-100">
                     {venture.status === 'Rejected' ? (
                         <button
-                            className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-medium bg-red-50 text-red-400 border border-red-200 cursor-not-allowed"
+                            className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-[12px] font-medium bg-red-50 text-red-400 border border-red-200 cursor-not-allowed"
                             disabled
                             onClick={(e) => e.stopPropagation()}
                         >
@@ -109,34 +109,44 @@ export const VentureCard: React.FC<VentureCardProps> = ({ venture }) => {
                         </button>
                     ) : (venture.status === 'Joined Program' || venture.workbench_locked || venture.status === 'Contract Sent' || venture.agreement_status === 'Signed') ? (
                         <button
-                            className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold bg-brand-600 text-white hover:bg-brand-700 transition-colors shadow-sm"
+                            className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-[12px] font-semibold bg-brand-600 text-white hover:bg-brand-700 transition-colors shadow-sm"
                             onClick={(e) => {
                                 e.stopPropagation();
                                 navigate(`/dashboard/venture/${venture.id}/plan`);
                             }}
                         >
                             <Eye className="w-3.5 h-3.5" />
-                            View My Plan
+                            My Plan
                         </button>
                     ) : (
                         <button
-                            className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-medium bg-gray-50 text-gray-400 border border-gray-200 cursor-not-allowed"
+                            className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-[12px] font-medium bg-gray-50 text-gray-400 border border-gray-200 cursor-not-allowed"
                             disabled
                             onClick={(e) => e.stopPropagation()}
                         >
                             <LayoutGrid className="w-3.5 h-3.5" />
-                            Workbench Locked
+                            Locked
                         </button>
                     )}
                     <button
-                        className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold text-gray-700 bg-white border border-gray-200 hover:border-brand-300 hover:text-brand-700 hover:bg-brand-50 transition-colors"
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-[12px] font-medium text-gray-600 bg-white border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-colors"
                         onClick={(e) => {
                             e.stopPropagation();
                             navigate(`/dashboard/venture/${venture.id}`);
                         }}
                     >
                         <Eye className="w-3.5 h-3.5" />
-                        View Details
+                        Details
+                    </button>
+                    <button
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-[12px] font-semibold text-teal-700 bg-teal-50 border border-teal-200 hover:bg-teal-100 transition-colors"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/dashboard/venture/${venture.id}/discover-experts`);
+                        }}
+                    >
+                        <Users className="w-3.5 h-3.5" />
+                        Experts
                     </button>
                 </div>
             </div>

@@ -1,25 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { Rocket, Grid, LogOut, Bell, Video, Calendar, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
-import { api } from '../lib/api';
+import { Rocket, Grid, LogOut, Bell, MessageSquare } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export const DashboardLayout: React.FC = () => {
     const navigate = useNavigate();
     const { signOut, user, loading } = useAuth();
-    const [sessions, setSessions] = useState<any[]>([]);
-    const [sessionsOpen, setSessionsOpen] = useState(true);
 
     React.useEffect(() => {
         if (!loading && !user) {
             navigate('/login');
         }
     }, [user, loading, navigate]);
-
-    useEffect(() => {
-        if (!user) return;
-        api.getMyMentorSessions().then(setSessions).catch(() => {});
-    }, [user]);
 
     return (
 
@@ -50,69 +42,19 @@ export const DashboardLayout: React.FC = () => {
                         <Grid className="w-5 h-5" />
                         My Ventures
                     </NavLink>
+                    <NavLink
+                        to="/dashboard/my-requests"
+                        className={({ isActive }) =>
+                            `flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${isActive
+                                ? 'bg-blue-50 text-blue-700'
+                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                            }`
+                        }
+                    >
+                        <MessageSquare className="w-5 h-5" />
+                        My Requests
+                    </NavLink>
 
-                    {/* Upcoming Expert Sessions */}
-                    {sessions.length > 0 && (
-                        <div className="mt-4">
-                            <button
-                                onClick={() => setSessionsOpen(!sessionsOpen)}
-                                className="flex items-center justify-between w-full px-4 py-2 text-xs font-semibold text-teal-700 uppercase tracking-wide"
-                            >
-                                <div className="flex items-center gap-2">
-                                    <Video className="w-3.5 h-3.5" />
-                                    Upcoming Sessions
-                                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-teal-100 text-teal-700 text-xs font-bold">
-                                        {sessions.length}
-                                    </span>
-                                </div>
-                                {sessionsOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                            </button>
-
-                            {sessionsOpen && (
-                                <div className="space-y-2 mt-1 px-2">
-                                    {sessions.slice(0, 3).map((session: any) => {
-                                        const dateStr = session.scheduled_date
-                                            ? new Date(session.scheduled_date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
-                                            : '-';
-                                        const timeStr = session.scheduled_time ? session.scheduled_time.slice(0, 5) : '';
-
-                                        return (
-                                            <div key={session.id} className="bg-teal-50 border border-teal-100 rounded-lg p-3">
-                                                <div className="text-xs font-semibold text-gray-900 truncate">
-                                                    {session.topic || 'Expert Session'}
-                                                </div>
-                                                <div className="text-xs text-gray-500 mt-1 space-y-0.5">
-                                                    <div className="flex items-center gap-1">
-                                                        <Calendar className="w-3 h-3 text-teal-600" />
-                                                        {dateStr} {timeStr && `at ${timeStr}`}
-                                                    </div>
-                                                    <div className="truncate">
-                                                        with {session.mentor_name}
-                                                    </div>
-                                                </div>
-                                                {session.join_url && (
-                                                    <a
-                                                        href={session.join_url}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="mt-2 flex items-center justify-center gap-1 px-2 py-1.5 text-xs font-medium text-white bg-teal-600 rounded-md hover:bg-teal-700 transition-colors"
-                                                    >
-                                                        <ExternalLink className="w-3 h-3" />
-                                                        Join Session
-                                                    </a>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                    {sessions.length > 3 && (
-                                        <div className="text-xs text-teal-600 font-medium text-center py-1">
-                                            +{sessions.length - 3} more session{sessions.length - 3 > 1 ? 's' : ''}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    )}
                 </nav>
 
                 <div className="p-4 border-t border-gray-200">

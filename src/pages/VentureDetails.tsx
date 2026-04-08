@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { formatRevenue, formatEmployees } from '../utils/formatters';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, FileText, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Loader2, FileText, CheckCircle2, Users } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/ui/Toast';
+import { DiscoverExpertsPage } from '../modules/ExpertMatching';
 
 const STEPS = [
     { id: 1, label: 'BUSINESS' },
@@ -38,6 +39,7 @@ export const VentureDetails: React.FC = () => {
     const [venture, setVenture] = useState<any>(null);
     const [streams, setStreams] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState<'application' | 'experts'>('application');
 
     useEffect(() => {
         if (id && user) {
@@ -91,10 +93,37 @@ export const VentureDetails: React.FC = () => {
                 <div className="text-center mb-4">
                     <h1 className="text-2xl font-bold text-gray-900">{venture.name}</h1>
                     <p className="text-sm text-gray-500 mt-1">Application submitted by {venture.founder_name || user?.user_metadata?.full_name || 'Founder'}</p>
-                    <span className="inline-flex items-center gap-1.5 mt-3 px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                        Read-only Application
-                    </span>
                 </div>
+
+                {/* Tabs */}
+                <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+                    <button
+                        onClick={() => setActiveTab('application')}
+                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                            activeTab === 'application' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                    >
+                        <FileText className="w-4 h-4" />
+                        Application
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('experts')}
+                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                            activeTab === 'experts' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                    >
+                        <Users className="w-4 h-4" />
+                        Discover Experts
+                    </button>
+                </div>
+
+                {activeTab === 'experts' ? (
+                    <DiscoverExpertsPage ventureId={id} ventureName={venture.name} />
+                ) : (
+                <>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 mx-auto block w-fit">
+                    Read-only Application
+                </span>
 
                 {/* Step Progress Bar (all completed) */}
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
@@ -297,6 +326,8 @@ export const VentureDetails: React.FC = () => {
                     </div>
                 </div>
 
+            </>
+                )}
             </div>
         </div>
     );

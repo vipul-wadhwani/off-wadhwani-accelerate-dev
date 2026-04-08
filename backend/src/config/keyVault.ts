@@ -12,6 +12,8 @@ const SECRET_MAP: Record<string, string> = {
     'zoom-client-secret': 'ZOOM_CLIENT_SECRET',
     'zoom-client-id': 'ZOOM_CLIENT_ID',
     'zoom-account-id': 'ZOOM_ACCOUNT_ID',
+    'zoom-sdk-key': 'ZOOM_SDK_KEY',
+    'zoom-sdk-secret': 'ZOOM_SDK_SECRET',
     'frontend-url': 'FRONTEND_URL',
 };
 

@@ -1,0 +1,69 @@
+import { createServiceRoleClient } from '../../config/supabase';
+
+export interface TranscriptChunk {
+    speaker: string;
+    text: string;
+    time: string;
+}
+
+/**
+ * Append transcript chunks to a session's transcript.
+ */
+export async function appendTranscript(sessionId: string, chunks: TranscriptChunk[]) {
+    const supabase = createServiceRoleClient();
+
+    // Check if transcript exists
+    const { data: existing } = await supabase
+        .from('meeting_transcripts')
+        .select('id, chunks')
+        .eq('session_id', sessionId)
+        .maybeSingle();
+
+    if (existing) {
+        const updatedChunks = [...(existing.chunks || []), ...chunks];
+        await supabase
+            .from('meeting_transcripts')
+            .update({ chunks: updatedChunks, updated_at: new Date().toISOString() })
+            .eq('id', existing.id);
+    } else {
+        await supabase
+            .from('meeting_transcripts')
+            .insert({ session_id: sessionId, chunks });
+    }
+}
+
+/**
+ * Get transcript for a session.
+ */
+export async function getTranscript(sessionId: string) {
+    const supabase = createServiceRoleClient();
+    const { data } = await supabase
+        .from('meeting_transcripts')
+        .select('*')
+        .eq('session_id', sessionId)
+        .maybeSingle();
+    return data;
+}
+
+/**
+ * Finalize transcript — concatenate chunks into full_text.
+ */
+export async function finalizeTranscript(sessionId: string) {
+    const supabase = createServiceRoleClient();
+    const { data } = await supabase
+        .from('meeting_transcripts')
+        .select('id, chunks')
+        .eq('session_id', sessionId)
+        .maybeSingle();
+
+    if (!data) return;
+
+    const fullText = (data.chunks || [])
+        .map((c: TranscriptChunk) => `${c.speaker}: ${c.text}`)
+        .join('\n');
+
+    await supabase
+        .from('meeting_transcripts')
+        .update({ full_text: fullText, updated_at: new Date().toISOString() })
+        .eq('id', data.id);
+}

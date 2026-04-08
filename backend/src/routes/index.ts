@@ -10,6 +10,8 @@ import { zoomRoutes } from '../modules/zoom';
 import { availabilityRoutes } from '../modules/availability';
 import { matchingRoutes } from '../modules/expertMatching';
 import { requestRoutes } from '../modules/meetingRequests';
+import { briefRoutes } from '../modules/preMeetingBrief';
+import { sessionRoutes } from '../modules/liveSession';
 
 const router = Router();
 
@@ -25,5 +27,7 @@ router.use('/zoom', zoomRoutes);
 router.use('/availability', availabilityRoutes);
 router.use('/matching', matchingRoutes);
 router.use('/meeting-requests', requestRoutes);
+router.use('/briefs', briefRoutes);
+router.use('/sessions', sessionRoutes);
 
 export default router;

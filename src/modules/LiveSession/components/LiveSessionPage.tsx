@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ZoomMeetingRoom } from '../../Zoom';
+import { RightPanel } from './RightPanel';
 import { useAuth } from '../../../context/AuthContext';
 import { Loader2, ArrowLeft, Video, AlertCircle } from 'lucide-react';
 
@@ -27,10 +28,32 @@ export const LiveSessionPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [meetingEnded, setMeetingEnded] = useState(false);
+    const [transcriptChunks, setTranscriptChunks] = useState<Array<{ speaker: string; text: string; time: string }>>([]);
+    const pendingChunksRef = useRef<Array<{ speaker: string; text: string; time: string }>>([]);
 
     // Determine user's role in the meeting
     const isMentor = session?.mentorId === user?.id;
     const zoomRole = isMentor ? 1 : 0; // 1=host, 0=participant
+
+    // Auto-save transcript every 30 seconds
+    useEffect(() => {
+        if (!sessionId) return;
+        const interval = setInterval(async () => {
+            if (pendingChunksRef.current.length === 0) return;
+            const chunksToSave = [...pendingChunksRef.current];
+            pendingChunksRef.current = [];
+            try {
+                const { supabase } = await import('../../../lib/supabase');
+                const token = (await supabase.auth.getSession()).data.session?.access_token;
+                await fetch(`${API_URL}/api/sessions/${sessionId}/transcript`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                    body: JSON.stringify({ chunks: chunksToSave }),
+                });
+            } catch { /* ignore */ }
+        }, 30000);
+        return () => clearInterval(interval);
+    }, [sessionId]);
 
     useEffect(() => {
         const fetchSession = async () => {
@@ -56,13 +79,37 @@ export const LiveSessionPage: React.FC = () => {
         fetchSession();
     }, [sessionId]);
 
-    const handleMeetingEnd = useCallback(() => {
+    const handleMeetingEnd = useCallback(async () => {
+        // Save any remaining transcript chunks
+        if (pendingChunksRef.current.length > 0 && sessionId) {
+            try {
+                const { supabase } = await import('../../../lib/supabase');
+                const token = (await supabase.auth.getSession()).data.session?.access_token;
+                await fetch(`${API_URL}/api/sessions/${sessionId}/transcript`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                    body: JSON.stringify({ chunks: pendingChunksRef.current }),
+                });
+                pendingChunksRef.current = [];
+            } catch { /* ignore */ }
+        }
+        // End session — generate summary
+        if (sessionId) {
+            try {
+                const { supabase } = await import('../../../lib/supabase');
+                const token = (await supabase.auth.getSession()).data.session?.access_token;
+                await fetch(`${API_URL}/api/sessions/${sessionId}/end`, {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+            } catch { /* ignore */ }
+        }
         setMeetingEnded(true);
-    }, []);
+    }, [sessionId]);
 
     const handleTranscriptChunk = useCallback((chunk: { speaker: string; text: string; time: string }) => {
-        // Phase 3 will store these — for now just log
-        console.log('[Transcript]', chunk.speaker, ':', chunk.text);
+        setTranscriptChunks(prev => [...prev, chunk]);
+        pendingChunksRef.current.push(chunk);
     }, []);
 
     const goBack = () => {
@@ -157,7 +204,7 @@ export const LiveSessionPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Meeting area — Phase 3 will add a right panel here */}
+            {/* Meeting area with right panel */}
             <div className="flex-1 flex">
                 <div className="flex-1 p-4">
                     <ZoomMeetingRoom
@@ -170,7 +217,11 @@ export const LiveSessionPage: React.FC = () => {
                         onTranscriptChunk={handleTranscriptChunk}
                     />
                 </div>
-                {/* Right panel placeholder — Phase 3 adds: Brief, Transcript, Insights, Actions tabs */}
+                <RightPanel
+                    sessionId={session.sessionId}
+                    transcriptChunks={transcriptChunks}
+                    topic={session.topic}
+                />
             </div>
         </div>
     );

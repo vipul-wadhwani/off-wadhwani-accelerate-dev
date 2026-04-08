@@ -42,6 +42,13 @@ function toISODate(date: Date): string {
     return date.toISOString().split('T')[0];
 }
 
+function formatTime(time: string): string {
+    const hour = parseInt(time.split(':')[0], 10);
+    if (hour < 12) return `${hour}:00 AM`;
+    if (hour === 12) return '12:00 PM';
+    return `${hour - 12}:00 PM`;
+}
+
 const TIME_SLOTS = [
     { label: '9:00 AM', value: '09:00' },
     { label: '10:00 AM', value: '10:00' },
@@ -69,9 +76,50 @@ export const ScheduleExpertSessionModal: React.FC<ScheduleExpertSessionModalProp
     const [duration, setDuration] = useState(60);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [availableSlots, setAvailableSlots] = useState<typeof TIME_SLOTS | null>(null);
+    const [loadingSlots, setLoadingSlots] = useState(false);
 
     const nextWeekdays = getNextWeekdays(10);
     const selectedExpert = mentors.find(m => m.id === selectedMentorId);
+
+    // Fetch expert availability when expert + date change
+    useEffect(() => {
+        if (!selectedMentorId || !selectedDate) {
+            setAvailableSlots(null);
+            return;
+        }
+        let cancelled = false;
+        const fetchSlots = async () => {
+            setLoadingSlots(true);
+            setSelectedTime('');
+            try {
+                const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+                const { supabase } = await import('../lib/supabase');
+                const token = (await supabase.auth.getSession()).data.session?.access_token;
+                const res = await fetch(`${API_URL}/api/availability/${selectedMentorId}/slots?date=${selectedDate}`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                const data = await res.json();
+                if (!cancelled) {
+                    if (data.success && data.data && data.data.length > 0) {
+                        setAvailableSlots(data.data.map((s: any) => ({
+                            label: formatTime(s.start_time.slice(0, 5)),
+                            value: s.start_time.slice(0, 5),
+                        })));
+                    } else {
+                        // No availability set — fallback to all slots
+                        setAvailableSlots(null);
+                    }
+                }
+            } catch {
+                if (!cancelled) setAvailableSlots(null);
+            } finally {
+                if (!cancelled) setLoadingSlots(false);
+            }
+        };
+        fetchSlots();
+        return () => { cancelled = true; };
+    }, [selectedMentorId, selectedDate]);
 
     useEffect(() => {
         const fetchMentors = async () => {
@@ -226,11 +274,15 @@ export const ScheduleExpertSessionModal: React.FC<ScheduleExpertSessionModalProp
 
                             {/* Step 3: Select Time */}
                             <div>
-                                <div className="mb-3">
+                                <div className="mb-3 flex items-center gap-2">
                                     <span className="text-sm font-medium text-gray-700">3. Select Time</span>
+                                    {availableSlots && (
+                                        <span className="text-xs text-teal-600 font-medium">Based on expert availability</span>
+                                    )}
+                                    {loadingSlots && <Loader2 className="w-3.5 h-3.5 animate-spin text-teal-600" />}
                                 </div>
                                 <div className="grid grid-cols-4 gap-2">
-                                    {TIME_SLOTS.map((slot) => {
+                                    {(availableSlots || TIME_SLOTS).map((slot) => {
                                         const isSelected = selectedTime === slot.value;
                                         return (
                                             <button

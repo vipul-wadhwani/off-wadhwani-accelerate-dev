@@ -11,7 +11,11 @@ import {
     MapPin,
     ChevronDown,
     Filter,
+    Video,
+    Calendar,
+    Clock,
 } from 'lucide-react';
+import { api } from '../lib/api';
 
 interface VentureCard {
     id: string;
@@ -58,6 +62,7 @@ export const VPVMDashboard: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
+    const [upcomingSessions, setUpcomingSessions] = useState<any[]>([]);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -92,6 +97,12 @@ export const VPVMDashboard: React.FC = () => {
                 });
 
                 setVentures(mapped);
+
+                // Fetch upcoming sessions
+                try {
+                    const sessions = await api.getVPVMUpcomingSessions();
+                    setUpcomingSessions(sessions);
+                } catch { /* ignore */ }
             } catch (err) {
                 console.error('Error fetching VP/VM ventures:', err);
             } finally {
@@ -181,6 +192,51 @@ export const VPVMDashboard: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Upcoming Expert Sessions */}
+            {upcomingSessions.length > 0 && (
+                <div>
+                    <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                        <Video className="w-5 h-5 text-teal-600" />
+                        Upcoming Expert Sessions
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {upcomingSessions.slice(0, 6).map((session: any) => {
+                            const dateStr = session.scheduled_date
+                                ? new Date(session.scheduled_date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
+                                : '-';
+                            const timeStr = session.scheduled_time ? session.scheduled_time.slice(0, 5) : '-';
+                            return (
+                                <div key={session.id} className="bg-white border border-gray-200 rounded-xl p-4 flex items-center justify-between hover:border-teal-200 hover:shadow-sm transition-all">
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <div className="w-10 h-10 rounded-full bg-teal-50 flex items-center justify-center flex-shrink-0">
+                                            <Video className="w-5 h-5 text-teal-600" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <div className="text-sm font-semibold text-gray-900 truncate">
+                                                {session.topic || 'Expert Session'}
+                                            </div>
+                                            <div className="text-xs text-gray-500 truncate">
+                                                {session.venture_name} — {session.expert_name}
+                                            </div>
+                                            <div className="flex items-center gap-2 text-xs text-gray-400 mt-0.5">
+                                                <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {dateStr}</span>
+                                                <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {timeStr}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => navigate(`/meeting/${session.id}`)}
+                                        className="flex-shrink-0 ml-3 px-3 py-1.5 text-xs font-semibold text-white bg-teal-600 rounded-lg hover:bg-teal-700 transition-colors"
+                                    >
+                                        Join
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
             {/* Search & Filter */}
             <div className="flex items-center gap-4">

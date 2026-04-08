@@ -410,6 +410,15 @@ export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId:
                         )}
                         {!readOnly && (
                             <button
+                                onClick={() => navigate(`/vpvm/dashboard/venture/${id}/discover-experts`)}
+                                className="px-4 py-2 bg-purple-50 text-purple-700 border border-purple-200 rounded-lg text-sm font-medium hover:bg-purple-100 transition-colors flex items-center gap-2"
+                            >
+                                <Users className="w-4 h-4" />
+                                Discover Experts
+                            </button>
+                        )}
+                        {!readOnly && (
+                            <button
                                 onClick={() => navigate(`/vpvm/dashboard/venture/${id}/details`)}
                                 className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                             >

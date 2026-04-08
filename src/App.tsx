@@ -146,6 +146,7 @@ function App() {
             <Route path="dashboard" element={<VPVMDashboard />} />
             <Route path="dashboard/venture/:id" element={<VPVMVentureDetail />} />
             <Route path="dashboard/venture/:id/details" element={<VPVMApplicationDetails />} />
+            <Route path="dashboard/venture/:id/discover-experts" element={<DiscoverExpertsPage />} />
             <Route path="availability" element={<VPVMAvailability />} />
           </Route>
 

@@ -192,6 +192,7 @@ export async function getRequests(opts: {
     expertId?: string;
     requestedBy?: string;
     ventureId?: string;
+    ventureIds?: string[];
     status?: string;
 }) {
     const supabase = createServiceRoleClient();
@@ -207,6 +208,7 @@ export async function getRequests(opts: {
     if (opts.expertId) query = query.eq('expert_id', opts.expertId);
     if (opts.requestedBy) query = query.eq('requested_by', opts.requestedBy);
     if (opts.ventureId) query = query.eq('venture_id', opts.ventureId);
+    if (opts.ventureIds) query = query.in('venture_id', opts.ventureIds);
     if (opts.status) query = query.eq('status', opts.status);
 
     const { data, error } = await query;

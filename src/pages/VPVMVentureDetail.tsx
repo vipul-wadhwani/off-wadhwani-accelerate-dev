@@ -278,7 +278,7 @@ export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId:
     const [roadmapStatusFilter, setRoadmapStatusFilter] = useState<string>('all');
 
     // Expert sessions
-    const [expertSessionsOpen, setExpertSessionsOpen] = useState(false);
+    const [expertSessionsOpen, setExpertSessionsOpen] = useState(true);
     const [expertSessions, setExpertSessions] = useState<any[]>([]);
     const [loadingExpertSessions, setLoadingExpertSessions] = useState(false);
     const [showScheduleExpertModal, setShowScheduleExpertModal] = useState(false);
@@ -858,14 +858,12 @@ export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId:
                                                 {session.status}
                                             </span>
                                             {session.join_url && session.status === 'scheduled' && (
-                                                <a
-                                                    href={session.join_url}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="flex items-center gap-1 px-3 py-1 text-xs font-medium text-teal-700 bg-teal-50 border border-teal-200 rounded-lg hover:bg-teal-100 transition-colors"
+                                                <button
+                                                    onClick={() => navigate(`/meeting/${session.id}`)}
+                                                    className="flex items-center gap-1 px-3 py-1 text-xs font-medium text-white bg-teal-600 border border-teal-600 rounded-lg hover:bg-teal-700 transition-colors"
                                                 >
-                                                    <ExternalLink className="w-3 h-3" /> Join
-                                                </a>
+                                                    <Video className="w-3 h-3" /> Join
+                                                </button>
                                             )}
                                         </div>
                                     </div>

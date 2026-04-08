@@ -55,7 +55,18 @@ router.get('/', authenticateUser, async (req: Request, res: Response) => {
         if (role === 'expert' || userRole === 'mentor') {
             opts.expertId = userId;
         } else if (role === 'venture' || userRole === 'entrepreneur') {
-            opts.requestedBy = userId;
+            // Entrepreneurs see all requests for their ventures (including VP-booked)
+            const { createServiceRoleClient } = await import('../../config/supabase');
+            const serviceClient = createServiceRoleClient();
+            const { data: ventures } = await serviceClient
+                .from('ventures')
+                .select('id')
+                .eq('user_id', userId);
+            if (ventures && ventures.length > 0) {
+                opts.ventureIds = ventures.map((v: any) => v.id);
+            } else {
+                opts.requestedBy = userId;
+            }
         }
         // Staff (VP/VM/admin) see all if no filter
 

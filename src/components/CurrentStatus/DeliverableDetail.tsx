@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, Pencil, Calendar, User, ListChecks, MessageSquare, Clock, Plus, X } from 'lucide-react';
+import { ChevronLeft, Pencil, Calendar, User, ListChecks, MessageSquare, Clock, Plus, X, Users } from 'lucide-react';
 import { api } from '../../lib/api';
 import type { Deliverable, DeliverableNote } from './constants';
 import { getDeliverableStyle, HEALTH_CONFIG } from './constants';
 import { DeliverableEditForm } from './DeliverableEditForm';
 import { ResourceRecommendationModal } from './ResourceRecommendationModal';
+import { DiscoverExpertsPage } from '../../modules/ExpertMatching';
 
 type RecommendationType = 'expert_connect' | 'service_provider' | 'masterclass' | 'research';
 
@@ -25,6 +26,7 @@ export const DeliverableDetail: React.FC<DeliverableDetailProps> = ({ ventureId,
     const [actionItemsText, setActionItemsText] = useState('');
     const [savingNote, setSavingNote] = useState(false);
     const [recommendationType, setRecommendationType] = useState<RecommendationType | null>(null);
+    const [showExpertConnect, setShowExpertConnect] = useState(false);
     const [checklistItems, setChecklistItems] = useState<any[]>([]);
     const [newItemText, setNewItemText] = useState('');
     const [notes, setNotes] = useState<DeliverableNote[]>([]);
@@ -221,8 +223,14 @@ export const DeliverableDetail: React.FC<DeliverableDetailProps> = ({ ventureId,
 
                 {/* Action buttons */}
                 {!readOnly && <div className="flex flex-wrap gap-2">
+                    <button
+                        onClick={() => setShowExpertConnect(true)}
+                        className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-teal-700 border border-teal-200 bg-teal-50 rounded-lg hover:bg-teal-100 transition-colors"
+                    >
+                        <Users className="w-3 h-3" />
+                        Add Expert Connect
+                    </button>
                     {([
-                        { label: 'Expert Connect', type: 'expert_connect' as RecommendationType },
                         { label: 'Service Provider', type: 'service_provider' as RecommendationType },
                         { label: 'Masterclass', type: 'masterclass' as RecommendationType },
                         { label: 'Research', type: 'research' as RecommendationType },
@@ -237,6 +245,29 @@ export const DeliverableDetail: React.FC<DeliverableDetailProps> = ({ ventureId,
                         </button>
                     ))}
                 </div>}
+
+                {/* Expert Connect Modal */}
+                {showExpertConnect && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
+                            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white rounded-t-2xl z-10">
+                                <div>
+                                    <h2 className="text-lg font-bold text-gray-900">Connect to Expert</h2>
+                                    <p className="text-sm text-gray-500">Find and book an expert for {ventureName}</p>
+                                </div>
+                                <button
+                                    onClick={() => setShowExpertConnect(false)}
+                                    className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:bg-gray-100"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+                            <div className="p-6">
+                                <DiscoverExpertsPage ventureId={ventureId} ventureName={ventureName} />
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Tabs */}
                 <div className="border-t border-gray-100 pt-4">

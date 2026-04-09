@@ -39,6 +39,8 @@ import { LiveSessionPage } from './modules/LiveSession';
 import { DiscoverExpertsPage } from './modules/ExpertMatching';
 import { RequestListPage } from './modules/MeetingRequests';
 import { UpcomingMeetingsPage } from './pages/UpcomingMeetingsPage';
+import { VPVMRequestsPage } from './pages/VPVMRequestsPage';
+import { VPVMRequestDetailPage } from './pages/VPVMRequestDetailPage';
 
 const Header = () => (
   <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 fixed top-0 w-full z-50">
@@ -151,6 +153,9 @@ function App() {
             <Route path="dashboard/venture/:id/discover-experts" element={<DiscoverExpertsPage />} />
             <Route path="availability" element={<VPVMAvailability />} />
             <Route path="meetings" element={<UpcomingMeetingsPage />} />
+            <Route path="requests" element={<VPVMRequestsPage />} />
+            <Route path="requests/:requestId" element={<VPVMRequestDetailPage />} />
+            <Route path="sessions/:requestId" element={<VPVMRequestDetailPage />} />
           </Route>
 
           {/* Expert Routes */}

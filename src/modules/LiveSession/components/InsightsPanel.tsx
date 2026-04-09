@@ -81,13 +81,15 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({ sessionId, current
                             </div>
                             <p className="text-xs text-gray-300 mb-2">{insight.summary}</p>
                             {insight.questions?.length > 0 && (
-                                <div className="space-y-1">
-                                    <span className="text-[10px] text-blue-400 font-semibold uppercase">Suggested Questions</span>
-                                    {insight.questions.map((q: string, j: number) => (
-                                        <p key={j} className="text-[11px] text-gray-400 pl-2 border-l border-blue-800">
-                                            {q}
-                                        </p>
-                                    ))}
+                                <div>
+                                    <span className="text-[10px] text-teal-400 font-semibold uppercase">Suggested Questions</span>
+                                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                        {insight.questions.map((q: string, j: number) => (
+                                            <span key={j} className="inline-block text-[10px] text-gray-300 bg-gray-700 border border-gray-600 rounded-full px-2.5 py-1">
+                                                {q}
+                                            </span>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
                         </div>

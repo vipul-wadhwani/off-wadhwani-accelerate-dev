@@ -18,10 +18,20 @@ export interface BriefContent {
     progress_summary: string;
 }
 
+// In-memory brief cache — keyed by sessionId, TTL 5 minutes
+const briefCache: Map<string, { data: any; expiresAt: number }> = new Map();
+const BRIEF_CACHE_TTL = 5 * 60 * 1000;
+
 /**
  * Get the latest brief for a session. Returns null if none exists.
+ * Uses in-memory cache to avoid repeated DB hits during live sessions.
  */
 export async function getLatestBrief(sessionId: string) {
+    const cached = briefCache.get(sessionId);
+    if (cached && Date.now() < cached.expiresAt) {
+        return cached.data;
+    }
+
     const supabase = createServiceRoleClient();
     const { data } = await supabase
         .from('pre_meeting_briefs')
@@ -30,6 +40,8 @@ export async function getLatestBrief(sessionId: string) {
         .order('version', { ascending: false })
         .limit(1)
         .maybeSingle();
+
+    briefCache.set(sessionId, { data, expiresAt: Date.now() + BRIEF_CACHE_TTL });
     return data;
 }
 
@@ -197,6 +209,7 @@ Generate a JSON object (no markdown, no explanation) with these fields:
             throw new Error('Failed to save brief');
         }
 
+        briefCache.delete(sessionId);
         return savedBrief;
     } catch (err: any) {
         console.error('[Brief] Generation error:', err);

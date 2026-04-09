@@ -52,7 +52,10 @@ router.get('/', authenticateUser, async (req: Request, res: Response) => {
         if (status) opts.status = status as string;
         if (venture_id) opts.ventureId = venture_id as string;
 
-        if (role === 'expert' || userRole === 'mentor') {
+        if (role === 'staff') {
+            // VP/VM: show only requests they created
+            opts.requestedBy = userId;
+        } else if (role === 'expert' || userRole === 'mentor') {
             opts.expertId = userId;
         } else if (role === 'venture' || userRole === 'entrepreneur') {
             // Entrepreneurs see all requests for their ventures (including VP-booked)

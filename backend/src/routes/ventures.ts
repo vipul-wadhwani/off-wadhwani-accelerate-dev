@@ -476,6 +476,64 @@ router.get(
 );
 
 /**
+ * GET /api/ventures/vpvm-completed-sessions
+ * Get completed (ended) sessions across all ventures assigned to the current VP/VM.
+ */
+router.get(
+    '/vpvm-completed-sessions',
+    authenticateUser,
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            res.set('Cache-Control', 'no-store');
+            const serviceClient = createServiceRoleClient();
+
+            const { data: ventures } = await serviceClient
+                .from('ventures')
+                .select('id, name, founder_name')
+                .eq('assigned_vm_id', req.user.id);
+
+            if (!ventures || ventures.length === 0) {
+                return successResponse(res, { sessions: [] });
+            }
+
+            const ventureIds = ventures.map((v: any) => v.id);
+            const ventureMap: Record<string, { name: string; founder: string }> = {};
+            for (const v of ventures) ventureMap[v.id] = { name: v.name, founder: v.founder_name || '' };
+
+            const { data: sessions } = await serviceClient
+                .from('mentor_sessions')
+                .select('id, topic, scheduled_date, scheduled_time, duration_minutes, status, venture_id, mentor_id, source, started_at, ended_at')
+                .in('venture_id', ventureIds)
+                .eq('status', 'ended')
+                .order('scheduled_date', { ascending: false })
+                .order('scheduled_time', { ascending: false })
+                .limit(50);
+
+            const mentorIds = [...new Set((sessions || []).map((s: any) => s.mentor_id))];
+            let mentorMap: Record<string, string> = {};
+            if (mentorIds.length > 0) {
+                const { data: mentors } = await serviceClient
+                    .from('profiles')
+                    .select('id, full_name')
+                    .in('id', mentorIds);
+                for (const m of (mentors || [])) mentorMap[m.id] = m.full_name;
+            }
+
+            const enriched = (sessions || []).map((s: any) => ({
+                ...s,
+                venture_name: ventureMap[s.venture_id]?.name || '',
+                founder_name: ventureMap[s.venture_id]?.founder || '',
+                expert_name: mentorMap[s.mentor_id] || 'Expert',
+            }));
+
+            successResponse(res, { sessions: enriched });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
+/**
  * GET /api/ventures/:id/assigned-vpvm
  * Get the assigned VP/VM for a venture
  */

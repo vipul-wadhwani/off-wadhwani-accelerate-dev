@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { Rocket, LayoutDashboard, LogOut, Clock, Video } from 'lucide-react';
+import { Rocket, LayoutDashboard, LogOut, Clock, MessageSquare } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export const VPVMLayout: React.FC = () => {
@@ -55,7 +55,7 @@ export const VPVMLayout: React.FC = () => {
                             My Availability
                         </NavLink>
                         <NavLink
-                            to="/vpvm/meetings"
+                            to="/vpvm/requests"
                             className={({ isActive }) =>
                                 `w-full flex items-center gap-3 px-3 py-2 rounded-lg font-medium text-left transition-colors ${
                                     isActive
@@ -64,8 +64,8 @@ export const VPVMLayout: React.FC = () => {
                                 }`
                             }
                         >
-                            <Video className="w-5 h-5" />
-                            My Meetings
+                            <MessageSquare className="w-5 h-5" />
+                            Workbench
                         </NavLink>
                     </nav>
                 </div>

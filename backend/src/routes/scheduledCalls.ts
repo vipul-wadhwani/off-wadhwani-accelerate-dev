@@ -10,13 +10,17 @@ async function getContext(req: Request) {
     const token = req.headers.authorization?.split(' ')[1] || '';
     const supabase = createAuthenticatedClient(token);
 
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('role')
         .eq('id', req.user.id)
         .single();
 
-    return { supabase, role: profile?.role || 'entrepreneur' };
+    const role = profile?.role || req.user?.user_metadata?.role || 'entrepreneur';
+    if (profileError) {
+        console.warn(`[scheduledCalls.getContext] profiles lookup failed for ${req.user.id}: ${profileError.message}, using role: ${role}`);
+    }
+    return { supabase, role };
 }
 
 /**
@@ -183,7 +187,8 @@ router.post(
                 }
             }
 
-            const { data, error } = await supabase
+            const serviceClient = createServiceRoleClient();
+            const { data, error } = await serviceClient
                 .from('scheduled_calls')
                 .insert({
                     venture_id,
@@ -273,7 +278,8 @@ router.put(
 
             const { reason } = req.body;
 
-            const { data, error } = await supabase
+            const serviceClient = createServiceRoleClient();
+            const { data, error } = await serviceClient
                 .from('scheduled_calls')
                 .update({
                     status: 'cancelled',
@@ -288,6 +294,25 @@ router.put(
             if (error) {
                 console.error('Error cancelling scheduled call:', error);
                 return res.status(500).json({ success: false, message: 'Failed to cancel scheduled call' });
+            }
+
+            // Also cancel the linked mentor_session if one exists
+            if (data) {
+                const serviceClient = createServiceRoleClient();
+                const { data: sessions } = await serviceClient
+                    .from('mentor_sessions')
+                    .select('id')
+                    .eq('venture_id', data.venture_id)
+                    .eq('scheduled_date', data.call_date)
+                    .eq('scheduled_time', data.start_time)
+                    .eq('status', 'scheduled');
+                if (sessions && sessions.length > 0) {
+                    await serviceClient
+                        .from('mentor_sessions')
+                        .update({ status: 'cancelled' })
+                        .in('id', sessions.map((s: any) => s.id));
+                    console.log(`[ScheduledCalls] Also cancelled ${sessions.length} linked mentor_session(s)`);
+                }
             }
 
             successResponse(res, { scheduled_call: data });

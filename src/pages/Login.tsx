@@ -22,22 +22,7 @@ export const Login: React.FC = () => {
         if (isApply) {
             target = '/dashboard/new-application';
         } else if (role === 'venture_mgr' || role === 'committee_member') {
-            // Check if user is a panelist or a VP/VM candidate
-            try {
-                const { data: { user } } = await supabase.auth.getUser();
-                const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user?.id).single();
-                const { data: panelists } = await supabase.from('panelists').select('name');
-                const panelistNames = new Set((panelists || []).map((p: any) => (p.name || '').toLowerCase()));
-                const isPanelist = panelistNames.has((profile?.full_name || '').toLowerCase());
-
-                if (isPanelist) {
-                    target = role === 'venture_mgr' ? '/vmanager/dashboard' : '/committee/dashboard';
-                } else {
-                    target = '/vpvm/dashboard';
-                }
-            } catch {
-                target = role === 'venture_mgr' ? '/vmanager/dashboard' : '/committee/dashboard';
-            }
+            target = '/vpvm/dashboard';
         } else if (role === 'mentor') {
             target = '/expert/dashboard';
         } else if (role === 'ops_manager') {

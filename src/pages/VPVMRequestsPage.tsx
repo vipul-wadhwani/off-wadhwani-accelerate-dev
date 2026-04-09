@@ -61,6 +61,8 @@ export const VPVMRequestsPage: React.FC = () => {
         })();
     }, [fetchRequests]);
 
+    const [generatingBrief, setGeneratingBrief] = useState(false);
+
     // Fetch brief when a request is selected
     const fetchBrief = useCallback(async (sessionId: string) => {
         setLoadingBrief(true);
@@ -74,6 +76,22 @@ export const VPVMRequestsPage: React.FC = () => {
         finally { setLoadingBrief(false); }
     }, []);
 
+    const generateBrief = useCallback(async () => {
+        if (!selectedRequest?.session_id) return;
+        setGeneratingBrief(true);
+        try {
+            const token = await getToken();
+            const res = await fetch(`${API_URL}/api/briefs/generate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ session_id: selectedRequest.session_id }),
+            });
+            const data = await res.json();
+            if (data.success && data.data) setBrief(data.data);
+        } catch (err) { console.error('[Brief] Generate error:', err); }
+        finally { setGeneratingBrief(false); }
+    }, [selectedRequest]);
+
     useEffect(() => {
         if (selectedRequest?.session_id) {
             fetchBrief(selectedRequest.session_id);
@@ -83,21 +101,14 @@ export const VPVMRequestsPage: React.FC = () => {
     }, [selectedRequest, fetchBrief]);
 
     const counts = useMemo(() => {
-        let pending = 0, in_progress = 0, declined = 0;
-        for (const r of requests) {
-            if (r.status === 'pending') pending++;
-            else if (r.status === 'accepted' || r.status === 'scheduled') in_progress++;
-            else if (r.status === 'declined') declined++;
-        }
-        // All upcoming sessions count as "scheduled/in-progress"
-        in_progress += upcomingSessions.length;
-        const completed = completedSessions.length;
-        return { total: completed + pending + in_progress + declined, pending, completed, in_progress, declined };
-    }, [requests, completedSessions, upcomingSessions]);
+        const opsUpcoming = upcomingSessions.filter(s => s.source === 'ops_scheduled').length;
+        const opsCompleted = completedSessions.filter(s => s.source === 'ops_scheduled').length;
+        return { total: opsCompleted + opsUpcoming, pending: 0, completed: opsCompleted, in_progress: opsUpcoming, declined: 0 };
+    }, [completedSessions, upcomingSessions]);
 
-    // Convert ALL upcoming sessions into a format similar to MeetingRequest for display
+    // Convert upcoming VP/VM sessions (ops_scheduled only) into a format similar to MeetingRequest for display
     const sessionsAsRequests = useMemo(() => {
-        return upcomingSessions.map((s): MeetingRequest => ({
+        return upcomingSessions.filter(s => s.source === 'ops_scheduled').map((s): MeetingRequest => ({
             id: s.id,
             venture_id: s.venture_id,
             expert_id: s.mentor_id,
@@ -121,12 +132,9 @@ export const VPVMRequestsPage: React.FC = () => {
     }, [upcomingSessions]);
 
     const allRequests = useMemo(() => {
-        const nonCompleted = requests.filter(r => r.status !== 'completed');
-        // Merge expert requests + ops-scheduled sessions, deduplicate by session_id
-        const sessionIds = new Set(nonCompleted.filter(r => r.session_id).map(r => r.session_id));
-        const uniqueOps = sessionsAsRequests.filter(o => !sessionIds.has(o.session_id));
-        return [...nonCompleted, ...uniqueOps];
-    }, [requests, sessionsAsRequests]);
+        // Only show VP/VM sessions (ops_scheduled) in Upcoming Meetings — no expert requests
+        return sessionsAsRequests;
+    }, [sessionsAsRequests]);
 
     const requestsList = useMemo(() => {
         if (requestFilter === 'all') return allRequests;
@@ -155,16 +163,13 @@ export const VPVMRequestsPage: React.FC = () => {
 
     const stats = [
         { label: 'Total', value: counts.total, bg: 'bg-indigo-50/50 border border-indigo-200/60', text: 'text-indigo-600', num: 'text-indigo-700' },
-        { label: 'Pending', value: counts.pending, bg: 'bg-amber-50/50 border border-amber-200/60', text: 'text-amber-600', num: 'text-amber-600' },
+        { label: 'Upcoming', value: counts.pending + counts.in_progress, bg: 'bg-amber-50/50 border border-amber-200/60', text: 'text-amber-600', num: 'text-amber-600' },
         { label: 'Completed', value: counts.completed, bg: 'bg-emerald-50/50 border border-emerald-200/60', text: 'text-emerald-600', num: 'text-emerald-700' },
-        { label: 'In Progress', value: counts.in_progress, bg: 'bg-blue-50/50 border border-blue-200/60', text: 'text-blue-600', num: 'text-blue-700' },
-        { label: 'Declined', value: counts.declined, bg: 'bg-red-50/50 border border-red-200/60', text: 'text-red-600', num: 'text-red-700' },
     ];
 
     const mainTabs: { key: ListTab; label: string; icon: React.ReactNode }[] = [
         { key: 'completed', label: 'Completed Meetings', icon: <CheckCircle2 className="w-4 h-4" /> },
-        { key: 'requests', label: 'Meeting Requests', icon: <MessageSquare className="w-4 h-4" /> },
-        { key: 'availability', label: 'My Availability', icon: <Calendar className="w-4 h-4" /> },
+        { key: 'requests', label: 'Upcoming Meetings', icon: <MessageSquare className="w-4 h-4" /> },
     ];
 
     const filterPills: { key: RequestFilter; label: string }[] = [
@@ -172,7 +177,6 @@ export const VPVMRequestsPage: React.FC = () => {
         { key: 'pending', label: 'Pending' },
         { key: 'accepted', label: 'Accepted' },
         { key: 'scheduled', label: 'Scheduled' },
-        { key: 'declined', label: 'Declined' },
     ];
 
     return (
@@ -186,7 +190,7 @@ export const VPVMRequestsPage: React.FC = () => {
             </div>
 
             {/* Stat Cards */}
-            <div className="grid grid-cols-5 gap-3">
+            <div className="grid grid-cols-3 gap-3">
                 {stats.map(({ label, value, bg, text, num }) => (
                     <div key={label} className={`rounded-xl p-4 text-center ${bg}`}>
                         <div className={`text-3xl font-bold ${num}`}>{value}</div>
@@ -218,34 +222,10 @@ export const VPVMRequestsPage: React.FC = () => {
 
             {/* Content */}
             {activeTab === 'completed' && (
-                <CompletedSessionsList sessions={completedSessions} navigate={navigate} />
+                <CompletedSessionsList sessions={completedSessions.filter(s => s.source === 'ops_scheduled')} navigate={navigate} />
             )}
             {activeTab === 'requests' && (
                 <>
-                    {/* Filter Pills */}
-                    <div className="flex items-center gap-2">
-                        {filterPills.map(({ key, label }) => {
-                            const count = requestFilterCounts[key];
-                            const isActive = requestFilter === key;
-                            return (
-                                <button
-                                    key={key}
-                                    onClick={() => { setRequestFilter(key); setSelectedRequest(null); }}
-                                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors flex items-center gap-1.5 ${
-                                        isActive
-                                            ? 'bg-indigo-600 text-white border-indigo-600'
-                                            : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                                    }`}
-                                >
-                                    {label}
-                                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
-                                        isActive ? 'bg-indigo-500 text-white' : 'bg-gray-100 text-gray-500'
-                                    }`}>{count}</span>
-                                </button>
-                            );
-                        })}
-                    </div>
-
                     {/* Split Panel */}
                     <div className="flex gap-4" style={{ minHeight: '500px' }}>
                         {/* Left — Request Cards */}
@@ -276,6 +256,8 @@ export const VPVMRequestsPage: React.FC = () => {
                                     brief={brief}
                                     loadingBrief={loadingBrief}
                                     onClose={() => setSelectedRequest(null)}
+                                    onGenerateBrief={generateBrief}
+                                    generatingBrief={generatingBrief}
                                 />
                             </div>
                         )}
@@ -425,9 +407,60 @@ const RequestDetailPanel: React.FC<{
     brief: any;
     loadingBrief: boolean;
     onClose: () => void;
-}> = ({ request, brief, loadingBrief, onClose }) => {
+    onGenerateBrief: () => void;
+    generatingBrief: boolean;
+}> = ({ request, brief, loadingBrief, onClose, onGenerateBrief, generatingBrief }) => {
     const expertName = request.expert?.full_name || 'Expert';
     const content = brief?.brief_content;
+    const [ventureInfo, setVentureInfo] = useState<any>(null);
+    const [roadmap, setRoadmap] = useState<any>(null);
+
+    // Fetch venture details + roadmap for overview
+    useEffect(() => {
+        if (!request.venture_id) return;
+        const vid = request.venture_id;
+        (async () => {
+            try {
+                const token = await getToken();
+                const headers = { Authorization: `Bearer ${token}` };
+                const [ventureRes, roadmapRes] = await Promise.all([
+                    fetch(`${API_URL}/api/ventures/${vid}`, { headers }),
+                    fetch(`${API_URL}/api/ventures/${vid}/roadmap`, { headers }),
+                ]);
+                const ventureData = await ventureRes.json();
+                setVentureInfo(ventureData.venture || ventureData.data || ventureData);
+                const roadmapData = await roadmapRes.json();
+                setRoadmap(roadmapData.roadmap || roadmapData.data?.roadmap || roadmapData.data || null);
+            } catch { /* ignore */ }
+        })();
+    }, [request.venture_id]);
+
+    // Build structured overview from venture + roadmap data
+    const ventureOverview = useMemo(() => {
+        if (!ventureInfo) return null;
+        const app = ventureInfo.application || ventureInfo;
+        return {
+            description: app.product_description || ventureInfo.description || null,
+            problem: app.problem_statement || null,
+            product: app.current_product || null,
+            segment: app.current_segment || null,
+            location: app.current_geography || ventureInfo.location || ventureInfo.city || null,
+            founder: ventureInfo.founder_name || app.founder_name || null,
+            revenue: app.revenue_12m || null,
+            employees: app.full_time_employees || null,
+            growthFocus: Array.isArray(ventureInfo.growth_focus) ? ventureInfo.growth_focus : (Array.isArray(app.growth_focus) ? app.growth_focus : null),
+        };
+    }, [ventureInfo]);
+
+    // Extract roadmap streams
+    const roadmapStreams = useMemo(() => {
+        if (!roadmap?.roadmap_data?.streams) return null;
+        return roadmap.roadmap_data.streams.map((s: any) => ({
+            name: s.stream_name || s.name || 'Stream',
+            status: s.status || 'N/A',
+            goal: s.goal || s.description || null,
+        }));
+    }, [roadmap]);
 
     return (
         <div className="flex flex-col h-full">
@@ -456,6 +489,66 @@ const RequestDetailPanel: React.FC<{
                         </p>
                     )}
                 </DetailSection>
+
+                {/* Venture Overview */}
+                {ventureOverview && (
+                    <DetailSection icon={<FileText className="w-4 h-4" />} label="VENTURE OVERVIEW" color="text-gray-500">
+                        <div className="space-y-2 text-xs">
+                            {ventureOverview.description && (
+                                <p className="text-gray-700 leading-relaxed">{ventureOverview.description}</p>
+                            )}
+                            {ventureOverview.problem && (
+                                <p className="text-gray-600"><span className="font-medium text-gray-800">Problem:</span> {ventureOverview.problem}</p>
+                            )}
+                            <div className="grid grid-cols-2 gap-2 text-gray-600">
+                                {ventureOverview.founder && <p><span className="font-medium text-gray-800">Founder:</span> {ventureOverview.founder}</p>}
+                                {ventureOverview.location && <p><span className="font-medium text-gray-800">Location:</span> {ventureOverview.location}</p>}
+                                {ventureOverview.product && <p><span className="font-medium text-gray-800">Product:</span> {ventureOverview.product}</p>}
+                                {ventureOverview.segment && <p><span className="font-medium text-gray-800">Segment:</span> {ventureOverview.segment}</p>}
+                                {ventureOverview.revenue && <p><span className="font-medium text-gray-800">Revenue (12m):</span> {ventureOverview.revenue}</p>}
+                                {ventureOverview.employees && <p><span className="font-medium text-gray-800">Employees:</span> {ventureOverview.employees}</p>}
+                            </div>
+                            {ventureOverview.growthFocus && ventureOverview.growthFocus.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                    {ventureOverview.growthFocus.map((g: string, i: number) => (
+                                        <span key={i} className="inline-block px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full text-[10px] font-medium">{g}</span>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </DetailSection>
+                )}
+
+                {/* AI Overview — from brief summary */}
+                {content?.summary && (
+                    <DetailSection icon={<FileText className="w-4 h-4" />} label="OVERVIEW" color="text-gray-500">
+                        <p className="text-sm text-gray-700 leading-relaxed">{content.summary}</p>
+                    </DetailSection>
+                )}
+
+                {/* Roadmap Streams */}
+                {roadmapStreams && roadmapStreams.length > 0 && (
+                    <DetailSection icon={<Target className="w-4 h-4" />} label="ROADMAP" color="text-blue-600">
+                        <div className="space-y-1.5">
+                            {roadmapStreams.map((s: any, i: number) => {
+                                const statusColor = s.status === 'Green (On Track)' ? 'bg-emerald-100 text-emerald-700' :
+                                    s.status?.includes('Amber') ? 'bg-amber-100 text-amber-700' :
+                                    s.status?.includes('Red') ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600';
+                                return (
+                                    <div key={i} className="flex items-start gap-2 px-3 py-2 bg-gray-50 border border-gray-100 rounded-lg text-xs">
+                                        <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold flex-shrink-0 mt-0.5 ${statusColor}`}>
+                                            {s.status?.split(' ')[0] || '—'}
+                                        </span>
+                                        <div>
+                                            <span className="font-medium text-gray-800">{s.name}</span>
+                                            {s.goal && <p className="text-gray-500 mt-0.5">{s.goal}</p>}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </DetailSection>
+                )}
 
                 {/* Meeting Goal */}
                 {request.meeting_goal && (
@@ -542,17 +635,19 @@ const RequestDetailPanel: React.FC<{
                             </DetailSection>
                         )}
 
-                        {/* Overview */}
-                        {content.summary && (
-                            <DetailSection icon={<FileText className="w-4 h-4" />} label="OVERVIEW" color="text-gray-500">
-                                <p className="text-xs text-gray-600 leading-relaxed">{content.summary}</p>
-                            </DetailSection>
-                        )}
                     </>
                 ) : request.session_id ? (
                     <div className="text-center py-6 text-gray-400">
                         <Sparkles className="w-6 h-6 mx-auto mb-2 text-gray-300" />
-                        <p className="text-xs">No pre-meeting brief generated yet.</p>
+                        <p className="text-xs mb-3">No pre-meeting brief generated yet.</p>
+                        <button
+                            onClick={onGenerateBrief}
+                            disabled={generatingBrief}
+                            className="px-4 py-2 bg-teal-600 text-white text-xs font-medium rounded-lg hover:bg-teal-700 disabled:opacity-50 flex items-center gap-2 mx-auto"
+                        >
+                            {generatingBrief ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                            {generatingBrief ? 'Generating...' : 'Generate AI Brief'}
+                        </button>
                     </div>
                 ) : null}
             </div>

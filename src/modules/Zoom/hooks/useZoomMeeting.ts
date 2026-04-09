@@ -63,9 +63,11 @@ export function useZoomMeeting(
             const container = document.getElementById(containerId);
             if (!container) throw new Error(`Container element #${containerId} not found`);
 
-            // Calculate 70% of viewport for video (leave room for right panel in Phase 3)
-            const videoWidth = Math.floor(window.innerWidth * 0.65);
-            const videoHeight = Math.floor(window.innerHeight - 100);
+            // Fill remaining space: viewport minus right panel (360px) and header (56px)
+            const rightPanelWidth = 360;
+            const headerHeight = 56;
+            const videoWidth = Math.floor(window.innerWidth - rightPanelWidth);
+            const videoHeight = Math.floor(window.innerHeight - headerHeight);
 
             await client.init({
                 zoomAppRoot: container,
@@ -109,6 +111,30 @@ export function useZoomMeeting(
             }
 
             setStatus('joined');
+
+            // Auto-enable captions after a short delay for the Zoom UI to render
+            setTimeout(async () => {
+                try {
+                    const moreBtn = document.querySelector('button[title="More"]') as HTMLElement;
+                    if (moreBtn) {
+                        moreBtn.click();
+                        await new Promise(r => setTimeout(r, 600));
+                        const captionsItem = Array.from(document.querySelectorAll('li, div, span, button')).find(
+                            el => el.textContent?.trim() === 'Show Captions'
+                        ) as HTMLElement;
+                        if (captionsItem) {
+                            captionsItem.click();
+                            console.log('[Zoom] Auto-enabled captions');
+                        } else {
+                            // Close the menu if captions not found
+                            moreBtn.click();
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[Zoom] Auto-enable captions failed:', e);
+                }
+            }, 3000);
+
         } catch (err: any) {
             console.error('[Zoom] Join error:', err);
             setError(err.message || 'Failed to join meeting');

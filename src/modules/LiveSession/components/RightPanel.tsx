@@ -3,7 +3,7 @@ import { FileText, MessageSquare, Sparkles, Users, X } from 'lucide-react';
 import { BriefPanel } from '../../PreMeetingBrief';
 import { TranscriptPanel } from './TranscriptPanel';
 import { InsightsPanel } from './InsightsPanel';
-import { DiscoverExpertsPage } from '../../ExpertMatching';
+import { InlineExpertPanel } from './InlineExpertPanel';
 
 type Tab = 'brief' | 'transcript' | 'insights' | 'actions';
 
@@ -16,14 +16,14 @@ interface RightPanelProps {
 }
 
 const TABS: { id: Tab; label: string; icon: React.FC<any> }[] = [
-    { id: 'brief', label: 'Brief', icon: FileText },
     { id: 'transcript', label: 'Transcript', icon: MessageSquare },
-    { id: 'insights', label: 'Insights', icon: Sparkles },
-    { id: 'actions', label: 'Actions', icon: Users },
+    { id: 'insights', label: 'AI Insights', icon: Sparkles },
+    { id: 'actions', label: 'Action Items', icon: Users },
+    { id: 'brief', label: 'Brief', icon: FileText },
 ];
 
 export const RightPanel: React.FC<RightPanelProps> = ({ sessionId, ventureId, ventureName, transcriptChunks, topic }) => {
-    const [activeTab, setActiveTab] = useState<Tab>('brief');
+    const [activeTab, setActiveTab] = useState<Tab>('transcript');
     const [showExpertModal, setShowExpertModal] = useState(false);
 
     const currentTranscript = transcriptChunks
@@ -32,9 +32,9 @@ export const RightPanel: React.FC<RightPanelProps> = ({ sessionId, ventureId, ve
 
     return (
         <>
-        <div className="w-[360px] bg-gray-900 border-l border-gray-700 flex flex-col h-full">
+        <div className="w-[360px] bg-white border-l border-gray-200 flex flex-col h-full">
             {/* Tab bar */}
-            <div className="flex border-b border-gray-700">
+            <div className="flex border-b border-gray-200">
                 {TABS.map(tab => {
                     const Icon = tab.icon;
                     const isActive = activeTab === tab.id;
@@ -44,14 +44,14 @@ export const RightPanel: React.FC<RightPanelProps> = ({ sessionId, ventureId, ve
                             onClick={() => setActiveTab(tab.id)}
                             className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-medium transition-colors ${
                                 isActive
-                                    ? 'text-teal-400 border-b-2 border-teal-400 bg-gray-800/50'
-                                    : 'text-gray-500 hover:text-gray-300'
+                                    ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/50'
+                                    : 'text-gray-500 hover:text-gray-700'
                             }`}
                         >
                             <Icon className="w-3.5 h-3.5" />
                             {tab.label}
                             {tab.id === 'transcript' && transcriptChunks.length > 0 && (
-                                <span className="w-4 h-4 rounded-full bg-teal-900 text-teal-300 text-[9px] flex items-center justify-center">
+                                <span className="w-4 h-4 rounded-full bg-indigo-100 text-indigo-700 text-[9px] flex items-center justify-center font-bold">
                                     {transcriptChunks.length}
                                 </span>
                             )}
@@ -62,78 +62,72 @@ export const RightPanel: React.FC<RightPanelProps> = ({ sessionId, ventureId, ve
 
             {/* Tab content */}
             <div className="flex-1 overflow-y-auto p-4">
-                {activeTab === 'brief' && <BriefPanel sessionId={sessionId} />}
                 {activeTab === 'transcript' && <TranscriptPanel chunks={transcriptChunks} />}
                 {activeTab === 'insights' && (
                     <InsightsPanel sessionId={sessionId} currentTranscript={currentTranscript} topic={topic} />
                 )}
                 {activeTab === 'actions' && (
-                    <div className="space-y-3">
-                        <button
-                            onClick={() => setShowExpertModal(true)}
-                            className="w-full flex items-center gap-3 p-3 bg-teal-900/40 border border-teal-800 rounded-lg hover:bg-teal-900/60 transition-colors text-left"
-                        >
-                            <div className="w-10 h-10 rounded-lg bg-teal-600 flex items-center justify-center flex-shrink-0">
-                                <Users className="w-5 h-5 text-white" />
-                            </div>
-                            <div>
-                                <p className="text-sm font-semibold text-teal-300">Connect to Expert</p>
-                                <p className="text-[11px] text-gray-400">AI-match & book an expert for this venture</p>
-                            </div>
-                        </button>
-
-                        <button
-                            disabled
-                            className="w-full flex items-center gap-3 p-3 bg-gray-800/50 border border-gray-700 rounded-lg text-left opacity-50 cursor-not-allowed"
-                        >
-                            <div className="w-10 h-10 rounded-lg bg-gray-700 flex items-center justify-center flex-shrink-0">
-                                <Sparkles className="w-5 h-5 text-gray-400" />
-                            </div>
-                            <div>
-                                <p className="text-sm font-semibold text-gray-400">Register for Masterclass</p>
-                                <p className="text-[11px] text-gray-500">Coming soon</p>
-                            </div>
-                        </button>
-
-                        <button
-                            disabled
-                            className="w-full flex items-center gap-3 p-3 bg-gray-800/50 border border-gray-700 rounded-lg text-left opacity-50 cursor-not-allowed"
-                        >
-                            <div className="w-10 h-10 rounded-lg bg-gray-700 flex items-center justify-center flex-shrink-0">
-                                <MessageSquare className="w-5 h-5 text-gray-400" />
-                            </div>
-                            <div>
-                                <p className="text-sm font-semibold text-gray-400">Connect to Service Provider</p>
-                                <p className="text-[11px] text-gray-500">Coming soon</p>
-                            </div>
-                        </button>
-                    </div>
+                    <ActionItemsList onConnectExpert={() => setShowExpertModal(true)} />
                 )}
+                {activeTab === 'brief' && <BriefPanel sessionId={sessionId} />}
             </div>
         </div>
 
-        {/* Expert Connect Modal — overlays the meeting */}
+        {/* Connect to Expert Modal */}
         {showExpertModal && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
-                    <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white rounded-t-2xl z-10">
-                        <div>
-                            <h2 className="text-lg font-bold text-gray-900">Connect to Expert</h2>
-                            <p className="text-sm text-gray-500">Find and book an expert for {ventureName || 'this venture'}</p>
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowExpertModal(false)}>
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+                        <div className="flex items-center gap-2">
+                            <span className="text-lg">🤝</span>
+                            <h2 className="text-base font-bold text-gray-900">Connect to Expert</h2>
                         </div>
-                        <button
-                            onClick={() => setShowExpertModal(false)}
-                            className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:bg-gray-100"
-                        >
+                        <button onClick={() => setShowExpertModal(false)} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600">
                             <X className="w-5 h-5" />
                         </button>
                     </div>
-                    <div className="p-6">
-                        <DiscoverExpertsPage ventureId={ventureId} ventureName={ventureName} />
+                    <div className="flex-1 overflow-y-auto p-5">
+                        <InlineExpertPanel ventureId={ventureId} ventureName={ventureName} />
                     </div>
                 </div>
             </div>
         )}
         </>
+    );
+};
+
+/* ---- Action Items List ---- */
+
+const ActionItemsList: React.FC<{ onConnectExpert: () => void }> = ({ onConnectExpert }) => {
+    const actions = [
+        { label: 'Playbook', icon: '📒', enabled: false },
+        { label: 'Connect to Expert', icon: '🤝', enabled: true, onClick: onConnectExpert },
+        { label: 'Register for Masterclass', icon: '🎓', enabled: false },
+        { label: 'Service Provider', icon: '🔧', enabled: false },
+        { label: 'Research', icon: '🔍', enabled: false },
+    ];
+
+    return (
+        <div className="space-y-4">
+            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                Select action items agreed in this session:
+            </span>
+            <div className="space-y-2">
+                {actions.map(({ label, icon, enabled, onClick }) => (
+                    <button
+                        key={label}
+                        onClick={enabled ? onClick : undefined}
+                        disabled={!enabled}
+                        className={`w-full text-left px-4 py-3.5 rounded-xl border text-sm font-medium transition-all ${
+                            enabled
+                                ? 'border-indigo-300 bg-indigo-50/50 text-indigo-700 hover:bg-indigo-100 hover:border-indigo-400 cursor-pointer ring-1 ring-indigo-200'
+                                : 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
+                        }`}
+                    >
+                        {icon} {label}
+                    </button>
+                ))}
+            </div>
+        </div>
     );
 };

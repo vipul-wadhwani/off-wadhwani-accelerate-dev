@@ -442,7 +442,7 @@ router.get(
             // Get upcoming sessions
             const { data: sessions } = await serviceClient
                 .from('mentor_sessions')
-                .select('id, topic, scheduled_date, scheduled_time, duration_minutes, join_url, zoom_meeting_id, status, venture_id, mentor_id')
+                .select('id, topic, scheduled_date, scheduled_time, duration_minutes, join_url, zoom_meeting_id, status, venture_id, mentor_id, source')
                 .in('venture_id', ventureIds)
                 .eq('status', 'scheduled')
                 .gte('scheduled_date', new Date().toISOString().split('T')[0])

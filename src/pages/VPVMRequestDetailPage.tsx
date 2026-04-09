@@ -555,7 +555,7 @@ const SessionHistoryContent: React.FC<{ ventureId?: string; currentSessionId?: s
                 });
                 const data = await res.json();
                 const allSessions = data.data || data.sessions || data || [];
-                setSessions(Array.isArray(allSessions) ? allSessions.filter((s: any) => s.id !== currentSessionId) : []);
+                setSessions(Array.isArray(allSessions) ? allSessions.filter((s: any) => s.id !== currentSessionId && s.status !== 'cancelled') : []);
             } catch (err) { console.error('[SessionHistory] error:', err); }
             finally { setLoading(false); }
         })();

@@ -79,6 +79,23 @@ export const LiveSessionPage: React.FC = () => {
             }
         };
         fetchSession();
+
+        // Load previously saved transcript chunks
+        const loadTranscript = async () => {
+            if (!sessionId) return;
+            try {
+                const { supabase } = await import('../../../lib/supabase');
+                const token = (await supabase.auth.getSession()).data.session?.access_token;
+                const res = await fetch(`${API_URL}/api/sessions/${sessionId}/transcript`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                const data = await res.json();
+                if (data.success && data.data?.chunks?.length > 0) {
+                    setTranscriptChunks(data.data.chunks);
+                }
+            } catch { /* ignore */ }
+        };
+        loadTranscript();
     }, [sessionId]);
 
     const handleMeetingEnd = useCallback(async () => {
@@ -205,31 +222,37 @@ export const LiveSessionPage: React.FC = () => {
     }
 
     return (
-        <div className="min-h-screen bg-gray-900 flex flex-col">
+        <div className="h-screen bg-gray-50 flex flex-col">
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 bg-gray-800 border-b border-gray-700">
+            <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200 shadow-sm">
                 <div className="flex items-center gap-3">
-                    <button onClick={goBack} className="text-gray-400 hover:text-white">
+                    <button onClick={goBack} className="text-gray-500 hover:text-gray-900">
                         <ArrowLeft className="w-5 h-5" />
                     </button>
                     <div>
-                        <h1 className="text-white text-sm font-semibold">{session.topic || 'Expert Session'}</h1>
-                        <span className="text-gray-400 text-xs">
+                        <h1 className="text-gray-900 text-sm font-semibold">{session.topic || 'Expert Session'}</h1>
+                        <span className="text-gray-500 text-xs">
                             {isMentor ? 'You are the host' : 'You are a participant'}
                         </span>
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-900/50 text-green-400 rounded text-xs">
+                <div className="flex items-center gap-3">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium">
                         <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
                         Live
                     </span>
+                    <button
+                        onClick={handleMeetingEnd}
+                        className="px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+                    >
+                        End Session
+                    </button>
                 </div>
             </div>
 
             {/* Meeting area with right panel */}
-            <div className="flex-1 flex">
-                <div className="flex-1 p-4">
+            <div className="flex-1 flex min-h-0">
+                <div className="flex-1">
                     <ZoomMeetingRoom
                         meetingNumber={String(session.zoomMeetingId)}
                         password={session.zoomPassword}

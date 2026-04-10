@@ -152,46 +152,43 @@ export const LiveSessionPage: React.FC = () => {
     }, [sessionId]);
 
     const handleTranscriptChunk = useCallback((chunk: { speaker: string; text: string; time: string }) => {
-        // Zoom SDK sends progressive updates — each event contains the full sentence so far.
-        // We need to detect when it's a continuation vs a new sentence.
+        // Zoom SDK sends progressive updates per speaker — each event builds up the sentence.
+        // Speakers alternate, so we need to find the LAST chunk from the SAME speaker, not just the last chunk overall.
         const isProgressive = (prev: string, next: string) => {
             if (!prev || !next) return false;
-            // Next contains prev (progressive build-up)
-            if (next.startsWith(prev) || next.includes(prev.slice(0, Math.min(20, prev.length)))) return true;
-            // Prev contains next (shouldn't happen but handle it)
-            if (prev.startsWith(next)) return true;
-            // Share significant common prefix (at least 15 chars or 50% of shorter text)
-            const minLen = Math.min(prev.length, next.length);
-            const prefixThreshold = Math.max(15, Math.floor(minLen * 0.5));
+            if (next.startsWith(prev) || prev.startsWith(next)) return true;
+            // Share common prefix (at least 5 chars)
             let common = 0;
+            const minLen = Math.min(prev.length, next.length);
             while (common < minLen && prev[common] === next[common]) common++;
-            return common >= prefixThreshold;
+            return common >= 5;
         };
 
         setTranscriptChunks(prev => {
-            if (prev.length > 0) {
-                const last = prev[prev.length - 1];
-                if (last.speaker === chunk.speaker && isProgressive(last.text, chunk.text)) {
-                    return [...prev.slice(0, -1), chunk];
+            // Find the last chunk from the same speaker
+            for (let i = prev.length - 1; i >= Math.max(0, prev.length - 10); i--) {
+                if (prev[i].speaker === chunk.speaker) {
+                    if (isProgressive(prev[i].text, chunk.text)) {
+                        // Replace that chunk with the updated version
+                        const updated = [...prev];
+                        updated[i] = chunk;
+                        return updated;
+                    }
+                    break; // Found last same-speaker chunk but it's not progressive — new sentence
                 }
             }
             return [...prev, chunk];
         });
 
-        // For saving: only keep final versions
+        // For saving: find last from same speaker in pending
         const pending = pendingChunksRef.current;
-        if (pending.length > 0) {
-            const last = pending[pending.length - 1];
-            if (last.speaker === chunk.speaker) {
-                const isP = (last.text && chunk.text) && (
-                    chunk.text.startsWith(last.text) ||
-                    chunk.text.includes(last.text.slice(0, Math.min(20, last.text.length))) ||
-                    last.text.startsWith(chunk.text)
-                );
-                if (isP) {
-                    pending[pending.length - 1] = chunk;
+        for (let i = pending.length - 1; i >= Math.max(0, pending.length - 10); i--) {
+            if (pending[i].speaker === chunk.speaker) {
+                if (isProgressive(pending[i].text, chunk.text)) {
+                    pending[i] = chunk;
                     return;
                 }
+                break;
             }
         }
         pending.push(chunk);

@@ -4,6 +4,7 @@ import { Rocket, Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 import { logger } from '../utils/logger';
 
 export const Login: React.FC = () => {
@@ -21,7 +22,22 @@ export const Login: React.FC = () => {
         if (isApply) {
             target = '/dashboard/new-application';
         } else if (role === 'venture_mgr' || role === 'committee_member') {
-            target = '/vpvm/dashboard';
+            // Check panelists table to determine Panelist vs VP/VM routing
+            try {
+                const { data: { user: authUser } } = await supabase.auth.getUser();
+                const fullName = authUser?.user_metadata?.full_name || '';
+                const { data: panelists } = await supabase.from('panelists').select('name');
+                const panelistNames = new Set((panelists || []).map((p: any) => (p.name || '').toLowerCase().trim()));
+                const isPanelist = panelistNames.has(fullName.toLowerCase().trim());
+
+                if (isPanelist) {
+                    target = role === 'venture_mgr' ? '/vmanager/dashboard' : '/committee/dashboard';
+                } else {
+                    target = '/vpvm/dashboard';
+                }
+            } catch {
+                target = '/vpvm/dashboard';
+            }
         } else if (role === 'mentor') {
             target = '/expert/dashboard';
         } else if (role === 'ops_manager') {

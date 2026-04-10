@@ -63,9 +63,10 @@ export function useZoomMeeting(
             const container = document.getElementById(containerId);
             if (!container) throw new Error(`Container element #${containerId} not found`);
 
-            // Fill remaining space: viewport minus right panel (360px) and header (56px)
-            const rightPanelWidth = 360;
+            // Fill remaining space: detect right panel, subtract header
             const headerHeight = 56;
+            const hasRightPanel = !!document.querySelector('[data-right-panel]');
+            const rightPanelWidth = hasRightPanel ? 360 : 0;
             const videoWidth = Math.floor(window.innerWidth - rightPanelWidth);
             const videoHeight = Math.floor(window.innerHeight - headerHeight);
 

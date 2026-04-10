@@ -13,16 +13,19 @@ interface RightPanelProps {
     ventureName?: string;
     transcriptChunks: Array<{ speaker: string; text: string; time: string }>;
     topic?: string;
+    userRole?: string;
 }
 
-const TABS: { id: Tab; label: string; icon: React.FC<any> }[] = [
+const ALL_TABS: { id: Tab; label: string; icon: React.FC<any> }[] = [
     { id: 'transcript', label: 'Transcript', icon: MessageSquare },
     { id: 'insights', label: 'AI Insights', icon: Sparkles },
     { id: 'actions', label: 'Action Items', icon: Users },
     { id: 'brief', label: 'Brief', icon: FileText },
 ];
 
-export const RightPanel: React.FC<RightPanelProps> = ({ sessionId, ventureId, ventureName, transcriptChunks, topic }) => {
+export const RightPanel: React.FC<RightPanelProps> = ({ sessionId, ventureId, ventureName, transcriptChunks, topic, userRole }) => {
+    const isEntrepreneur = userRole === 'entrepreneur';
+    const TABS = isEntrepreneur ? ALL_TABS.filter(t => t.id === 'transcript' || t.id === 'insights') : ALL_TABS;
     const [activeTab, setActiveTab] = useState<Tab>('transcript');
     const [showExpertModal, setShowExpertModal] = useState(false);
 
@@ -32,7 +35,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({ sessionId, ventureId, ve
 
     return (
         <>
-        <div className="w-[360px] bg-white border-l border-gray-200 flex flex-col h-full">
+        <div data-right-panel className="w-[360px] bg-white border-l border-gray-200 flex flex-col h-full">
             {/* Tab bar */}
             <div className="flex border-b border-gray-200">
                 {TABS.map(tab => {

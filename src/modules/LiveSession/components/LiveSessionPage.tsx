@@ -35,7 +35,7 @@ export const LiveSessionPage: React.FC = () => {
     const userRole = user?.user_metadata?.role;
     const isMentor = session?.mentorId === user?.id;
     const zoomRole = isMentor ? 1 : 0; // 1=host, 0=participant
-    const showRightPanel = userRole !== 'entrepreneur'; // VP/VM, experts see the panel
+    const showRightPanel = true; // All roles see the panel (entrepreneurs get Transcript + AI Insights only)
 
     // Auto-save transcript every 30 seconds
     useEffect(() => {
@@ -96,6 +96,31 @@ export const LiveSessionPage: React.FC = () => {
             } catch { /* ignore */ }
         };
         loadTranscript();
+
+        // For non-host (participants/entrepreneurs): poll for transcript updates every 15s
+        // since they don't receive Zoom SDK caption events directly
+        const pollInterval = setInterval(async () => {
+            if (!sessionId) return;
+            try {
+                const { supabase } = await import('../../../lib/supabase');
+                const token = (await supabase.auth.getSession()).data.session?.access_token;
+                const res = await fetch(`${API_URL}/api/sessions/${sessionId}/transcript`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                const data = await res.json();
+                if (data.success && data.data?.chunks?.length > 0) {
+                    setTranscriptChunks(prev => {
+                        // Only update if backend has more chunks
+                        if (data.data.chunks.length > prev.length) {
+                            return data.data.chunks;
+                        }
+                        return prev;
+                    });
+                }
+            } catch { /* ignore */ }
+        }, 15000);
+
+        return () => clearInterval(pollInterval);
     }, [sessionId]);
 
     const handleMeetingEnd = useCallback(async () => {
@@ -241,12 +266,14 @@ export const LiveSessionPage: React.FC = () => {
                         <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
                         Live
                     </span>
-                    <button
-                        onClick={handleMeetingEnd}
-                        className="px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
-                    >
-                        End Session
-                    </button>
+                    {isMentor && (
+                        <button
+                            onClick={handleMeetingEnd}
+                            className="px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+                        >
+                            End Session
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -270,6 +297,7 @@ export const LiveSessionPage: React.FC = () => {
                         ventureName={session.topic?.replace('VP/VM Session: ', '').replace('Expert Session: ', '')}
                         transcriptChunks={transcriptChunks}
                         topic={session.topic}
+                        userRole={userRole}
                     />
                 )}
             </div>

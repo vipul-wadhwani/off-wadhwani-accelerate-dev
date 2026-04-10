@@ -4,7 +4,6 @@ import { Rocket, Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../lib/supabase';
 import { logger } from '../utils/logger';
 
 export const Login: React.FC = () => {

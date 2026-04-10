@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Loader2, Calendar, Clock, Users, FileText, MessageSquare, Sparkles, AlertTriangle, Target, HelpCircle, CheckSquare, TrendingUp, X, Search, Copy, ChevronDown, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Loader2, FileText, MessageSquare, Sparkles, AlertTriangle, Target, HelpCircle, CheckSquare, TrendingUp, X, Search, Copy, ChevronDown } from 'lucide-react';
 import type { MeetingRequest } from '../modules/MeetingRequests/types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -14,7 +14,7 @@ async function getToken() {
 }
 
 export const VPVMRequestDetailPage: React.FC = () => {
-    const { requestId } = useParams<{ requestId: string }>();
+    const { requestId: _requestId } = useParams<{ requestId: string }>();
     const navigate = useNavigate();
     const location = useLocation();
     const request = (location.state as any)?.request as MeetingRequest | undefined;

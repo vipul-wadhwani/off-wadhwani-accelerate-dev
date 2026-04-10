@@ -3,10 +3,9 @@ import { useRequests } from '../modules/MeetingRequests/hooks/useRequests';
 import type { MeetingRequest } from '../modules/MeetingRequests/types';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Loader2, Calendar, Clock, MessageSquare, CheckCircle2, TrendingUp, X, AlertTriangle, Target, HelpCircle, CheckSquare, Video, FileText } from 'lucide-react';
+import { Loader2, Calendar, MessageSquare, CheckCircle2, TrendingUp, X, AlertTriangle, Target, HelpCircle, CheckSquare, Video, FileText } from 'lucide-react';
 
 type ListTab = 'completed' | 'requests' | 'availability';
-type RequestFilter = 'all' | 'pending' | 'accepted' | 'scheduled' | 'declined';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -30,9 +29,8 @@ async function getToken() {
 export const VPVMRequestsPage: React.FC = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
-    const { requests, loading, fetchRequests } = useRequests();
+    const { loading, fetchRequests } = useRequests();
     const [activeTab, setActiveTab] = useState<ListTab>('completed');
-    const [requestFilter, setRequestFilter] = useState<RequestFilter>('all');
     const [selectedRequest, setSelectedRequest] = useState<MeetingRequest | null>(null);
     const [brief, setBrief] = useState<any>(null);
     const [loadingBrief, setLoadingBrief] = useState(false);
@@ -136,20 +134,7 @@ export const VPVMRequestsPage: React.FC = () => {
         return sessionsAsRequests;
     }, [sessionsAsRequests]);
 
-    const requestsList = useMemo(() => {
-        if (requestFilter === 'all') return allRequests;
-        return allRequests.filter(r => r.status === requestFilter);
-    }, [allRequests, requestFilter]);
-
-    const requestFilterCounts = useMemo(() => {
-        return {
-            all: allRequests.length,
-            pending: allRequests.filter(r => r.status === 'pending').length,
-            accepted: allRequests.filter(r => r.status === 'accepted').length,
-            scheduled: allRequests.filter(r => r.status === 'scheduled').length,
-            declined: allRequests.filter(r => r.status === 'declined').length,
-        };
-    }, [allRequests]);
+    const requestsList = allRequests;
 
     const userName = user?.user_metadata?.full_name?.split(' ')[0] || 'there';
 
@@ -170,13 +155,6 @@ export const VPVMRequestsPage: React.FC = () => {
     const mainTabs: { key: ListTab; label: string; icon: React.ReactNode }[] = [
         { key: 'completed', label: 'Completed Meetings', icon: <CheckCircle2 className="w-4 h-4" /> },
         { key: 'requests', label: 'Upcoming Meetings', icon: <MessageSquare className="w-4 h-4" /> },
-    ];
-
-    const filterPills: { key: RequestFilter; label: string }[] = [
-        { key: 'all', label: 'All' },
-        { key: 'pending', label: 'Pending' },
-        { key: 'accepted', label: 'Accepted' },
-        { key: 'scheduled', label: 'Scheduled' },
     ];
 
     return (

@@ -103,6 +103,15 @@ const ExpertCard: React.FC<{
         return days;
     };
 
+    // Auto-load availability for tomorrow on mount
+    useEffect(() => {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const date = tomorrow.toISOString().split('T')[0];
+        setSelectedDate(date);
+        fetchSlots(date);
+    }, [expertId]);
+
     const fetchSlots = async (date: string) => {
         setLoadingSlots(true);
         setSlots([]);
@@ -146,7 +155,7 @@ const ExpertCard: React.FC<{
         : 'Select date';
 
     return (
-        <div className="border border-gray-200 rounded-xl bg-white overflow-hidden">
+        <div className="border border-gray-200 rounded-xl bg-white">
             {/* Header: Industry + Rank */}
             <div className="flex items-center justify-between px-4 pt-3">
                 {industry && (
@@ -166,19 +175,23 @@ const ExpertCard: React.FC<{
                 </div>
                 <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-gray-900">{expert.full_name}</p>
-                    <p className="text-[11px] text-gray-500">{expert.expertise_areas?.slice(0, 2).join(' · ')}</p>
+                    <p className="text-[11px] text-gray-500">{expert.company} · {expert.designation}</p>
+                    <p className="text-[11px] text-gray-500">{expert.expertise_areas?.slice(0, 3).join(' · ')}</p>
                     {expert.city && (
                         <p className="text-[10px] text-gray-400 flex items-center gap-0.5 mt-0.5">
                             <MapPin className="w-2.5 h-2.5" /> {expert.city}
                         </p>
                     )}
+                    {expert.years_experience && (
+                        <p className="text-[10px] text-gray-400 mt-0.5">{expert.years_experience} yrs experience</p>
+                    )}
                 </div>
             </div>
 
-            {/* AI Rationale */}
-            {expert.rationale && (
+            {/* AI Rationale / Bio */}
+            {(expert.rationale || expert.bio) && (
                 <div className="mx-4 mb-3 pl-3 border-l-2 border-indigo-400 bg-indigo-50/50 rounded-r-lg py-2 pr-3">
-                    <p className="text-[11px] text-gray-700 leading-relaxed">{expert.rationale}</p>
+                    <p className="text-[11px] text-gray-700 leading-relaxed">{expert.rationale || expert.bio}</p>
                 </div>
             )}
 
@@ -193,7 +206,7 @@ const ExpertCard: React.FC<{
                         <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${dateDropdownOpen ? 'rotate-180' : ''}`} />
                     </button>
                     {dateDropdownOpen && (
-                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 py-1">
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 py-1 max-h-48 overflow-y-auto">
                             {getNext7Days().map(({ date, label }) => (
                                 <button
                                     key={date}

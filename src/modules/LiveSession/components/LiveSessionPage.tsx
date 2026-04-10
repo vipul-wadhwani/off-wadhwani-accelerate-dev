@@ -152,26 +152,46 @@ export const LiveSessionPage: React.FC = () => {
     }, [sessionId]);
 
     const handleTranscriptChunk = useCallback((chunk: { speaker: string; text: string; time: string }) => {
-        // Zoom SDK sends progressive updates (same sentence gets longer).
-        // Replace the last chunk from the same speaker instead of appending duplicates.
+        // Zoom SDK sends progressive updates — each event contains the full sentence so far.
+        // We need to detect when it's a continuation vs a new sentence.
+        const isProgressive = (prev: string, next: string) => {
+            if (!prev || !next) return false;
+            // Next contains prev (progressive build-up)
+            if (next.startsWith(prev) || next.includes(prev.slice(0, Math.min(20, prev.length)))) return true;
+            // Prev contains next (shouldn't happen but handle it)
+            if (prev.startsWith(next)) return true;
+            // Share significant common prefix (at least 15 chars or 50% of shorter text)
+            const minLen = Math.min(prev.length, next.length);
+            const prefixThreshold = Math.max(15, Math.floor(minLen * 0.5));
+            let common = 0;
+            while (common < minLen && prev[common] === next[common]) common++;
+            return common >= prefixThreshold;
+        };
+
         setTranscriptChunks(prev => {
             if (prev.length > 0) {
                 const last = prev[prev.length - 1];
-                if (last.speaker === chunk.speaker && chunk.text.startsWith(last.text.slice(0, 10))) {
-                    // Same speaker, text is a continuation — replace last entry
+                if (last.speaker === chunk.speaker && isProgressive(last.text, chunk.text)) {
                     return [...prev.slice(0, -1), chunk];
                 }
             }
             return [...prev, chunk];
         });
 
-        // For saving: only keep final versions (replace last from same speaker)
+        // For saving: only keep final versions
         const pending = pendingChunksRef.current;
         if (pending.length > 0) {
             const last = pending[pending.length - 1];
-            if (last.speaker === chunk.speaker && chunk.text.startsWith(last.text.slice(0, 10))) {
-                pending[pending.length - 1] = chunk;
-                return;
+            if (last.speaker === chunk.speaker) {
+                const isP = (last.text && chunk.text) && (
+                    chunk.text.startsWith(last.text) ||
+                    chunk.text.includes(last.text.slice(0, Math.min(20, last.text.length))) ||
+                    last.text.startsWith(chunk.text)
+                );
+                if (isP) {
+                    pending[pending.length - 1] = chunk;
+                    return;
+                }
             }
         }
         pending.push(chunk);

@@ -1,11 +1,14 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { Rocket, LayoutDashboard, LogOut, Clock, MessageSquare } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
+import { getRoleDisplayLabel } from '../utils/roleLabels';
 
 export const VPVMLayout: React.FC = () => {
     const { signOut, user, loading } = useAuth();
     const navigate = useNavigate();
+    const [roleLabel, setRoleLabel] = useState('');
 
     React.useEffect(() => {
         if (!loading && !user) {
@@ -13,8 +16,37 @@ export const VPVMLayout: React.FC = () => {
         }
     }, [user, loading, navigate]);
 
-    const role = user?.user_metadata?.role;
-    const roleLabel = role === 'venture_mgr' ? 'VM (Prime)' : 'VP (Core/Select)';
+    // Determine role label using same logic as User Management page
+    useEffect(() => {
+        const determineLabel = async () => {
+            const role = user?.user_metadata?.role || '';
+            const fullName = user?.user_metadata?.full_name || '';
+
+            try {
+                // Check if user is in panelists table
+                const { data: panelists, error } = await supabase
+                    .from('panelists')
+                    .select('name');
+
+                if (error) {
+                    console.warn('[VPVMLayout] Panelists query error:', error.message);
+                    setRoleLabel(getRoleDisplayLabel(role, false));
+                    return;
+                }
+
+                const panelistNames = new Set(
+                    (panelists || []).map((p: any) => (p.name || '').toLowerCase().trim())
+                );
+                const isPanelist = panelistNames.has(fullName.toLowerCase().trim());
+
+                setRoleLabel(getRoleDisplayLabel(role, isPanelist));
+            } catch {
+                setRoleLabel(getRoleDisplayLabel(role, false));
+            }
+        };
+
+        if (user) determineLabel();
+    }, [user]);
 
     return (
         <div className="min-h-screen bg-transparent flex">

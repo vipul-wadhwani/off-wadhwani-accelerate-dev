@@ -22,6 +22,9 @@ backend/.env
 backend/.env.*
 backend/.env.local
 
+# Data ingestion files (contain real venture data)
+docs/*.xlsx
+
 # Secrets / credentials exports
 docs/keyvault-secrets*
 

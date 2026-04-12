@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { formatRevenue } from '../utils/formatters';
-import { InteractionsSection } from '../components/Interactions/InteractionsSection';
 import { DeliverableDetail } from '../components/CurrentStatus/DeliverableDetail';
 import { getDeliverableStyle } from '../components/CurrentStatus/constants';
 import { ScheduleExpertSessionModal } from '../components/ScheduleExpertSessionModal';
@@ -22,7 +21,6 @@ import {
     DollarSign,
     Truck,
     Settings,
-    RefreshCw,
     Video,
     Clock,
 } from 'lucide-react';
@@ -250,14 +248,12 @@ export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId:
     const id = propVentureId || params.id;
     const navigate = useNavigate();
     const [venture, setVenture] = useState<any>(null);
-    const [currentUserId, setCurrentUserId] = useState<string>('');
     const [roadmapData, setRoadmapData] = useState<any>(null);
     const [generatingRoadmap, setGeneratingRoadmap] = useState(false);
     const [loading, setLoading] = useState(true);
 
     // Collapsible sections
     const [roadmapOpen, setRoadmapOpen] = useState(true);
-    const [interactionsOpen, setInteractionsOpen] = useState(false);
 
     // KPI edit mode
     const [kpiEditing, setKpiEditing] = useState(false);
@@ -287,8 +283,7 @@ export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId:
         const fetchData = async () => {
             setLoading(true);
             try {
-                const { data: { user } } = await supabase.auth.getUser();
-                if (user) setCurrentUserId(user.id);
+                await supabase.auth.getUser();
                 const result = await api.getVenture(id);
                 setVenture(result.venture);
                 // Fetch AI-generated roadmap
@@ -398,24 +393,6 @@ export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId:
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        {!readOnly && (
-                            <button
-                                onClick={() => setShowScheduleExpertModal(true)}
-                                className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition-colors flex items-center gap-2"
-                            >
-                                <Video className="w-4 h-4" />
-                                Schedule Expert Session
-                            </button>
-                        )}
-                        {!readOnly && (
-                            <button
-                                onClick={() => navigate(`/vpvm/dashboard/venture/${id}/discover-experts`)}
-                                className="px-4 py-2 bg-purple-50 text-purple-700 border border-purple-200 rounded-lg text-sm font-medium hover:bg-purple-100 transition-colors flex items-center gap-2"
-                            >
-                                <Users className="w-4 h-4" />
-                                Discover Experts
-                            </button>
-                        )}
                         {!readOnly && (
                             <button
                                 onClick={() => navigate(`/vpvm/dashboard/venture/${id}/details`)}
@@ -624,32 +601,6 @@ export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId:
                                     {generatingDeliverables ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
                                     {generatingDeliverables ? 'Generating...' : showDeliverables ? 'Hide deliverables' : deliverables.length > 0 ? 'Show deliverables' : 'Generate deliverables'}
                                 </button>
-                                {deliverables.length > 0 && (
-                                    <button
-                                        onClick={async () => {
-                                            if (!id || generatingDeliverables) return;
-                                            if (!confirm('This will regenerate all deliverables and replace the existing ones. Continue?')) return;
-                                            setGeneratingDeliverables(true);
-                                            try {
-                                                const result = await api.generateDeliverables(id, true);
-                                                if (result?.deliverables) {
-                                                    setDeliverables(result.deliverables);
-                                                    setShowDeliverables(true);
-                                                }
-                                            } catch (err) {
-                                                console.error('Error regenerating deliverables:', err);
-                                            } finally {
-                                                setGeneratingDeliverables(false);
-                                            }
-                                        }}
-                                        disabled={generatingDeliverables}
-                                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-indigo-600 border border-indigo-300 rounded-lg hover:bg-indigo-50 disabled:opacity-50 transition-colors"
-                                        title="Regenerate deliverables from roadmap"
-                                    >
-                                        <RefreshCw className="w-3.5 h-3.5" />
-                                        Regenerate
-                                    </button>
-                                )}
                                 <button
                                     onClick={() => {
                                         setEditedRoadmap(JSON.parse(JSON.stringify(roadmapData)));
@@ -761,18 +712,6 @@ export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId:
                 )
             )}
 
-            {/* Interactions */}
-            <SectionHeader
-                icon={Sparkles}
-                title="Interactions"
-                open={interactionsOpen}
-                onToggle={() => setInteractionsOpen(!interactionsOpen)}
-            />
-            {interactionsOpen && id && (
-                <div className="bg-white border border-gray-200 rounded-xl p-5">
-                    <InteractionsSection ventureId={id} createdByOnly={readOnly ? undefined : currentUserId} readOnly={readOnly} />
-                </div>
-            )}
 
             {/* Expert Sessions Section */}
             <SectionHeader

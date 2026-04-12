@@ -73,19 +73,10 @@ export const VPVMLayout: React.FC = () => {
                             <LayoutDashboard className="w-5 h-5" />
                             My Ventures
                         </NavLink>
-                        <NavLink
-                            to="/vpvm/availability"
-                            className={({ isActive }) =>
-                                `w-full flex items-center gap-3 px-3 py-2 rounded-lg font-medium text-left transition-colors ${
-                                    isActive
-                                        ? 'bg-red-50 text-red-700'
-                                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                                }`
-                            }
-                        >
+                        <div className="w-full flex items-center gap-3 px-3 py-2 rounded-lg font-medium text-left text-gray-400 cursor-not-allowed">
                             <Clock className="w-5 h-5" />
                             My Availability
-                        </NavLink>
+                        </div>
                         <NavLink
                             to="/vpvm/requests"
                             className={({ isActive }) =>

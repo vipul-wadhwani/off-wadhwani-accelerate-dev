@@ -130,19 +130,15 @@ export const VPVMRequestDetailPage: React.FC = () => {
                 <button onClick={() => navigate('/vpvm/requests')} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-4">
                     <ArrowLeft className="w-4 h-4" /> Back to Workbench
                 </button>
-                <h1 className="text-lg font-bold text-gray-900">{displayData.title}</h1>
+                <h1 className="text-lg font-bold text-gray-900">
+                    {displayData.title?.replace(/:\s*.*$/, '').trim() || displayData.title}
+                </h1>
                 <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
-                    <span>with <span className="font-medium text-gray-700">{displayData.expertName}</span></span>
+                    <span>with <span className="font-medium text-gray-700">{displayData.ventureName}</span></span>
                     {displayData.date && (
                         <>
                             <span className="text-gray-300">·</span>
                             <span>{new Date(displayData.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                        </>
-                    )}
-                    {displayData.duration && (
-                        <>
-                            <span className="text-gray-300">·</span>
-                            <span>{displayData.duration} min</span>
                         </>
                     )}
                     {insights.length > 0 && (
@@ -226,7 +222,7 @@ const TranscriptSummaryView: React.FC<{ summary: any; insights: any[]; loading: 
             {/* Questions for Next Session */}
             {summary.key_points?.length > 0 && (
                 <div>
-                    <SectionHeader icon={<HelpCircle className="w-4 h-4" />} label="QUESTIONS FOR DISCUSSION" color="amber" />
+                    <SectionHeader icon={<HelpCircle className="w-4 h-4" />} label="KEY POINTS FROM CALL" color="amber" />
                     <div className="mt-2 space-y-2">
                         {summary.key_points.map((point: string, i: number) => (
                             <div key={i} className="flex items-start gap-3 text-sm">
@@ -263,7 +259,7 @@ const TranscriptSummaryView: React.FC<{ summary: any; insights: any[]; loading: 
                 <div>
                     <SectionHeader icon={<TrendingUp className="w-4 h-4" />} label="LIVE INSIGHT SNAPSHOTS" color="blue" />
                     <div className="mt-2 space-y-3">
-                        {insights.map((ins: any, i: number) => (
+                        {[...insights].reverse().map((ins: any, i: number) => (
                             <div key={i} className="border border-gray-200 rounded-lg p-4 bg-white">
                                 <div className="flex items-center gap-2 mb-2">
                                     <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${ins.is_final ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
@@ -453,6 +449,16 @@ const PreMeetingBriefContent: React.FC<{ brief: any; loading: boolean }> = ({ br
 
     return (
         <div className="space-y-5">
+            {/* Overview / Summary — at the top */}
+            {content.summary && (
+                <div>
+                    <SectionHeader icon={<FileText className="w-4 h-4" />} label="OVERVIEW" color="gray" />
+                    <div className="mt-2">
+                        <p className="text-sm text-gray-600 leading-relaxed">{content.summary}</p>
+                    </div>
+                </div>
+            )}
+
             {/* Red Flags / Inconsistencies */}
             {content.red_flags?.length > 0 && (
                 <div>
@@ -505,16 +511,6 @@ const PreMeetingBriefContent: React.FC<{ brief: any; loading: boolean }> = ({ br
                                 <span className="text-gray-700">{q}</span>
                             </div>
                         ))}
-                    </div>
-                </div>
-            )}
-
-            {/* Overview / Summary */}
-            {content.summary && (
-                <div>
-                    <SectionHeader icon={<FileText className="w-4 h-4" />} label="OVERVIEW" color="gray" />
-                    <div className="mt-2">
-                        <p className="text-sm text-gray-600 leading-relaxed">{content.summary}</p>
                     </div>
                 </div>
             )}
@@ -688,34 +684,41 @@ const CumulativeInsightsContent: React.FC<{ insights: any[] }> = ({ insights }) 
         return <EmptyState message="No AI insights available for this session." />;
     }
 
+    // Build overall insights by concatenating all summaries and deduplicating questions
+    const overallSummary = [...insights].reverse().map((ins: any) => ins.summary).filter(Boolean).join('\n\n');
+    const allQuestions = [...insights].reverse().flatMap((ins: any) => ins.questions || []);
+    const uniqueQuestions = [...new Set(allQuestions)];
+
     return (
         <div className="space-y-4">
             <p className="text-xs text-gray-500">Cumulative AI Analysis across {insights.length} insight{insights.length > 1 ? 's' : ''}</p>
-            {insights.map((ins: any, i: number) => (
-                <div key={i} className="border border-gray-200 rounded-lg p-4 bg-white">
-                    <div className="flex items-center gap-2 mb-2">
-                        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${ins.is_final ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
-                            {ins.is_final ? 'SESSION ' + (i + 1) : 'SNAPSHOT ' + (i + 1)}
-                        </span>
-                        <span className="text-[10px] text-gray-400">
-                            {new Date(ins.snapshot_time).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                        </span>
+
+            {/* Overall Insights Card */}
+            {insights.length > 1 && (
+                <div className="border-2 border-indigo-200 rounded-lg p-5 bg-indigo-50/30">
+                    <div className="flex items-center gap-2 mb-3">
+                        <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-indigo-600 text-white uppercase tracking-wider">Overall Insights</span>
+                        <span className="text-[10px] text-gray-400">{insights.length} snapshots combined</span>
                     </div>
-                    <p className="text-sm text-gray-700 mb-2">{ins.summary}</p>
-                    {ins.questions?.length > 0 && (
-                        <div className="space-y-1 mt-2">
-                            {ins.questions.map((q: string, qi: number) => (
-                                <div key={qi} className="flex items-start gap-2 text-xs text-gray-600">
-                                    <span className="w-4 h-4 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">
-                                        {qi + 1}
-                                    </span>
-                                    {q}
-                                </div>
-                            ))}
+                    <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line mb-3">{overallSummary}</p>
+                    {uniqueQuestions.length > 0 && (
+                        <div>
+                            <span className="text-[10px] font-semibold text-indigo-600 uppercase tracking-wider">Key Questions Across All Sessions</span>
+                            <div className="mt-1.5 space-y-1.5">
+                                {uniqueQuestions.slice(0, 10).map((q: string, qi: number) => (
+                                    <div key={qi} className="flex items-start gap-2 text-xs text-gray-600">
+                                        <span className="w-4 h-4 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">
+                                            {qi + 1}
+                                        </span>
+                                        {q}
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     )}
                 </div>
-            ))}
+            )}
+
         </div>
     );
 };

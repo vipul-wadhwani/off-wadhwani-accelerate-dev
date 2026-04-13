@@ -63,12 +63,11 @@ export function useZoomMeeting(
             const container = document.getElementById(containerId);
             if (!container) throw new Error(`Container element #${containerId} not found`);
 
-            // Fill remaining space: detect right panel, subtract header
-            const headerHeight = 56;
-            const hasRightPanel = !!document.querySelector('[data-right-panel]');
-            const rightPanelWidth = hasRightPanel ? 360 : 0;
-            const videoWidth = Math.floor(window.innerWidth - rightPanelWidth);
-            const videoHeight = Math.floor(window.innerHeight - headerHeight);
+            // Conservative initial size — will be adjusted after render
+            const parentEl = container.parentElement;
+            const parentRect = parentEl?.getBoundingClientRect();
+            const initWidth = Math.floor(parentRect?.width || window.innerWidth * 0.7);
+            const initHeight = Math.floor((parentRect?.height || window.innerHeight) * 0.6);
 
             await client.init({
                 zoomAppRoot: container,
@@ -80,8 +79,8 @@ export function useZoomMeeting(
                         isResizable: true,
                         viewSizes: {
                             default: {
-                                width: videoWidth,
-                                height: videoHeight,
+                                width: initWidth,
+                                height: initHeight,
                             },
                         },
                         popper: {
@@ -112,6 +111,52 @@ export function useZoomMeeting(
             }
 
             setStatus('joined');
+
+            // After SDK renders, dynamically resize to fit container exactly
+            setTimeout(() => {
+                if (!parentEl || !clientRef.current) return;
+                const rect = parentEl.getBoundingClientRect();
+                // Find Zoom toolbar actual height from rendered DOM
+                const zoomFooter = container.querySelector('[class*="footer"]')
+                    || container.querySelector('[class*="toolbar"]')
+                    || container.querySelector('[class*="meeting-info-icon"]')?.closest('div');
+                const toolbarH = zoomFooter?.getBoundingClientRect().height || 48;
+
+                try {
+                    clientRef.current.updateVideoOptions({
+                        viewSizes: {
+                            default: {
+                                width: Math.floor(rect.width),
+                                height: Math.floor(rect.height - toolbarH),
+                            }
+                        }
+                    });
+                    console.log(`[Zoom] Resized video to ${Math.floor(rect.width)}x${Math.floor(rect.height - toolbarH)} (toolbar: ${toolbarH}px)`);
+                } catch (e) {
+                    console.warn('[Zoom] updateVideoOptions failed:', e);
+                }
+            }, 2000);
+
+            // Also observe container for future resizes
+            const resizeObserver = new ResizeObserver((entries) => {
+                const entry = entries[0];
+                if (!entry || !clientRef.current) return;
+                const { width, height } = entry.contentRect;
+                const zf = container.querySelector('[class*="footer"]')
+                    || container.querySelector('[class*="toolbar"]');
+                const th = zf?.getBoundingClientRect().height || 48;
+                try {
+                    clientRef.current.updateVideoOptions({
+                        viewSizes: {
+                            default: {
+                                width: Math.floor(width),
+                                height: Math.floor(height - th),
+                            }
+                        }
+                    });
+                } catch { /* ignore */ }
+            });
+            if (parentEl) resizeObserver.observe(parentEl);
 
             // Auto-enable captions after a short delay for the Zoom UI to render
             setTimeout(async () => {

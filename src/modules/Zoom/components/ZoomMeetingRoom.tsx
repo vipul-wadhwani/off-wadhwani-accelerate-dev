@@ -41,7 +41,7 @@ export const ZoomMeetingRoom: React.FC<ZoomMeetingRoomProps> = ({
     }, [status, onMeetingEnd]);
 
     return (
-        <div className="relative w-full h-full bg-gray-900 overflow-auto">
+        <div className="relative w-full h-full bg-gray-900 overflow-hidden">
             {/* Zoom SDK renders here */}
             <div id={CONTAINER_ID} className="w-full h-full" />
 

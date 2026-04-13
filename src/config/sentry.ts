@@ -1,6 +1,6 @@
 import * as Sentry from '@sentry/react';
 
-const SENTRY_DSN_DEV = 'https://ad5d44af3844587d894637afe11c44e4@o4508539300020224.ingest.us.sentry.io/4511076123934720';
+const SENTRY_DSN_DEV = 'https://d5f9fadef0dd689ed4d45bf4f58ce702@o4508539300020224.ingest.us.sentry.io/4511099338883072';
 const SENTRY_DSN_PROD = 'https://d4a340a8e655ebaff1ac6e6f5657de31@o4508539300020224.ingest.us.sentry.io/4511076127342592';
 
 function getEnvironment(): 'production' | 'development' {

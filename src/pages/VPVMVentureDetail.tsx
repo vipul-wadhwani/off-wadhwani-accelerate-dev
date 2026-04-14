@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { supabase } from '../lib/supabase';
@@ -22,8 +22,6 @@ import {
     Truck,
     Settings,
     Video,
-    Clock,
-    FileText,
     MessageSquare,
     TrendingUp,
     AlertTriangle,

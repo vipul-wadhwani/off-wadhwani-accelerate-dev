@@ -140,7 +140,6 @@ export const VPVMRequestsPage: React.FC = () => {
                             onClick={() => {
                                 if (key === 'availability') { navigate('/vpvm/availability'); return; }
                                 setActiveTab(key);
-                                setSelectedRequest(null);
                             }}
                             className={`flex items-center gap-2 pb-3 text-sm font-medium border-b-2 transition-colors ${
                                 activeTab === key ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-gray-500 hover:text-gray-700'

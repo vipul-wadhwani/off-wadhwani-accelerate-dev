@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Loader2, FileText, MessageSquare, Sparkles, AlertTriangle, Target, HelpCircle, CheckSquare, TrendingUp, X, Search, Copy, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Loader2, FileText, MessageSquare, Sparkles, AlertTriangle, Target, HelpCircle, CheckSquare, TrendingUp, X, Search, Copy } from 'lucide-react';
 import type { MeetingRequest } from '../modules/MeetingRequests/types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';

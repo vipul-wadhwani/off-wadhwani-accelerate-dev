@@ -5,8 +5,7 @@ import type { MeetingRequest } from '../modules/MeetingRequests/types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
-type ViewMode = 'summary' | 'brief';
-type BriefSubTab = 'brief' | 'history' | 'insights';
+type ViewMode = 'summary' | 'insights' | 'preBrief';
 
 async function getToken() {
     const { supabase } = await import('../lib/supabase');
@@ -20,7 +19,9 @@ export const VPVMRequestDetailPage: React.FC = () => {
     const request = (location.state as any)?.request as MeetingRequest | undefined;
     const session = (location.state as any)?.session as any | undefined;
 
-    const [viewMode, setViewMode] = useState<ViewMode>('summary');
+    const isUpcoming = request?.status === 'scheduled' || session?.status === 'scheduled';
+
+    const [viewMode, setViewMode] = useState<ViewMode>(isUpcoming ? 'preBrief' : 'summary');
     const [showTranscript, setShowTranscript] = useState(false);
     const [summary, setSummary] = useState<any>(null);
     const [transcript, setTranscript] = useState<any>(null);
@@ -30,7 +31,6 @@ export const VPVMRequestDetailPage: React.FC = () => {
     const [loadingTranscript, setLoadingTranscript] = useState(false);
     const [loadingBrief, setLoadingBrief] = useState(false);
     const [loadingInsights, setLoadingInsights] = useState(false);
-    const [briefSubTab, setBriefSubTab] = useState<BriefSubTab>('brief');
 
     // Support both meeting_request (has session_id) and direct session objects
     const sessionId = request?.session_id || session?.id;
@@ -42,8 +42,10 @@ export const VPVMRequestDetailPage: React.FC = () => {
                 title: request.meeting_goal || 'Meeting with ' + (request.expert?.full_name || 'Expert'),
                 expertName: request.expert?.full_name || 'Expert',
                 date: request.preferred_date,
+                time: request.preferred_time,
                 duration: request.preferred_duration,
                 ventureName: request.venture?.name || 'Venture',
+                founderName: request.venture?.founder_name || '',
                 ventureId: request.venture_id,
             };
         }
@@ -52,8 +54,10 @@ export const VPVMRequestDetailPage: React.FC = () => {
                 title: session.topic || 'Meeting with ' + (session.expert_name || 'Expert'),
                 expertName: session.expert_name || 'Expert',
                 date: session.scheduled_date,
+                time: session.scheduled_time,
                 duration: session.duration_minutes,
                 ventureName: session.venture_name || 'Venture',
+                founderName: session.founder_name || '',
                 ventureId: session.venture_id,
             };
         }
@@ -131,20 +135,22 @@ export const VPVMRequestDetailPage: React.FC = () => {
                     <ArrowLeft className="w-4 h-4" /> Back to Workbench
                 </button>
                 <h1 className="text-lg font-bold text-gray-900">
-                    {displayData.title?.replace(/:\s*.*$/, '').trim() || displayData.title}
+                    {displayData.ventureName}
                 </h1>
                 <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
-                    <span>with <span className="font-medium text-gray-700">{displayData.ventureName}</span></span>
+                    {displayData.founderName && (
+                        <span>with <span className="font-medium text-gray-700">{displayData.founderName}</span></span>
+                    )}
                     {displayData.date && (
                         <>
-                            <span className="text-gray-300">·</span>
+                            {displayData.founderName && <span className="text-gray-300">·</span>}
                             <span>{new Date(displayData.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                         </>
                     )}
-                    {insights.length > 0 && (
+                    {displayData.time && (
                         <>
                             <span className="text-gray-300">·</span>
-                            <span>{insights.length} insights</span>
+                            <span>{new Date(`1970-01-01T${displayData.time}`).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true })}</span>
                         </>
                     )}
                 </div>
@@ -153,30 +159,48 @@ export const VPVMRequestDetailPage: React.FC = () => {
             {/* Toggle Buttons */}
             <div className="flex items-center gap-2">
                 <button
-                    onClick={() => setShowTranscript(true)}
-                    className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-700 transition-colors flex items-center gap-2"
+                    onClick={() => !isUpcoming && setShowTranscript(true)}
+                    disabled={isUpcoming}
+                    className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors flex items-center gap-2 ${
+                        isUpcoming
+                            ? 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed'
+                            : 'border-gray-200 bg-white text-gray-700 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-700'
+                    }`}
                 >
                     <FileText className="w-4 h-4" /> Full Transcript
                 </button>
                 <button
-                    onClick={() => setViewMode('summary')}
+                    onClick={() => !isUpcoming && setViewMode('summary')}
+                    disabled={isUpcoming}
                     className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors flex items-center gap-2 ${
-                        viewMode === 'summary'
-                            ? 'bg-indigo-600 text-white border-indigo-600'
-                            : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                        isUpcoming
+                            ? 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed'
+                            : viewMode === 'summary'
+                                ? 'bg-indigo-600 text-white border-indigo-600'
+                                : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
                     }`}
                 >
                     <MessageSquare className="w-4 h-4" /> Transcript Summary
                 </button>
                 <button
-                    onClick={() => setViewMode('brief')}
+                    onClick={() => setViewMode('insights')}
                     className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors flex items-center gap-2 ${
-                        viewMode === 'brief'
+                        viewMode === 'insights'
                             ? 'bg-indigo-600 text-white border-indigo-600'
                             : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
                     }`}
                 >
-                    <Sparkles className="w-4 h-4" /> Brief
+                    <TrendingUp className="w-4 h-4" /> Cumulative Insights
+                </button>
+                <button
+                    onClick={() => setViewMode('preBrief')}
+                    className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors flex items-center gap-2 ${
+                        viewMode === 'preBrief'
+                            ? 'bg-indigo-600 text-white border-indigo-600'
+                            : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                    }`}
+                >
+                    <Sparkles className="w-4 h-4" /> Pre-Meeting Brief
                 </button>
             </div>
 
@@ -184,8 +208,11 @@ export const VPVMRequestDetailPage: React.FC = () => {
             {viewMode === 'summary' && (
                 <TranscriptSummaryView summary={summary} insights={insights} loading={loadingSummary || loadingInsights} />
             )}
-            {viewMode === 'brief' && (
-                <BriefView brief={brief} insights={insights} loading={loadingBrief} briefSubTab={briefSubTab} setBriefSubTab={setBriefSubTab} ventureId={displayData.ventureId} currentSessionId={sessionId} />
+            {viewMode === 'insights' && (
+                <CumulativeInsightsContent insights={insights} />
+            )}
+            {viewMode === 'preBrief' && (
+                <PreMeetingBriefContent brief={brief} loading={loadingBrief} />
             )}
 
             {/* Full Transcript Modal */}
@@ -259,7 +286,10 @@ const TranscriptSummaryView: React.FC<{ summary: any; insights: any[]; loading: 
                 <div>
                     <SectionHeader icon={<TrendingUp className="w-4 h-4" />} label="LIVE INSIGHT SNAPSHOTS" color="blue" />
                     <div className="mt-2 space-y-3">
-                        {[...insights].reverse().map((ins: any, i: number) => (
+                        {[...insights].sort((a: any, b: any) => {
+                            if (a.is_final !== b.is_final) return a.is_final ? 1 : -1;
+                            return new Date(a.snapshot_time).getTime() - new Date(b.snapshot_time).getTime();
+                        }).map((ins: any, i: number) => (
                             <div key={i} className="border border-gray-200 rounded-lg p-4 bg-white">
                                 <div className="flex items-center gap-2 mb-2">
                                     <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${ins.is_final ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
@@ -399,45 +429,6 @@ const TranscriptModal: React.FC<{ transcript: any; loading: boolean; meetingGoal
                     <span className="text-xs text-gray-400">{lineCount} lines</span>
                 </div>
             </div>
-        </div>
-    );
-};
-
-/* ============ Brief View ============ */
-
-const BriefView: React.FC<{
-    brief: any; insights: any[]; loading: boolean;
-    briefSubTab: BriefSubTab; setBriefSubTab: (t: BriefSubTab) => void;
-    ventureId?: string; currentSessionId?: string;
-}> = ({ brief, insights, loading, briefSubTab, setBriefSubTab, ventureId, currentSessionId }) => {
-    const subTabs: { key: BriefSubTab; label: string }[] = [
-        { key: 'brief', label: 'Pre-Meeting Brief' },
-        { key: 'history', label: 'Session History' },
-        { key: 'insights', label: 'Cumulative Insights' },
-    ];
-
-    return (
-        <div className="space-y-4">
-            {/* Sub-tabs */}
-            <div className="flex gap-6 border-b border-gray-200">
-                {subTabs.map(({ key, label }) => (
-                    <button
-                        key={key}
-                        onClick={() => setBriefSubTab(key)}
-                        className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
-                            briefSubTab === key
-                                ? 'border-indigo-600 text-indigo-700'
-                                : 'border-transparent text-gray-500 hover:text-gray-700'
-                        }`}
-                    >
-                        {label}
-                    </button>
-                ))}
-            </div>
-
-            {briefSubTab === 'brief' && <PreMeetingBriefContent brief={brief} loading={loading} />}
-            {briefSubTab === 'history' && <SessionHistoryContent ventureId={ventureId} currentSessionId={currentSessionId} />}
-            {briefSubTab === 'insights' && <CumulativeInsightsContent insights={insights} />}
         </div>
     );
 };

@@ -82,11 +82,30 @@ export async function generateBrief(sessionId: string, generatedBy: string): Pro
         .eq('id', session.venture_id)
         .single();
 
-    // Get venture application details
+    // Get venture application details (full form)
     const { data: application } = await supabase
         .from('venture_applications')
-        .select('product_description, problem_statement, support_request, blockers, revenue_12m, full_time_employees')
+        .select('product_description, problem_statement, support_request, blockers, revenue_12m, full_time_employees, what_do_you_sell, who_do_you_sell_to, which_regions, focus_product, focus_segment, focus_geography, growth_focus, business_type, current_product, current_segment, current_geography, incremental_hiring')
         .eq('venture_id', session.venture_id)
+        .maybeSingle();
+
+    // Get panel feedback & scorecard
+    const { data: panelFeedback } = await supabase
+        .from('panel_feedback')
+        .select('*')
+        .eq('venture_id', session.venture_id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    // Get panel gate questions
+    const { data: assessment } = await supabase
+        .from('venture_assessments')
+        .select('gate_questions')
+        .eq('venture_id', session.venture_id)
+        .not('gate_questions', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
     // Get past sessions with this venture
@@ -110,13 +129,13 @@ export async function generateBrief(sessionId: string, generatedBy: string): Pro
         pastSummaries = data || [];
     }
 
-    // Get past transcripts (last 3)
+    // Get past transcripts (last 5, expanded context)
     let pastTranscripts: any[] = [];
     if (pastSessionIds.length > 0) {
         const { data } = await supabase
             .from('meeting_transcripts')
             .select('session_id, full_text')
-            .in('session_id', pastSessionIds.slice(0, 3))
+            .in('session_id', pastSessionIds.slice(0, 5))
             .not('full_text', 'is', null);
         pastTranscripts = data || [];
     }
@@ -143,7 +162,55 @@ export async function generateBrief(sessionId: string, generatedBy: string): Pro
         application?.problem_statement ? `Problem Statement: ${application.problem_statement}` : '',
         application?.support_request ? `Support Needed: ${application.support_request}` : '',
         application?.blockers ? `Current Blockers: ${application.blockers}` : '',
+        application?.what_do_you_sell ? `What They Sell: ${application.what_do_you_sell}` : '',
+        application?.who_do_you_sell_to ? `Target Customers: ${application.who_do_you_sell_to}` : '',
+        application?.which_regions ? `Regions: ${application.which_regions}` : '',
+        application?.business_type ? `Business Type: ${application.business_type}` : '',
+        application?.current_product ? `Current Product: ${application.current_product}` : '',
+        application?.current_segment ? `Current Segment: ${application.current_segment}` : '',
+        application?.current_geography ? `Current Geography: ${application.current_geography}` : '',
+        application?.focus_product ? `Focus Product: ${application.focus_product}` : '',
+        application?.focus_segment ? `Focus Segment: ${application.focus_segment}` : '',
+        application?.focus_geography ? `Focus Geography: ${application.focus_geography}` : '',
+        application?.growth_focus ? `Growth Focus: ${Array.isArray(application.growth_focus) ? application.growth_focus.join(', ') : application.growth_focus}` : '',
+        application?.incremental_hiring ? `Incremental Hiring: ${application.incremental_hiring}` : '',
     ].filter(Boolean).join('\n');
+
+    // Panel feedback context
+    const panelContext = panelFeedback ? [
+        `Panel Date: ${panelFeedback.panel_date || 'N/A'}`,
+        `Panel Expert: ${panelFeedback.panel_expert_name || 'N/A'}`,
+        `SME: ${panelFeedback.sme_name || 'N/A'}`,
+        panelFeedback.business_overview ? `Business Overview: ${panelFeedback.business_overview}` : '',
+        `Annual Revenue (Actuals): ${panelFeedback.annual_revenue_actuals || 'N/A'}`,
+        `Projected Annual Revenue: ${panelFeedback.projected_annual_revenue || 'N/A'}`,
+        `Rating — Financial Health: ${panelFeedback.rating_financial_health || 'N/A'}/5`,
+        `Rating — Leadership: ${panelFeedback.rating_leadership || 'N/A'}/5`,
+        `Rating — Clarity of Expansion: ${panelFeedback.rating_clarity_expansion || 'N/A'}/5`,
+        panelFeedback.insights_financial_health ? `Financial Health Insights: ${panelFeedback.insights_financial_health}` : '',
+        panelFeedback.insights_leadership ? `Leadership Insights: ${panelFeedback.insights_leadership}` : '',
+        panelFeedback.proposed_expansion_idea ? `Proposed Expansion: ${panelFeedback.proposed_expansion_idea}` : '',
+        panelFeedback.expansion_idea_description ? `Expansion Details: ${panelFeedback.expansion_idea_description}` : '',
+        panelFeedback.market_entry_routes ? `Market Entry Routes: ${panelFeedback.market_entry_routes}` : '',
+        panelFeedback.current_progress ? `Current Progress: ${panelFeedback.current_progress}` : '',
+        panelFeedback.risks_red_flags ? `Risks & Red Flags: ${panelFeedback.risks_red_flags}` : '',
+        panelFeedback.final_recommendation ? `Final Recommendation: ${panelFeedback.final_recommendation}` : '',
+        panelFeedback.program_category ? `Program Category: ${panelFeedback.program_category}` : '',
+        panelFeedback.support_type_proposal ? `Support Type: ${panelFeedback.support_type_proposal}` : '',
+        // Stream statuses
+        panelFeedback.stream_gtm ? `Stream GTM: ${panelFeedback.stream_gtm}${panelFeedback.stream_gtm_comments ? ' — ' + panelFeedback.stream_gtm_comments : ''}` : '',
+        panelFeedback.stream_product_quality ? `Stream Product/Quality: ${panelFeedback.stream_product_quality}${panelFeedback.stream_product_quality_comments ? ' — ' + panelFeedback.stream_product_quality_comments : ''}` : '',
+        panelFeedback.stream_operations ? `Stream Operations: ${panelFeedback.stream_operations}${panelFeedback.stream_operations_comments ? ' — ' + panelFeedback.stream_operations_comments : ''}` : '',
+        panelFeedback.stream_supply_chain ? `Stream Supply Chain: ${panelFeedback.stream_supply_chain}${panelFeedback.stream_supply_chain_comments ? ' — ' + panelFeedback.stream_supply_chain_comments : ''}` : '',
+        panelFeedback.stream_org_design ? `Stream Org Design: ${panelFeedback.stream_org_design}${panelFeedback.stream_org_design_comments ? ' — ' + panelFeedback.stream_org_design_comments : ''}` : '',
+        panelFeedback.stream_finance ? `Stream Finance: ${panelFeedback.stream_finance}${panelFeedback.stream_finance_comments ? ' — ' + panelFeedback.stream_finance_comments : ''}` : '',
+    ].filter(Boolean).join('\n') : '';
+
+    // Gate questions context
+    const gateQuestionsArr = assessment?.gate_questions?.gate_questions;
+    const gateQuestionsContext = Array.isArray(gateQuestionsArr) && gateQuestionsArr.length > 0
+        ? gateQuestionsArr.map((q: string, i: number) => `${i + 1}. ${q}`).join('\n')
+        : '';
 
     const pastContext = pastSessions && pastSessions.length > 0
         ? pastSessions.map(s => {
@@ -152,11 +219,26 @@ export async function generateBrief(sessionId: string, generatedBy: string): Pro
         }).join('\n')
         : 'No previous sessions.';
 
+    // Extract outstanding action items from past summaries
+    const outstandingActions: string[] = [];
+    for (const summary of pastSummaries) {
+        if (Array.isArray(summary.action_items)) {
+            for (const item of summary.action_items) {
+                const title = typeof item === 'string' ? item : item?.title || item?.description;
+                if (title) outstandingActions.push(title);
+            }
+        }
+    }
+
     const transcriptContext = pastTranscripts.length > 0
-        ? pastTranscripts.map(t => t.full_text?.slice(0, 500)).join('\n---\n')
+        ? pastTranscripts.map(t => {
+            const matchingSession = pastSessions?.find(s => s.id === t.session_id);
+            const dateLabel = matchingSession?.scheduled_date || 'Unknown date';
+            return `[Session ${dateLabel}]\n${t.full_text?.slice(0, 1500)}`;
+        }).join('\n---\n')
         : '';
 
-    const prompt = `You are preparing a pre-meeting brief for a venture partner who is about to meet with an entrepreneur. Generate a structured brief.
+    const prompt = `You are preparing a pre-meeting brief for a venture partner who is about to meet with an entrepreneur. Generate a structured brief using ALL the context provided below.
 
 ## Venture Profile
 ${ventureContext}
@@ -165,26 +247,32 @@ ${ventureContext}
 Topic: ${session.topic || 'General discussion'}
 Date: ${session.scheduled_date}
 
+${panelContext ? `## Panel Feedback & Scorecard\n${panelContext}` : ''}
+
+${gateQuestionsContext ? `## Panel Gate Questions\n${gateQuestionsContext}` : ''}
+
 ## Past Sessions (${pastSessions?.length || 0} total)
 ${pastContext}
+
+${outstandingActions.length > 0 ? `## Outstanding Action Items from Previous Sessions\n${outstandingActions.map((a, i) => `${i + 1}. ${a}`).join('\n')}` : ''}
 
 ${transcriptContext ? `## Recent Transcript Excerpts\n${transcriptContext}` : ''}
 
 Generate a JSON object (no markdown, no explanation) with these fields:
 {
-  "summary": "2-3 paragraph overview of the venture, their progress, and current situation",
-  "red_flags": ["list of concerns, inconsistencies, or risks to watch for — e.g. repeated no-shows, stagnant metrics, conflicting statements"],
-  "focus_areas": ["3-5 specific topics to cover in this meeting based on their needs and history"],
-  "key_questions": ["5 sharp, specific questions to ask during the meeting"],
+  "summary": "2-3 paragraph overview of the venture, their progress, and current situation. Incorporate insights from the application form, panel feedback, and any past interactions.",
+  "red_flags": ["list of concerns, inconsistencies, or risks to watch for — from panel feedback, scorecard ratings, past transcripts, and any gaps in information"],
+  "focus_areas": ["3-5 specific topics to cover in this meeting based on panel gate questions, feedback, and their needs"],
+  "key_questions": ["5 sharp, specific questions informed by panel feedback, gate questions, and past discussion context"],
   "action_items": ["outstanding action items from previous sessions that should be followed up on"],
-  "progress_summary": "1-2 sentence trajectory summary — are they improving, stagnating, or declining?"
+  "progress_summary": "1-2 sentence trajectory summary — are they improving, stagnating, or declining? Reference panel scores and past session trends."
 }`;
 
     try {
         const anthropic = getAnthropic();
         const response = await anthropic.messages.create({
             model: 'claude-sonnet-4-20250514',
-            max_tokens: 2048,
+            max_tokens: 4096,
             messages: [{ role: 'user', content: prompt }],
         });
 

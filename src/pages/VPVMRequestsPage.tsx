@@ -3,7 +3,7 @@ import { useRequests } from '../modules/MeetingRequests/hooks/useRequests';
 import type { MeetingRequest } from '../modules/MeetingRequests/types';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Loader2, Calendar, MessageSquare, CheckCircle2, TrendingUp, X, AlertTriangle, Target, HelpCircle, CheckSquare, Video, FileText } from 'lucide-react';
+import { Loader2, Calendar, MessageSquare, CheckCircle2, TrendingUp, X, AlertTriangle, Target, HelpCircle, CheckSquare, Video, FileText, Search } from 'lucide-react';
 
 type ListTab = 'completed' | 'requests' | 'availability';
 
@@ -37,6 +37,7 @@ export const VPVMRequestsPage: React.FC = () => {
     const [completedSessions, setCompletedSessions] = useState<any[]>([]);
     const [upcomingSessions, setUpcomingSessions] = useState<any[]>([]);
     const [loadingSessions, setLoadingSessions] = useState(false);
+    const [companySearch, setCompanySearch] = useState('');
 
     useEffect(() => {
         fetchRequests({ role: 'staff' });
@@ -198,49 +199,41 @@ export const VPVMRequestsPage: React.FC = () => {
                 </div>
             </div>
 
+            {/* Search */}
+            <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                    type="text"
+                    placeholder="Search by company..."
+                    value={companySearch}
+                    onChange={(e) => setCompanySearch(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400"
+                />
+            </div>
+
             {/* Content */}
             {activeTab === 'completed' && (
-                <CompletedSessionsList sessions={completedSessions.filter(s => s.source === 'ops_scheduled')} navigate={navigate} />
+                <CompletedSessionsList sessions={completedSessions.filter(s => s.source === 'ops_scheduled').filter(s => !companySearch || s.venture_name?.toLowerCase().includes(companySearch.toLowerCase()))} navigate={navigate} />
             )}
             {activeTab === 'requests' && (
-                <>
-                    {/* Split Panel */}
-                    <div className="flex gap-4" style={{ minHeight: '500px' }}>
-                        {/* Left — Request Cards */}
-                        <div className={`${selectedRequest ? 'w-1/2' : 'w-full'} transition-all space-y-2 overflow-y-auto`} style={{ maxHeight: '70vh' }}>
-                            {requestsList.length === 0 ? (
-                                <div className="bg-white border border-gray-200 rounded-xl p-8 text-center text-gray-500">
-                                    <MessageSquare className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                                    <p className="text-sm">No meeting requests found.</p>
-                                </div>
-                            ) : (
-                                requestsList.map((req) => (
-                                    <RequestCard
-                                        key={req.id}
-                                        request={req}
-                                        isSelected={selectedRequest?.id === req.id}
-                                        onSelect={() => setSelectedRequest(req)}
-                                        onStartMeeting={() => req.session_id && navigate(`/meeting/${req.session_id}`)}
-                                    />
-                                ))
-                            )}
+                <div className="space-y-2">
+                    {requestsList.filter(req => !companySearch || req.venture?.name?.toLowerCase().includes(companySearch.toLowerCase())).length === 0 ? (
+                        <div className="bg-white border border-gray-200 rounded-xl p-8 text-center text-gray-500">
+                            <MessageSquare className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                            <p className="text-sm">No upcoming meetings found.</p>
                         </div>
-
-                        {/* Right — Detail Panel */}
-                        {selectedRequest && (
-                            <div className="w-1/2 bg-white border border-gray-200 rounded-xl overflow-y-auto" style={{ maxHeight: '70vh' }}>
-                                <RequestDetailPanel
-                                    request={selectedRequest}
-                                    brief={brief}
-                                    loadingBrief={loadingBrief}
-                                    onClose={() => setSelectedRequest(null)}
-                                    onGenerateBrief={generateBrief}
-                                    generatingBrief={generatingBrief}
-                                />
-                            </div>
-                        )}
-                    </div>
-                </>
+                    ) : (
+                        requestsList.filter(req => !companySearch || req.venture?.name?.toLowerCase().includes(companySearch.toLowerCase())).map((req) => (
+                            <RequestCard
+                                key={req.id}
+                                request={req}
+                                isSelected={false}
+                                onSelect={() => req.session_id && navigate(`/vpvm/sessions/${req.session_id}`, { state: { request: req } })}
+                                onStartMeeting={() => req.session_id && navigate(`/meeting/${req.session_id}`)}
+                            />
+                        ))
+                    )}
+                </div>
             )}
         </div>
     );
@@ -268,10 +261,10 @@ const CompletedSessionsList: React.FC<{ sessions: any[]; navigate: any }> = ({ s
                     <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-gray-900 truncate">
-                                {session.topic || 'Meeting with ' + (session.expert_name || 'Expert')}
+                                {session.venture_name || 'Venture'}
                             </p>
                             <div className="flex items-center gap-2 mt-1 text-xs text-gray-500 flex-wrap">
-                                <span>with <span className="font-medium text-gray-700">{session.expert_name || 'Expert'}</span></span>
+                                <span>with <span className="font-medium text-gray-700">{session.founder_name || 'Venture Owner'}</span></span>
                                 {session.scheduled_date && (
                                     <>
                                         <span className="text-gray-300">·</span>
@@ -281,19 +274,14 @@ const CompletedSessionsList: React.FC<{ sessions: any[]; navigate: any }> = ({ s
                                         </span>
                                     </>
                                 )}
-                                <span className="text-gray-300">·</span>
-                                <span>{session.duration_minutes || 60} min</span>
-                                <span className="text-gray-300">·</span>
-                                <span>{session.venture_name || 'Venture'}</span>
+                                {session.scheduled_time && (
+                                    <>
+                                        <span className="text-gray-300">·</span>
+                                        <span>{new Date(`1970-01-01T${session.scheduled_time}`).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true })}</span>
+                                    </>
+                                )}
                             </div>
                         </div>
-                        {session.source && (
-                            <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0 ml-3 ${
-                                session.source === 'venture_request' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'
-                            }`}>
-                                {session.source === 'venture_request' ? 'Expert Request' : 'Scheduled'}
-                            </span>
-                        )}
                     </div>
                 </div>
             ))}
@@ -317,62 +305,47 @@ const RequestCard: React.FC<{
     onSelect: () => void;
     onStartMeeting: () => void;
 }> = ({ request, isSelected, onSelect, onStartMeeting }) => {
-    const badge = STATUS_BADGE[request.status] || STATUS_BADGE.pending;
-    const expertName = request.expert?.full_name || 'Expert';
-
     return (
         <div
-            className={`bg-white border rounded-lg px-4 py-3 cursor-pointer transition-all ${
-                isSelected ? 'border-indigo-400 ring-2 ring-indigo-100 shadow-sm' : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
+            className={`bg-white border border-l-4 border-l-indigo-400 rounded-lg px-5 py-4 cursor-pointer transition-all ${
+                isSelected ? 'border-indigo-400 ring-2 ring-indigo-100 shadow-sm' : 'border-gray-200 hover:border-gray-300 hover:shadow-md'
             }`}
             onClick={onSelect}
         >
-            <div className="flex items-start gap-3">
-                {/* Avatar */}
-                <div className="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
-                    {getInitials(expertName)}
-                </div>
-
+            <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">
-                    {/* Name + Status */}
-                    <div className="flex items-center justify-between gap-2">
-                        <span className="text-sm font-semibold text-gray-900 truncate">{expertName}</span>
-                        <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${badge.bg} ${badge.text} flex-shrink-0`}>
-                            {request.status}
-                        </span>
-                    </div>
-
-                    {/* Meeting Goal */}
-                    {request.meeting_goal && (
-                        <p className="text-xs text-gray-500 mt-1 line-clamp-2">{request.meeting_goal}</p>
-                    )}
-
-                    {/* Meta */}
-                    <div className="flex items-center gap-2 mt-2 text-[11px] text-gray-400">
-                        {request.preferred_date && (
-                            <span className="flex items-center gap-1">
-                                <Calendar className="w-3 h-3" />
-                                {new Date(request.preferred_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                            </span>
+                    <p className="text-sm font-semibold text-gray-900 truncate">
+                        {request.venture?.name || 'Venture'}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1 text-xs text-gray-500 flex-wrap">
+                        {request.venture?.founder_name && (
+                            <span>with <span className="font-medium text-gray-700">{request.venture.founder_name}</span></span>
                         )}
-                        {request.preferred_duration && (
+                        {request.preferred_date && (
+                            <>
+                                {request.venture?.founder_name && <span className="text-gray-300">·</span>}
+                                <span className="flex items-center gap-1">
+                                    <Calendar className="w-3 h-3" />
+                                    {new Date(request.preferred_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                </span>
+                            </>
+                        )}
+                        {request.preferred_time && (
                             <>
                                 <span className="text-gray-300">·</span>
-                                <span>{request.preferred_duration} min</span>
+                                <span>{new Date(`1970-01-01T${request.preferred_time}`).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true })}</span>
                             </>
                         )}
                     </div>
-
-                    {/* Start Meeting Button */}
-                    {(request.status === 'accepted' || request.status === 'scheduled') && request.session_id && (
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onStartMeeting(); }}
-                            className="mt-2 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors"
-                        >
-                            <Video className="w-3.5 h-3.5" /> Start Meeting
-                        </button>
-                    )}
                 </div>
+                {(request.status === 'accepted' || request.status === 'scheduled') && request.session_id && (
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onStartMeeting(); }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors flex-shrink-0 ml-3"
+                    >
+                        <Video className="w-3.5 h-3.5" /> Start Meeting
+                    </button>
+                )}
             </div>
         </div>
     );

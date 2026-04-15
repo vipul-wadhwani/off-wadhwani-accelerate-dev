@@ -35,9 +35,9 @@ export const RightPanel: React.FC<RightPanelProps> = ({ sessionId, ventureId, ve
 
     return (
         <>
-        <div data-right-panel className="w-[360px] bg-white border-l border-gray-200 flex flex-col h-full">
+        <div data-right-panel className="w-[420px] bg-white border-l border-gray-200 flex flex-col h-full">
             {/* Tab bar */}
-            <div className="flex border-b border-gray-200">
+            <div className="flex border-b border-gray-200 overflow-x-auto">
                 {TABS.map(tab => {
                     const Icon = tab.icon;
                     const isActive = activeTab === tab.id;
@@ -45,16 +45,16 @@ export const RightPanel: React.FC<RightPanelProps> = ({ sessionId, ventureId, ve
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
-                            className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-medium transition-colors ${
+                            className={`flex-1 min-w-0 flex items-center justify-center gap-1.5 py-3.5 text-[13px] font-semibold whitespace-nowrap transition-colors ${
                                 isActive
                                     ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/50'
                                     : 'text-gray-500 hover:text-gray-700'
                             }`}
                         >
-                            <Icon className="w-3.5 h-3.5" />
+                            <Icon className="w-4 h-4 flex-shrink-0" />
                             {tab.label}
                             {tab.id === 'transcript' && transcriptChunks.length > 0 && (
-                                <span className="w-4 h-4 rounded-full bg-indigo-100 text-indigo-700 text-[9px] flex items-center justify-center font-bold">
+                                <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] flex items-center justify-center font-bold flex-shrink-0">
                                     {transcriptChunks.length}
                                 </span>
                             )}
@@ -64,7 +64,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({ sessionId, ventureId, ve
             </div>
 
             {/* Tab content */}
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex-1 overflow-y-auto p-5">
                 {activeTab === 'transcript' && <TranscriptPanel chunks={transcriptChunks} />}
                 {activeTab === 'insights' && (
                     <InsightsPanel sessionId={sessionId} currentTranscript={currentTranscript} topic={topic} />

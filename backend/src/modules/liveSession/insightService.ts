@@ -71,3 +71,27 @@ export async function getInsights(sessionId: string) {
         .order('snapshot_time', { ascending: true });
     return data || [];
 }
+
+/**
+ * Get all insight snapshots across ALL sessions for a venture.
+ */
+export async function getVentureInsights(ventureId: string) {
+    const supabase = createServiceRoleClient();
+
+    const { data: sessions } = await supabase
+        .from('mentor_sessions')
+        .select('id')
+        .eq('venture_id', ventureId);
+
+    if (!sessions || sessions.length === 0) return [];
+
+    const sessionIds = sessions.map(s => s.id);
+
+    const { data } = await supabase
+        .from('session_insight_snapshots')
+        .select('*')
+        .in('session_id', sessionIds)
+        .order('snapshot_time', { ascending: true });
+
+    return data || [];
+}

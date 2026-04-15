@@ -12,11 +12,14 @@ export function useBrief() {
     const [loading, setLoading] = useState(false);
     const [generating, setGenerating] = useState(false);
 
-    const fetchBrief = useCallback(async (sessionId: string) => {
+    const fetchBrief = useCallback(async (sessionId: string, autoGenerate = false) => {
         setLoading(true);
         try {
             const token = await getToken();
-            const res = await fetch(`${API_URL}/api/briefs/${sessionId}`, {
+            const url = autoGenerate
+                ? `${API_URL}/api/briefs/${sessionId}?autoGenerate=true`
+                : `${API_URL}/api/briefs/${sessionId}`;
+            const res = await fetch(url, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             const data = await res.json();

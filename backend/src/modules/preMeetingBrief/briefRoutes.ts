@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { authenticateUser } from '../../middleware/auth';
-import { generateBrief, getLatestBrief, getBriefHistory } from './briefService';
+import { generateBrief, getLatestBrief, getBriefHistory, getOrGenerateBrief } from './briefService';
 
 const router = Router();
 
@@ -10,9 +10,15 @@ const router = Router();
  */
 router.get('/:sessionId', authenticateUser, async (req: Request, res: Response) => {
     try {
-        const brief = await getLatestBrief(req.params.sessionId);
+        const autoGenerate = req.query.autoGenerate === 'true';
+        console.log(`[Brief Route] GET /${req.params.sessionId} autoGenerate=${autoGenerate} user=${req.user?.id}`);
+        const brief = autoGenerate
+            ? await getOrGenerateBrief(req.params.sessionId, req.user.id)
+            : await getLatestBrief(req.params.sessionId);
+        console.log(`[Brief Route] Result: brief=${!!brief}, has_content=${!!brief?.brief_content}`);
         return res.json({ success: true, data: brief });
     } catch (err: any) {
+        console.error(`[Brief Route] Error:`, err.message);
         return res.status(500).json({ success: false, message: err.message });
     }
 });

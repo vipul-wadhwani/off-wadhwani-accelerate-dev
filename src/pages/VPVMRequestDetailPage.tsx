@@ -86,35 +86,53 @@ export const VPVMRequestDetailPage: React.FC = () => {
         finally { setLoadingTranscript(false); }
     }, []);
 
-    const fetchBrief = useCallback(async (sid: string) => {
-        setLoadingBrief(true);
-        try {
-            const token = await getToken();
-            const res = await fetch(`${API_URL}/api/briefs/${sid}`, { headers: { Authorization: `Bearer ${token}` } });
-            const data = await res.json();
-            if (data.success && data.data) setBrief(data.data);
-        } catch (err) { console.error('[Detail] Brief error:', err); }
-        finally { setLoadingBrief(false); }
-    }, []);
-
     const fetchInsights = useCallback(async (sid: string) => {
         setLoadingInsights(true);
         try {
             const token = await getToken();
-            const res = await fetch(`${API_URL}/api/sessions/${sid}/insights`, { headers: { Authorization: `Bearer ${token}` } });
+            const url = displayData?.ventureId
+                ? `${API_URL}/api/sessions/venture/${displayData.ventureId}/insights`
+                : `${API_URL}/api/sessions/${sid}/insights`;
+            const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
             const data = await res.json();
             if (data.success) setInsights(data.data || []);
         } catch (err) { console.error('[Detail] Insights error:', err); }
         finally { setLoadingInsights(false); }
-    }, []);
+    }, [displayData?.ventureId]);
+
+    // Brief fetch with AbortController to handle StrictMode double-invoke
+    useEffect(() => {
+        if (!sessionId) return;
+        let cancelled = false;
+        const controller = new AbortController();
+        setLoadingBrief(true);
+        setBrief(null);
+
+        (async () => {
+            try {
+                const token = await getToken();
+                const res = await fetch(`${API_URL}/api/briefs/${sessionId}?autoGenerate=true`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                    signal: controller.signal,
+                });
+                const data = await res.json();
+                if (!cancelled && data.success && data.data) setBrief(data.data);
+            } catch (err: any) {
+                if (err.name !== 'AbortError') console.error('[Detail] Brief error:', err);
+            } finally {
+                if (!cancelled) setLoadingBrief(false);
+            }
+        })();
+
+        return () => { cancelled = true; controller.abort(); };
+    }, [sessionId]);
 
     useEffect(() => {
         if (!sessionId) return;
         fetchSummary(sessionId);
         fetchTranscript(sessionId);
-        fetchBrief(sessionId);
         fetchInsights(sessionId);
-    }, [sessionId, fetchSummary, fetchTranscript, fetchBrief, fetchInsights]);
+    }, [sessionId, fetchSummary, fetchTranscript, fetchInsights]);
 
     if (!displayData) {
         return (
@@ -286,9 +304,8 @@ const TranscriptSummaryView: React.FC<{ summary: any; insights: any[]; loading: 
                 <div>
                     <SectionHeader icon={<TrendingUp className="w-4 h-4" />} label="LIVE INSIGHT SNAPSHOTS" color="blue" />
                     <div className="mt-2 space-y-3">
-                        {[...insights].sort((a: any, b: any) => {
-                            if (a.is_final !== b.is_final) return a.is_final ? 1 : -1;
-                            return new Date(a.snapshot_time).getTime() - new Date(b.snapshot_time).getTime();
+                        {[...insights].filter((ins: any) => !ins.is_final).sort((a: any, b: any) => {
+                            return new Date(b.snapshot_time).getTime() - new Date(a.snapshot_time).getTime();
                         }).map((ins: any, i: number) => (
                             <div key={i} className="border border-gray-200 rounded-lg p-4 bg-white">
                                 <div className="flex items-center gap-2 mb-2">
@@ -434,9 +451,14 @@ const TranscriptModal: React.FC<{ transcript: any; loading: boolean; meetingGoal
 };
 
 const PreMeetingBriefContent: React.FC<{ brief: any; loading: boolean }> = ({ brief, loading }) => {
-    if (loading) return <LoadingSpinner />;
+    if (loading) return (
+        <div className="flex flex-col items-center justify-center py-12 gap-3">
+            <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
+            <p className="text-sm text-gray-500">Preparing your pre-meeting brief...</p>
+        </div>
+    );
     const content = brief?.brief_content;
-    if (!content) return <EmptyState message="No pre-meeting brief was generated for this session." />;
+    if (!content) return <EmptyState message="Brief generation unavailable for this session." />;
 
     return (
         <div className="space-y-5">
@@ -529,41 +551,48 @@ const CumulativeInsightsContent: React.FC<{ insights: any[] }> = ({ insights }) 
         return <EmptyState message="No AI insights available for this session." />;
     }
 
-    // Build overall insights by concatenating all summaries and deduplicating questions
-    const overallSummary = [...insights].reverse().map((ins: any) => ins.summary).filter(Boolean).join('\n\n');
-    const allQuestions = [...insights].reverse().flatMap((ins: any) => ins.questions || []);
+    const filtered = [...insights].filter((ins: any) => !ins.is_final);
+
+    // Group by session_id, keep only the latest snapshot per session
+    const bySession = new Map<string, any>();
+    for (const ins of filtered) {
+        const existing = bySession.get(ins.session_id);
+        if (!existing || new Date(ins.snapshot_time) > new Date(existing.snapshot_time)) {
+            bySession.set(ins.session_id, ins);
+        }
+    }
+    const latestPerSession = [...bySession.values()].sort((a, b) =>
+        new Date(b.snapshot_time).getTime() - new Date(a.snapshot_time).getTime()
+    );
+
+    const allQuestions = latestPerSession.flatMap((ins: any) => ins.questions || []);
     const uniqueQuestions = [...new Set(allQuestions)];
+
+    const combinedSummary = latestPerSession.map((ins: any) => ins.summary).filter(Boolean).join('\n\n');
 
     return (
         <div className="space-y-4">
-            <p className="text-xs text-gray-500">Cumulative AI Analysis across {insights.length} insight{insights.length > 1 ? 's' : ''}</p>
-
-            {/* Overall Insights Card */}
-            {insights.length > 1 && (
-                <div className="border-2 border-indigo-200 rounded-lg p-5 bg-indigo-50/30">
-                    <div className="flex items-center gap-2 mb-3">
-                        <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-indigo-600 text-white uppercase tracking-wider">Overall Insights</span>
-                        <span className="text-[10px] text-gray-400">{insights.length} snapshots combined</span>
-                    </div>
-                    <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line mb-3">{overallSummary}</p>
-                    {uniqueQuestions.length > 0 && (
-                        <div>
-                            <span className="text-[10px] font-semibold text-indigo-600 uppercase tracking-wider">Key Questions Across All Sessions</span>
-                            <div className="mt-1.5 space-y-1.5">
-                                {uniqueQuestions.slice(0, 10).map((q: string, qi: number) => (
-                                    <div key={qi} className="flex items-start gap-2 text-xs text-gray-600">
-                                        <span className="w-4 h-4 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">
-                                            {qi + 1}
-                                        </span>
-                                        {q}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
+            <div className="border-2 border-indigo-200 rounded-lg p-5 bg-indigo-50/30">
+                <div className="flex items-center gap-2 mb-3">
+                    <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-indigo-600 text-white uppercase tracking-wider">Overall Insights</span>
                 </div>
-            )}
-
+                <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line mb-3">{combinedSummary}</p>
+                {uniqueQuestions.length > 0 && (
+                    <div>
+                        <span className="text-[10px] font-semibold text-indigo-600 uppercase tracking-wider">Key Questions Across All Sessions</span>
+                        <div className="mt-1.5 space-y-1.5">
+                            {uniqueQuestions.slice(0, 10).map((q: string, qi: number) => (
+                                <div key={qi} className="flex items-start gap-2 text-xs text-gray-600">
+                                    <span className="w-4 h-4 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">
+                                        {qi + 1}
+                                    </span>
+                                    {q}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
         </div>
     );
 };

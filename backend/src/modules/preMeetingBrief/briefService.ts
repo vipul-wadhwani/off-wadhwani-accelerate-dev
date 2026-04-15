@@ -22,6 +22,9 @@ export interface BriefContent {
 const briefCache: Map<string, { data: any; expiresAt: number }> = new Map();
 const BRIEF_CACHE_TTL = 5 * 60 * 1000;
 
+// Concurrency guard — prevents duplicate AI generations for the same session
+const generationInFlight: Map<string, Promise<any>> = new Map();
+
 /**
  * Get the latest brief for a session. Returns null if none exists.
  * Uses in-memory cache to avoid repeated DB hits during live sessions.
@@ -56,6 +59,40 @@ export async function getBriefHistory(sessionId: string) {
         .eq('session_id', sessionId)
         .order('version', { ascending: false });
     return data || [];
+}
+
+/**
+ * Get an existing brief or auto-generate one if none exists.
+ * Uses concurrency guard to prevent duplicate generations.
+ */
+export async function getOrGenerateBrief(sessionId: string, generatedBy: string): Promise<any> {
+    console.log(`[Brief] getOrGenerateBrief called for session=${sessionId}, user=${generatedBy}`);
+    // Bypass cache — query DB directly to avoid stale null entries
+    const supabase = createServiceRoleClient();
+    const { data: existing, error: fetchErr } = await supabase
+        .from('pre_meeting_briefs')
+        .select('*')
+        .eq('session_id', sessionId)
+        .order('version', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+    console.log(`[Brief] DB check: existing=${!!existing}, error=${fetchErr?.message || 'none'}`);
+    if (existing) return existing;
+
+    // Check if generation is already in flight for this session
+    const inFlight = generationInFlight.get(sessionId);
+    if (inFlight) {
+        console.log(`[Brief] Generation already in-flight for session=${sessionId}, awaiting...`);
+        return inFlight;
+    }
+    console.log(`[Brief] No brief found, starting generation for session=${sessionId}`);
+
+    // Start generation and store the promise
+    const generationPromise = generateBrief(sessionId, generatedBy)
+        .finally(() => { generationInFlight.delete(sessionId); });
+
+    generationInFlight.set(sessionId, generationPromise);
+    return generationPromise;
 }
 
 /**

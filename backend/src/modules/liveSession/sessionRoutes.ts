@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { authenticateUser } from '../../middleware/auth';
 import { appendTranscript, getTranscript } from './transcriptService';
-import { generateInsightSnapshot, getInsights } from './insightService';
+import { generateInsightSnapshot, getInsights, getVentureInsights } from './insightService';
 import { endSession, getSummary } from './summaryService';
 
 const router = Router();
@@ -50,6 +50,19 @@ router.post('/:id/insights', authenticateUser, async (req: Request, res: Respons
         }
         const insight = await generateInsightSnapshot(req.params.id, transcript, topic);
         return res.json({ success: true, data: insight });
+    } catch (err: any) {
+        return res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+/**
+ * GET /api/sessions/venture/:ventureId/insights
+ * Get all insight snapshots across all sessions for a venture.
+ */
+router.get('/venture/:ventureId/insights', authenticateUser, async (req: Request, res: Response) => {
+    try {
+        const insights = await getVentureInsights(req.params.ventureId);
+        return res.json({ success: true, data: insights });
     } catch (err: any) {
         return res.status(500).json({ success: false, message: err.message });
     }

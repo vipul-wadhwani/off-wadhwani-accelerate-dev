@@ -10,15 +10,16 @@ export const BriefPanel: React.FC<BriefPanelProps> = ({ sessionId }) => {
     const { brief, loading, generating, fetchBrief, generateBrief } = useBrief();
 
     useEffect(() => {
-        fetchBrief(sessionId);
+        fetchBrief(sessionId, true);
     }, [sessionId, fetchBrief]);
 
     const content = brief?.brief_content;
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-5 h-5 animate-spin text-teal-400" />
+            <div className="flex flex-col items-center justify-center py-8 gap-3">
+                <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
+                <p className="text-sm text-gray-500">Preparing your pre-meeting brief...</p>
             </div>
         );
     }
@@ -27,14 +28,14 @@ export const BriefPanel: React.FC<BriefPanelProps> = ({ sessionId }) => {
         return (
             <div className="text-center py-8">
                 <Sparkles className="w-8 h-8 text-gray-300 mx-auto mb-3" />
-                <p className="text-sm text-gray-500 mb-4">No brief generated yet</p>
+                <p className="text-sm text-gray-500 mb-4">Brief generation unavailable for this session</p>
                 <button
                     onClick={() => generateBrief(sessionId)}
                     disabled={generating}
                     className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 mx-auto"
                 >
                     {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                    {generating ? 'Generating...' : 'Generate AI Brief'}
+                    {generating ? 'Generating...' : 'Retry Generation'}
                 </button>
             </div>
         );

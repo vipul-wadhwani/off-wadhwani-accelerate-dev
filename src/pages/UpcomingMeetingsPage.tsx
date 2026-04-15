@@ -119,12 +119,9 @@ export const UpcomingMeetingsPage: React.FC = () => {
                                     </div>
                                     <div>
                                         <div className="text-sm font-semibold text-gray-900">
-                                            {session.topic || 'Session'}
+                                            {(session.topic || 'Session').replace(/:\s*$/, '').replace(new RegExp(`:\\s*${session.venture_name}\\s*$`), '').trim() || 'Session'}
                                         </div>
                                         <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
-                                            {session.venture_name && (
-                                                <span className="font-medium text-teal-700">{session.venture_name}</span>
-                                            )}
                                             <span className="flex items-center gap-1">
                                                 <Calendar className="w-3 h-3" /> {dateStr}
                                             </span>

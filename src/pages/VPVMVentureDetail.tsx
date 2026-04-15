@@ -876,7 +876,7 @@ const SessionCardList: React.FC<{ sessions: any[]; venture: any; navigate: any }
                         </div>
                     </div>
                     {expandedId === session.id && (
-                        <SessionExpandedPanel sessionId={session.id} isUpcoming={session.status === 'scheduled'} />
+                        <SessionExpandedPanel sessionId={session.id} isUpcoming={session.status === 'scheduled'} ventureId={venture?.id} />
                     )}
                 </div>
             ))}
@@ -888,39 +888,55 @@ const SessionCardList: React.FC<{ sessions: any[]; venture: any; navigate: any }
 
 type ExpandedTab = 'summary' | 'insights' | 'preBrief';
 
-const SessionExpandedPanel: React.FC<{ sessionId: string; isUpcoming: boolean }> = ({ sessionId, isUpcoming }) => {
+const SessionExpandedPanel: React.FC<{ sessionId: string; isUpcoming: boolean; ventureId?: string }> = ({ sessionId, isUpcoming, ventureId }) => {
     const [tab, setTab] = useState<ExpandedTab>(isUpcoming ? 'preBrief' : 'summary');
     const [summary, setSummary] = useState<any>(null);
     const [brief, setBrief] = useState<any>(null);
     const [insights, setInsights] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadingBrief, setLoadingBrief] = useState(true);
 
     useEffect(() => {
         let cancelled = false;
+        const controller = new AbortController();
+        setLoading(true);
+        setLoadingBrief(true);
+        setBrief(null);
+
         (async () => {
-            setLoading(true);
             try {
                 const token = await getToken();
                 const headers = { Authorization: `Bearer ${token}` };
-                const [summaryRes, briefRes, insightsRes] = await Promise.all([
-                    fetch(`${API_URL}/api/sessions/${sessionId}/summary`, { headers }),
-                    fetch(`${API_URL}/api/briefs/${sessionId}`, { headers }),
-                    fetch(`${API_URL}/api/sessions/${sessionId}/insights`, { headers }),
-                ]);
-                if (cancelled) return;
-                const summaryData = await summaryRes.json();
-                const briefData = await briefRes.json();
-                const insightsData = await insightsRes.json();
-                if (summaryData.success) setSummary(summaryData.data);
-                if (briefData.success && briefData.data) setBrief(briefData.data);
-                setInsights(insightsData.data || insightsData.insights || []);
-            } catch (err) {
-                console.error('[SessionPanel] Fetch error:', err);
-            } finally {
-                if (!cancelled) setLoading(false);
+
+                // Fetch summary & insights in parallel (fast)
+                const fastFetch = Promise.all([
+                    fetch(`${API_URL}/api/sessions/${sessionId}/summary`, { headers, signal: controller.signal }),
+                    fetch(ventureId ? `${API_URL}/api/sessions/venture/${ventureId}/insights` : `${API_URL}/api/sessions/${sessionId}/insights`, { headers, signal: controller.signal }),
+                ]).then(async ([summaryRes, insightsRes]) => {
+                    if (cancelled) return;
+                    const summaryData = await summaryRes.json();
+                    const insightsData = await insightsRes.json();
+                    if (summaryData.success) setSummary(summaryData.data);
+                    setInsights(insightsData.data || insightsData.insights || []);
+                    setLoading(false);
+                });
+
+                // Brief fetch separately (may take 15s+ on first generation)
+                const briefFetch = fetch(`${API_URL}/api/briefs/${sessionId}?autoGenerate=true`, { headers, signal: controller.signal })
+                    .then(async (res) => {
+                        if (cancelled) return;
+                        const briefData = await res.json();
+                        if (briefData.success && briefData.data) setBrief(briefData.data);
+                        setLoadingBrief(false);
+                    });
+
+                await Promise.all([fastFetch, briefFetch]);
+            } catch (err: any) {
+                if (err.name !== 'AbortError') console.error('[SessionPanel] Fetch error:', err);
+                if (!cancelled) { setLoading(false); setLoadingBrief(false); }
             }
         })();
-        return () => { cancelled = true; };
+        return () => { cancelled = true; controller.abort(); };
     }, [sessionId]);
 
     const tabs: { key: ExpandedTab; label: string; icon: React.ReactNode; disabled?: boolean }[] = [
@@ -960,7 +976,7 @@ const SessionExpandedPanel: React.FC<{ sessionId: string; isUpcoming: boolean }>
                 <>
                     {tab === 'summary' && <ExpandedSummary summary={summary} />}
                     {tab === 'insights' && <ExpandedInsights insights={insights} />}
-                    {tab === 'preBrief' && <ExpandedBrief brief={brief} />}
+                    {tab === 'preBrief' && <ExpandedBrief brief={brief} loading={loadingBrief} />}
                 </>
             )}
         </div>
@@ -1009,32 +1025,62 @@ const ExpandedSummary: React.FC<{ summary: any }> = ({ summary }) => {
 
 const ExpandedInsights: React.FC<{ insights: any[] }> = ({ insights }) => {
     if (!insights || insights.length === 0) return <p className="text-sm text-gray-500 text-center py-4">No cumulative insights available.</p>;
-    const sorted = [...insights].sort((a, b) => {
-        if (a.is_final !== b.is_final) return a.is_final ? 1 : -1;
-        return new Date(a.snapshot_time).getTime() - new Date(b.snapshot_time).getTime();
-    });
+
+    const filtered = [...insights].filter((ins) => !ins.is_final);
+
+    // Group by session_id, keep only the latest snapshot per session
+    const bySession = new Map<string, any>();
+    for (const ins of filtered) {
+        const existing = bySession.get(ins.session_id);
+        if (!existing || new Date(ins.snapshot_time) > new Date(existing.snapshot_time)) {
+            bySession.set(ins.session_id, ins);
+        }
+    }
+    const latestPerSession = [...bySession.values()].sort((a, b) =>
+        new Date(b.snapshot_time).getTime() - new Date(a.snapshot_time).getTime()
+    );
+
+    const allQuestions = latestPerSession.flatMap((ins: any) => ins.questions || []);
+    const uniqueQuestions = [...new Set(allQuestions)];
+
+    const combinedSummary = latestPerSession.map((ins: any) => ins.summary).filter(Boolean).join('\n\n');
+
     return (
-        <div className="space-y-2">
-            {sorted.map((ins: any, i: number) => (
-                <div key={i} className="border border-gray-200 rounded-lg p-3 bg-white">
-                    <div className="flex items-center gap-2 mb-1">
-                        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${ins.is_final ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
-                            {ins.is_final ? 'FINAL' : 'SNAPSHOT'}
-                        </span>
-                        <span className="text-[10px] text-gray-400">
-                            {new Date(ins.snapshot_time).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                    </div>
-                    <p className="text-xs text-gray-700">{ins.summary}</p>
+        <div className="space-y-3">
+            <div className="border-2 border-indigo-200 rounded-lg p-4 bg-indigo-50/30">
+                <div className="flex items-center gap-2 mb-2">
+                    <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-indigo-600 text-white uppercase tracking-wider">Overall Insights</span>
                 </div>
-            ))}
+                <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-line mb-3">{combinedSummary}</p>
+                {uniqueQuestions.length > 0 && (
+                    <div>
+                        <span className="text-[10px] font-semibold text-indigo-600 uppercase tracking-wider">Key Questions Across All Sessions</span>
+                        <div className="mt-1.5 space-y-1.5">
+                            {uniqueQuestions.slice(0, 10).map((q: string, qi: number) => (
+                                <div key={qi} className="flex items-start gap-2 text-xs text-gray-600">
+                                    <span className="w-4 h-4 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">
+                                        {qi + 1}
+                                    </span>
+                                    {q}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
         </div>
     );
 };
 
-const ExpandedBrief: React.FC<{ brief: any }> = ({ brief }) => {
+const ExpandedBrief: React.FC<{ brief: any; loading?: boolean }> = ({ brief, loading }) => {
+    if (loading) return (
+        <div className="flex flex-col items-center justify-center py-6 gap-2">
+            <Loader2 className="w-5 h-5 animate-spin text-indigo-500" />
+            <p className="text-xs text-gray-500">Preparing pre-meeting brief...</p>
+        </div>
+    );
     const content = brief?.brief_content;
-    if (!content) return <p className="text-sm text-gray-500 text-center py-4">No pre-meeting brief generated for this session.</p>;
+    if (!content) return <p className="text-sm text-gray-500 text-center py-4">Brief generation unavailable for this session.</p>;
     return (
         <div className="space-y-3">
             {content.summary && (

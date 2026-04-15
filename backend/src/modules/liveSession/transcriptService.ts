@@ -8,6 +8,7 @@ export interface TranscriptChunk {
 
 /**
  * Append transcript chunks to a session's transcript.
+ * Deduplicates by matching speaker + text to avoid storing repeated lines.
  */
 export async function appendTranscript(sessionId: string, chunks: TranscriptChunk[]) {
     const supabase = createServiceRoleClient();
@@ -20,11 +21,25 @@ export async function appendTranscript(sessionId: string, chunks: TranscriptChun
         .maybeSingle();
 
     if (existing) {
-        const updatedChunks = [...(existing.chunks || []), ...chunks];
-        await supabase
-            .from('meeting_transcripts')
-            .update({ chunks: updatedChunks, updated_at: new Date().toISOString() })
-            .eq('id', existing.id);
+        const existingChunks: TranscriptChunk[] = existing.chunks || [];
+
+        // Build a set of existing speaker+text combos for fast lookup
+        const existingKeys = new Set(
+            existingChunks.map((c: TranscriptChunk) => `${c.speaker}|||${c.text}`)
+        );
+
+        // Only add chunks that don't already exist
+        const newChunks = chunks.filter(
+            (c) => !existingKeys.has(`${c.speaker}|||${c.text}`)
+        );
+
+        if (newChunks.length > 0) {
+            const updatedChunks = [...existingChunks, ...newChunks];
+            await supabase
+                .from('meeting_transcripts')
+                .update({ chunks: updatedChunks, updated_at: new Date().toISOString() })
+                .eq('id', existing.id);
+        }
     } else {
         await supabase
             .from('meeting_transcripts')

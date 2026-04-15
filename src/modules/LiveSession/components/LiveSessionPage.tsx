@@ -98,7 +98,8 @@ export const LiveSessionPage: React.FC = () => {
         loadTranscript();
 
         // For non-host (participants/entrepreneurs): poll for transcript updates every 15s
-        // since they don't receive Zoom SDK caption events directly
+        // since they don't receive Zoom SDK caption events directly.
+        // Host should NOT poll — they get live Zoom SDK caption events and save to DB.
         const pollInterval = setInterval(async () => {
             if (!sessionId) return;
             try {
@@ -110,11 +111,12 @@ export const LiveSessionPage: React.FC = () => {
                 const data = await res.json();
                 if (data.success && data.data?.chunks?.length > 0) {
                     setTranscriptChunks(prev => {
-                        // Only update if backend has more chunks
-                        if (data.data.chunks.length > prev.length) {
-                            return data.data.chunks;
-                        }
-                        return prev;
+                        const incoming: Array<{ speaker: string; text: string; time: string }> = data.data.chunks;
+                        // Dedup: build set of existing speaker+text keys
+                        const existingKeys = new Set(prev.map(c => `${c.speaker}|||${c.text}`));
+                        const newChunks = incoming.filter(c => !existingKeys.has(`${c.speaker}|||${c.text}`));
+                        if (newChunks.length === 0) return prev;
+                        return [...prev, ...newChunks];
                     });
                 }
             } catch { /* ignore */ }
@@ -264,7 +266,7 @@ export const LiveSessionPage: React.FC = () => {
     }
 
     return (
-        <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
+        <div className="h-screen bg-gray-50 flex flex-col overflow-y-auto">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200 shadow-sm">
                 <div className="flex items-center gap-3">

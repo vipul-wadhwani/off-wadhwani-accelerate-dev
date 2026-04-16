@@ -285,7 +285,7 @@ export async function sendSelfserveEmail(
         .content { padding: 20px; background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0 0 8px 8px; }
         .content ul { margin: 10px 0; padding-left: 20px; }
         .content li { margin-bottom: 8px; }
-        .cta-button { display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; margin: 15px 0; }
+        .cta-button { display: inline-block; background-color: #2563eb; color: #ffffff !important; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; margin: 15px 0; }
         .footer { text-align: center; padding: 20px; font-size: 12px; color: #6b7280; }
     </style>
 </head>
@@ -305,7 +305,7 @@ export async function sendSelfserveEmail(
                 <li>Mentor Connect support, enabling you to seek insights and guidance from experienced mentors within the ecosystem</li>
             </ul>
             <p>We encourage you to activate your access and begin immediately by visiting:</p>
-            <p style="text-align: center;"><a href="https://wadhwaniliftoff.ai" class="cta-button">Visit Wadhwani LiftOff AI</a></p>
+            <p style="text-align: center;"><a href="https://wadhwaniliftoff.ai" class="cta-button" style="display: inline-block; background-color: #2563eb; color: #ffffff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">Visit Wadhwani LiftOff AI</a></p>
             <p>Engaging with LiftOff AI will help you build momentum and position yourself strongly as your venture evolves.</p>
             <p>Wishing you focused execution and steady progress ahead.</p>
             <p>Thanks,<br>Team Wadhwani Accelerate</p>
@@ -335,6 +335,76 @@ https://wadhwaniliftoff.ai
 Engaging with LiftOff AI will help you build momentum and position yourself strongly as your venture evolves.
 
 Wishing you focused execution and steady progress ahead.
+
+Thanks,
+Team Wadhwani Accelerate`;
+
+    await sendEmail(toEmail, subject, htmlBody, plainText);
+}
+
+export async function sendScreeningAssignmentEmail(
+    toEmail: string,
+    managerName: string,
+    businessName: string,
+    applicantName: string,
+    location: string,
+    applicationUrl: string
+): Promise<void> {
+    const subject = `New Application Assigned for Screening`;
+
+    const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #dc2626; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { padding: 20px; background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0 0 8px 8px; }
+        .details { background-color: #f0f4ff; border: 1px solid #c7d2fe; border-radius: 8px; padding: 16px; margin: 16px 0; }
+        .details p { margin: 4px 0; }
+        .cta-button { display: inline-block; background-color: #2563eb; color: #ffffff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; margin: 15px 0; }
+        .footer { text-align: center; padding: 20px; font-size: 12px; color: #6b7280; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Wadhwani Accelerate</h1>
+        </div>
+        <div class="content">
+            <p>Hi ${managerName},</p>
+            <p>A new application has been assigned to you for screening.</p>
+            <div class="details">
+                <p><strong>Business Name:</strong> ${businessName}</p>
+                <p><strong>Applicant Name:</strong> ${applicantName}</p>
+                <p><strong>Location:</strong> ${location}</p>
+            </div>
+            <p>Please review the application, assess its eligibility, and proceed with your evaluation at the earliest.</p>
+            <p>You can access the application here:</p>
+            <p style="text-align: center;"><a href="${applicationUrl}" class="cta-button" style="display: inline-block; background-color: #2563eb; color: #ffffff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">Review Application</a></p>
+            <p>Thanks,<br>Team Wadhwani Accelerate</p>
+        </div>
+        <div class="footer">
+            <p>&copy; Wadhwani Foundation. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>`;
+
+    const plainText = `Hi ${managerName},
+
+A new application has been assigned to you for screening.
+
+Application details:
+Business Name: ${businessName}
+Applicant Name: ${applicantName}
+Location: ${location}
+
+Please review the application, assess its eligibility, and proceed with your evaluation at the earliest.
+
+You can access the application here: ${applicationUrl}
 
 Thanks,
 Team Wadhwani Accelerate`;

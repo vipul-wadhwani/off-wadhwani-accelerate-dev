@@ -223,16 +223,17 @@ export const LiveSessionPage: React.FC = () => {
         pending.push(chunk);
     }, []);
 
-    const goBack = async () => {
-        // Leave Zoom and clean up SDK DOM elements
-        try { await zoomRef.current?.leave(); } catch { /* ignore */ }
+    const goBack = () => {
+        // Clean up Zoom SDK DOM if it exists
         const zmmtgRoot = document.getElementById('zmmtg-root');
         if (zmmtgRoot) zmmtgRoot.style.display = 'none';
+        document.body.classList.remove('zoom-joined');
 
         const role = user?.user_metadata?.role;
-        if (role === 'mentor') navigate('/expert/dashboard');
-        else if (role === 'venture_mgr' || role === 'committee_member') navigate('/vpvm/requests');
-        else window.history.back(); // entrepreneurs or unknown roles — just go back
+        const frontendUrl = window.location.origin;
+        if (role === 'mentor') window.location.href = `${frontendUrl}/expert/dashboard`;
+        else if (role === 'venture_mgr' || role === 'committee_member') window.location.href = `${frontendUrl}/vpvm/requests`;
+        else window.location.href = frontendUrl;
     };
 
     if (loading) {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { ZoomMeetingRoom } from '../../Zoom';
 import type { ZoomMeetingRoomHandle } from '../../Zoom';
 import { RightPanel } from './RightPanel';
@@ -22,7 +22,7 @@ interface SessionInfo {
 
 export const LiveSessionPage: React.FC = () => {
     const { sessionId } = useParams<{ sessionId: string }>();
-    const navigate = useNavigate();
+
     const { user } = useAuth();
 
     const [session, setSession] = useState<SessionInfo | null>(null);

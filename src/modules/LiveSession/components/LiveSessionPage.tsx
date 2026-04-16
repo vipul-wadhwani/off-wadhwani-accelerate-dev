@@ -4,7 +4,7 @@ import { ZoomMeetingRoom } from '../../Zoom';
 import type { ZoomMeetingRoomHandle } from '../../Zoom';
 import { RightPanel } from './RightPanel';
 import { useAuth } from '../../../context/AuthContext';
-import { Loader2, ArrowLeft, Video, AlertCircle } from 'lucide-react';
+import { Loader2, Video, AlertCircle } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 

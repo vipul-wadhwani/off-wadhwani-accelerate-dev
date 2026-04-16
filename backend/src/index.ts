@@ -86,6 +86,11 @@ initConfig().then(() => {
         logger(`Server running on port ${PORT}`, 'info');
         logger(`Environment: ${config.nodeEnv}`, 'info');
         logger(`Frontend URL: ${config.frontendUrl}`, 'info');
+
+        // Start scheduled tasks
+        import('./services/reminderService').then(({ startMeetingReminderScheduler }) => {
+            startMeetingReminderScheduler();
+        }).catch(err => console.error('[Scheduler] Failed to start reminder scheduler:', err.message));
     });
 
     // Handle graceful shutdown

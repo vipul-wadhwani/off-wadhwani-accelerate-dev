@@ -221,8 +221,8 @@ export const LiveSessionPage: React.FC = () => {
 
         const role = user?.user_metadata?.role;
         if (role === 'mentor') navigate('/expert/dashboard');
-        else if (role === 'entrepreneur') navigate('/dashboard');
-        else navigate('/vpvm/requests');
+        else if (role === 'venture_mgr' || role === 'committee_member') navigate('/vpvm/requests');
+        else window.history.back(); // entrepreneurs or unknown roles — just go back
     };
 
     if (loading) {
@@ -271,21 +271,15 @@ export const LiveSessionPage: React.FC = () => {
         );
     }
 
-    if (meetingEnded) {
-        return (
-            <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-                <div className="text-center">
-                    <Video className="w-10 h-10 text-teal-400 mx-auto mb-3" />
-                    <span className="text-white text-lg font-semibold block mb-1">Meeting Ended</span>
-                    <span className="text-gray-400 text-sm block mb-4">{session.topic}</span>
-                    {/* Phase 3 will add: post-meeting summary view here */}
-                    <button onClick={goBack} className="px-4 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700">
-                        Return to Dashboard
-                    </button>
-                </div>
-            </div>
-        );
-    }
+    // Auto-redirect to workbench/dashboard after meeting ends
+    useEffect(() => {
+        if (meetingEnded) {
+            const zmmtgRoot = document.getElementById('zmmtg-root');
+            if (zmmtgRoot) zmmtgRoot.style.display = 'none';
+            document.body.classList.remove('zoom-joined');
+            goBack();
+        }
+    }, [meetingEnded]);
 
     return (
         <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">

@@ -1,21 +1,18 @@
 import { EmailClient } from '@azure/communication-email';
 import { Sentry } from '../config/sentry';
 
-const connectionString = process.env.AZURE_COMMUNICATION_CONNECTION_STRING || '';
-const senderAddress = process.env.AZURE_EMAIL_SENDER || 'accelerate@wadhwanifoundation.org';
-
-// Log email config status on startup
-console.log(`[EmailService] Initialized — connection string configured: ${!!connectionString}, sender: ${senderAddress}`);
-
+// Read lazily — Key Vault loads secrets async after module imports
 let emailClient: EmailClient | null = null;
 
 function getEmailClient(): EmailClient {
     if (!emailClient) {
+        const connectionString = process.env.AZURE_COMMUNICATION_CONNECTION_STRING || '';
         if (!connectionString) {
             console.error('[EmailService] AZURE_COMMUNICATION_CONNECTION_STRING is NOT set. Email will not work.');
             throw new Error('AZURE_COMMUNICATION_CONNECTION_STRING is not configured');
         }
-        console.log('[EmailService] Creating Azure EmailClient...');
+        const senderAddress = process.env.AZURE_EMAIL_SENDER || 'accelerate@wadhwanifoundation.org';
+        console.log(`[EmailService] Creating Azure EmailClient (sender: ${senderAddress})...`);
         emailClient = new EmailClient(connectionString);
     }
     return emailClient;
@@ -33,7 +30,7 @@ export async function sendEmail(
         const client = getEmailClient();
 
         const message = {
-            senderAddress,
+            senderAddress: process.env.AZURE_EMAIL_SENDER || 'accelerate@wadhwanifoundation.org',
             content: {
                 subject,
                 html: htmlBody,

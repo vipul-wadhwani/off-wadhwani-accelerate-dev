@@ -1,6 +1,6 @@
 import cron from 'node-cron';
 import { createServiceRoleClient } from '../config/supabase';
-import { sendVPVMMeetingReminderEmail, sendVPVM30MinReminderEmail } from './emailService';
+import { sendVPVMMeetingReminderEmail, sendVPVM30MinReminderEmail, sendBusinessMeetingReminderEmail } from './emailService';
 
 /**
  * Starts all meeting reminder schedulers.
@@ -64,7 +64,7 @@ export async function sendTomorrowMeetingReminders(): Promise<void> {
             // Get venture details
             const { data: venture } = await supabase
                 .from('ventures')
-                .select('name, founder_name')
+                .select('name, founder_name, user_id')
                 .eq('id', session.venture_id)
                 .single();
 
@@ -79,6 +79,7 @@ export async function sendTomorrowMeetingReminders(): Promise<void> {
             const formattedTime = session.scheduled_time?.slice(0, 5) || 'TBD';
             const workbenchUrl = `${process.env.FRONTEND_URL || 'https://devaccelerate.wadhwaniliftoff.ai'}/vpvm/requests`;
 
+            // 1-day reminder to VP/VM
             await sendVPVMMeetingReminderEmail(
                 mentor.email,
                 mentor.full_name || 'Venture Partner',
@@ -89,8 +90,30 @@ export async function sendTomorrowMeetingReminders(): Promise<void> {
                 session.join_url || workbenchUrl,
                 workbenchUrl
             );
+            console.log(`[Reminder] 1-day reminder sent to VP/VM ${mentor.email} for session ${session.id}`);
 
-            console.log(`[Reminder] Reminder sent to ${mentor.email} for session ${session.id}`);
+            // 1-day reminder to entrepreneur
+            if (venture.user_id) {
+                const { data: entrepreneur } = await supabase
+                    .from('profiles')
+                    .select('email, full_name')
+                    .eq('id', venture.user_id)
+                    .single();
+
+                if (entrepreneur?.email) {
+                    await sendBusinessMeetingReminderEmail(
+                        entrepreneur.email,
+                        entrepreneur.full_name || venture.founder_name || 'Founder',
+                        mentor.full_name || 'Venture Partner',
+                        'Venture Partner',
+                        formattedDate,
+                        formattedTime,
+                        session.join_url || '',
+                        true // isTomorrow
+                    );
+                    console.log(`[Reminder] 1-day reminder sent to entrepreneur ${entrepreneur.email} for session ${session.id}`);
+                }
+            }
         } catch (err: any) {
             console.error(`[Reminder] Failed to send reminder for session ${session.id}:`, err.message);
         }
@@ -149,7 +172,7 @@ export async function send30MinReminders(): Promise<void> {
 
             const { data: venture } = await supabase
                 .from('ventures')
-                .select('name, founder_name')
+                .select('name, founder_name, user_id')
                 .eq('id', session.venture_id)
                 .single();
 
@@ -161,6 +184,7 @@ export async function send30MinReminders(): Promise<void> {
             const formattedTime = session.scheduled_time?.slice(0, 5) || 'TBD';
             const workbenchUrl = `${process.env.FRONTEND_URL || 'https://devaccelerate.wadhwaniliftoff.ai'}/vpvm/requests`;
 
+            // 30-min reminder to VP/VM
             await sendVPVM30MinReminderEmail(
                 mentor.email,
                 mentor.full_name || 'Venture Partner',
@@ -171,9 +195,32 @@ export async function send30MinReminders(): Promise<void> {
                 session.join_url || workbenchUrl,
                 workbenchUrl
             );
+            console.log(`[Reminder] 30-min reminder sent to VP/VM ${mentor.email} for session ${session.id}`);
+
+            // 30-min reminder to entrepreneur
+            if (venture.user_id) {
+                const { data: entrepreneur } = await supabase
+                    .from('profiles')
+                    .select('email, full_name')
+                    .eq('id', venture.user_id)
+                    .single();
+
+                if (entrepreneur?.email) {
+                    await sendBusinessMeetingReminderEmail(
+                        entrepreneur.email,
+                        entrepreneur.full_name || venture.founder_name || 'Founder',
+                        mentor.full_name || 'Venture Partner',
+                        'Venture Partner',
+                        formattedDate,
+                        formattedTime,
+                        session.join_url || '',
+                        false // is30Min
+                    );
+                    console.log(`[Reminder] 30-min reminder sent to entrepreneur ${entrepreneur.email} for session ${session.id}`);
+                }
+            }
 
             sent30MinReminders.add(session.id);
-            console.log(`[Reminder] 30-min reminder sent to ${mentor.email} for session ${session.id}`);
         } catch (err: any) {
             console.error(`[Reminder] Failed to send 30-min reminder for session ${session.id}:`, err.message);
         }

@@ -16,7 +16,7 @@ import {
     ventureQuerySchema
 } from '../types/schemas';
 import { successResponse, createdResponse, noContentResponse } from '../utils/response';
-import { sendPanelInvitationEmail, sendWelcomeEmail, sendSelectionWelcomeEmail, sendSelfserveEmail, sendMentorSessionEmail, sendPanelistAssignmentEmail, sendVPVMAssignmentEmail, sendVPVMMeetingScheduledEmail } from '../services/emailService';
+import { sendPanelInvitationEmail, sendWelcomeEmail, sendSelectionWelcomeEmail, sendSelfserveEmail, sendMentorSessionEmail, sendPanelistAssignmentEmail, sendVPVMAssignmentEmail, sendVPVMMeetingScheduledEmail, sendBusinessMeetingScheduledEmail } from '../services/emailService';
 import { createServiceRoleClient } from '../config/supabase';
 
 const upload = multer({
@@ -2569,7 +2569,7 @@ router.post(
                 ).catch(err => console.error('[MentorSession] Failed to email VP/VM:', err.message));
             }
 
-            // Email to entrepreneur
+            // Email to entrepreneur (business)
             if (venture.user_id) {
                 const { data: entrepreneur } = await serviceClient
                     .from('profiles')
@@ -2578,16 +2578,14 @@ router.post(
                     .single();
 
                 if (entrepreneur?.email) {
-                    sendMentorSessionEmail(
+                    sendBusinessMeetingScheduledEmail(
                         entrepreneur.email,
                         entrepreneur.full_name || venture.founder_name || 'Founder',
-                        venture.name,
-                        mentor.full_name || 'Mentor',
-                        topic || 'Mentoring Session',
+                        mentor.full_name || 'Venture Partner',
+                        'Venture Partner',
                         formattedDate,
                         formattedTime,
-                        join_url,
-                        true // isEntrepreneur
+                        join_url
                     ).catch(err => console.error('[MentorSession] Failed to email entrepreneur:', err.message));
                 }
             }

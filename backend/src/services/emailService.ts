@@ -764,6 +764,148 @@ Team Wadhwani Accelerate`;
     await sendEmail(toEmail, subject, htmlBody, plainText);
 }
 
+export async function sendBusinessMeetingScheduledEmail(
+    toEmail: string,
+    applicantName: string,
+    vpvmName: string,
+    vpvmRole: string,
+    date: string,
+    time: string,
+    meetingLink: string
+): Promise<void> {
+    const subject = `Your Meeting with the ${vpvmRole} Has Been Scheduled`;
+
+    const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #dc2626; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { padding: 20px; background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0 0 8px 8px; }
+        .details { background-color: #f0f4ff; border: 1px solid #c7d2fe; border-radius: 8px; padding: 16px; margin: 16px 0; }
+        .details p { margin: 6px 0; }
+        .footer { text-align: center; padding: 20px; font-size: 12px; color: #6b7280; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Wadhwani Accelerate</h1>
+        </div>
+        <div class="content">
+            <p>Hi ${applicantName},</p>
+            <p>This is to inform you that your meeting with the ${vpvmRole} <strong>${vpvmName}</strong> has been scheduled. Please find the details below:</p>
+            <div class="details">
+                <p>&#128197; <strong>Date:</strong> ${date}</p>
+                <p>&#9200; <strong>Time:</strong> ${time}</p>
+                <p>&#128205; <strong>Meeting Link:</strong> <a href="${meetingLink}">${meetingLink}</a></p>
+            </div>
+            <p>This session will help you discuss your business and next steps for growth with the ${vpvmRole}.</p>
+            <p>Thanks,<br>Team Wadhwani Accelerate</p>
+        </div>
+        <div class="footer">
+            <p>&copy; Wadhwani Foundation. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>`;
+
+    const plainText = `Hi ${applicantName},
+
+This is to inform you that your meeting with the ${vpvmRole} ${vpvmName} has been scheduled. Please find the details below:
+
+Date: ${date}
+Time: ${time}
+Meeting Link: ${meetingLink}
+
+This session will help you discuss your business and next steps for growth with the ${vpvmRole}.
+
+Thanks,
+Team Wadhwani Accelerate`;
+
+    await sendEmail(toEmail, subject, htmlBody, plainText);
+}
+
+export async function sendBusinessMeetingReminderEmail(
+    toEmail: string,
+    applicantName: string,
+    vpvmName: string,
+    vpvmRole: string,
+    date: string,
+    time: string,
+    meetingLink: string,
+    isTomorrow: boolean
+): Promise<void> {
+    const subject = isTomorrow
+        ? `Reminder: Your Meeting with the ${vpvmRole} is Tomorrow`
+        : `Reminder: Your Meeting with the ${vpvmRole} will begin in 30 mins`;
+
+    const leadText = isTomorrow
+        ? `This is a reminder that your meeting with the ${vpvmRole} <strong>${vpvmName}</strong> is scheduled for tomorrow.`
+        : `This is a reminder that your meeting with the ${vpvmRole} <strong>${vpvmName}</strong> will begin in <strong>30 minutes</strong>.`;
+
+    const leadTextPlain = isTomorrow
+        ? `This is a reminder that your meeting with the ${vpvmRole} ${vpvmName} is scheduled for tomorrow.`
+        : `This is a reminder that your meeting with the ${vpvmRole} ${vpvmName} will begin in 30 minutes.`;
+
+    const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #dc2626; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { padding: 20px; background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0 0 8px 8px; }
+        .details { background-color: ${isTomorrow ? '#fef3c7' : '#fee2e2'}; border: 1px solid ${isTomorrow ? '#fcd34d' : '#fca5a5'}; border-radius: 8px; padding: 16px; margin: 16px 0; }
+        .details p { margin: 6px 0; }
+        .footer { text-align: center; padding: 20px; font-size: 12px; color: #6b7280; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Wadhwani Accelerate</h1>
+            ${!isTomorrow ? '<p style="margin: 8px 0 0 0; opacity: 0.9;">&#9200; Starting in 30 minutes</p>' : ''}
+        </div>
+        <div class="content">
+            <p>Hi ${applicantName},</p>
+            <p>${leadText} Please find the details below:</p>
+            <div class="details">
+                <p>&#128197; <strong>Date:</strong> ${date}</p>
+                <p>&#9200; <strong>Time:</strong> ${time}</p>
+                <p>&#128205; <strong>Meeting Link:</strong> <a href="${meetingLink}">${meetingLink}</a></p>
+            </div>
+            <p>Please join the call on time.</p>
+            <p>Thanks,<br>Team Wadhwani Accelerate</p>
+        </div>
+        <div class="footer">
+            <p>&copy; Wadhwani Foundation. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>`;
+
+    const plainText = `Hi ${applicantName},
+
+${leadTextPlain} Please find the details below:
+
+Date: ${date}
+Time: ${time}
+Meeting Link: ${meetingLink}
+
+Please join the call on time.
+
+Thanks,
+Team Wadhwani Accelerate`;
+
+    await sendEmail(toEmail, subject, htmlBody, plainText);
+}
+
 export async function sendMentorSessionEmail(
     toEmail: string,
     recipientName: string,

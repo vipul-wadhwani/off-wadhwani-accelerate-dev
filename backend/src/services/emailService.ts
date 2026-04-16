@@ -29,26 +29,26 @@ export async function sendEmail(
 ): Promise<void> {
     console.log(`[EmailService] Attempting to send email to: ${to}, subject: "${subject}"`);
 
-    const client = getEmailClient();
-
-    const message = {
-        senderAddress,
-        content: {
-            subject,
-            html: htmlBody,
-            plainText: plainText || '',
-        },
-        recipients: {
-            to: [{ address: to }],
-        },
-    };
-
-    const EMAIL_TIMEOUT_MS = 30000;
-    const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(`Email send timed out after ${EMAIL_TIMEOUT_MS / 1000}s`)), EMAIL_TIMEOUT_MS)
-    );
-
     try {
+        const client = getEmailClient();
+
+        const message = {
+            senderAddress,
+            content: {
+                subject,
+                html: htmlBody,
+                plainText: plainText || '',
+            },
+            recipients: {
+                to: [{ address: to }],
+            },
+        };
+
+        const EMAIL_TIMEOUT_MS = 30000;
+        const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error(`Email send timed out after ${EMAIL_TIMEOUT_MS / 1000}s`)), EMAIL_TIMEOUT_MS)
+        );
+
         const poller = await Promise.race([client.beginSend(message), timeoutPromise]);
         console.log(`[EmailService] Email send initiated for ${to}, polling for result...`);
         const result = await Promise.race([poller.pollUntilDone(), timeoutPromise]);
@@ -67,6 +67,7 @@ export async function sendEmail(
             tags: { service: 'email', recipient: to },
             extra: { subject, statusCode: error.statusCode, code: error.code },
         });
+        await Sentry.flush(2000);
         throw error;
     }
 }

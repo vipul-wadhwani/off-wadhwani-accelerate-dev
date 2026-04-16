@@ -16,7 +16,7 @@ import {
     ventureQuerySchema
 } from '../types/schemas';
 import { successResponse, createdResponse, noContentResponse } from '../utils/response';
-import { sendPanelInvitationEmail, sendWelcomeEmail, sendSelectionWelcomeEmail, sendSelfserveEmail, sendMentorSessionEmail, sendPanelistAssignmentEmail } from '../services/emailService';
+import { sendPanelInvitationEmail, sendWelcomeEmail, sendSelectionWelcomeEmail, sendSelfserveEmail, sendMentorSessionEmail, sendPanelistAssignmentEmail, sendVPVMAssignmentEmail } from '../services/emailService';
 import { createServiceRoleClient } from '../config/supabase';
 
 const upload = multer({
@@ -720,6 +720,39 @@ router.post(
                     console.log(`[AutoRoadmap] Roadmap generated and saved for venture ${req.params.id}`);
                 } catch (err) {
                     console.error(`[AutoRoadmap] Failed to auto-generate roadmap for venture ${req.params.id}:`, err);
+                }
+            })();
+
+            // Fire-and-forget: send email to assigned VP/VM
+            (async () => {
+                try {
+                    const { data: vmProfile } = await serviceClient
+                        .from('profiles')
+                        .select('email, full_name')
+                        .eq('id', assigned_vm_id)
+                        .single();
+
+                    const { data: ventureInfo } = await serviceClient
+                        .from('ventures')
+                        .select('name, founder_name, city, state')
+                        .eq('id', req.params.id)
+                        .single();
+
+                    if (vmProfile?.email && ventureInfo) {
+                        const location = [ventureInfo.city, ventureInfo.state].filter(Boolean).join(', ') || 'N/A';
+                        const appUrl = `${process.env.FRONTEND_URL || 'https://devaccelerate.wadhwaniliftoff.ai'}/vpvm/requests`;
+                        await sendVPVMAssignmentEmail(
+                            vmProfile.email,
+                            vmProfile.full_name || 'Venture Partner',
+                            ventureInfo.name || 'Venture',
+                            ventureInfo.founder_name || 'Applicant',
+                            location,
+                            appUrl
+                        );
+                        console.log(`VP/VM assignment email sent to ${vmProfile.email} for venture ${ventureInfo.name}`);
+                    }
+                } catch (emailError) {
+                    console.error('Failed to send VP/VM assignment email:', emailError);
                 }
             })();
 

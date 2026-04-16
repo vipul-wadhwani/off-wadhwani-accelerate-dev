@@ -45,6 +45,16 @@ export const LiveSessionPage: React.FC = () => {
         return () => { document.body.classList.remove('zoom-joined'); };
     }, [hasJoined]);
 
+    // Auto-redirect to workbench/dashboard after meeting ends
+    useEffect(() => {
+        if (meetingEnded) {
+            const zmmtgRoot = document.getElementById('zmmtg-root');
+            if (zmmtgRoot) zmmtgRoot.style.display = 'none';
+            document.body.classList.remove('zoom-joined');
+            goBack();
+        }
+    }, [meetingEnded]);
+
     // Determine user's role in the meeting
     const userRole = user?.user_metadata?.role;
     const isMentor = session?.mentorId === user?.id;
@@ -270,16 +280,6 @@ export const LiveSessionPage: React.FC = () => {
             </div>
         );
     }
-
-    // Auto-redirect to workbench/dashboard after meeting ends
-    useEffect(() => {
-        if (meetingEnded) {
-            const zmmtgRoot = document.getElementById('zmmtg-root');
-            if (zmmtgRoot) zmmtgRoot.style.display = 'none';
-            document.body.classList.remove('zoom-joined');
-            goBack();
-        }
-    }, [meetingEnded]);
 
     return (
         <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">

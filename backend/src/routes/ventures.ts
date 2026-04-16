@@ -16,7 +16,7 @@ import {
     ventureQuerySchema
 } from '../types/schemas';
 import { successResponse, createdResponse, noContentResponse } from '../utils/response';
-import { sendPanelInvitationEmail, sendWelcomeEmail, sendSelectionWelcomeEmail, sendSelfserveEmail, sendMentorSessionEmail } from '../services/emailService';
+import { sendPanelInvitationEmail, sendWelcomeEmail, sendSelectionWelcomeEmail, sendSelfserveEmail, sendMentorSessionEmail, sendPanelistAssignmentEmail } from '../services/emailService';
 import { createServiceRoleClient } from '../config/supabase';
 
 const upload = multer({
@@ -836,6 +836,41 @@ router.put(
                         }
                     } catch (emailError) {
                         console.error('Failed to send selfserve email:', emailError);
+                    }
+                })();
+            }
+
+            // Fire-and-forget: send email when panelist is assigned
+            if (req.body.assigned_panelist_id) {
+                (async () => {
+                    try {
+                        const serviceClient = createServiceRoleClient();
+                        const { data: panelist } = await serviceClient
+                            .from('profiles')
+                            .select('email, full_name')
+                            .eq('id', req.body.assigned_panelist_id)
+                            .single();
+
+                        if (panelist?.email) {
+                            const { data: ventureDetails } = await serviceClient
+                                .from('ventures')
+                                .select('name, founder_name, city, state')
+                                .eq('id', req.params.id)
+                                .single();
+                            const location = [ventureDetails?.city, ventureDetails?.state].filter(Boolean).join(', ') || 'N/A';
+                            const appUrl = `${process.env.FRONTEND_URL || 'https://devaccelerate.wadhwaniliftoff.ai'}/panel/dashboard`;
+                            await sendPanelistAssignmentEmail(
+                                panelist.email,
+                                panelist.full_name || 'Panelist',
+                                ventureDetails?.name || 'Venture',
+                                ventureDetails?.founder_name || 'Applicant',
+                                location,
+                                appUrl
+                            );
+                            console.log(`Panelist assignment email sent to ${panelist.email} for venture ${venture.name}`);
+                        }
+                    } catch (emailError) {
+                        console.error('Failed to send panelist assignment email:', emailError);
                     }
                 })();
             }

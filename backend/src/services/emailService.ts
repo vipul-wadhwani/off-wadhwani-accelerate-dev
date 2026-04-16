@@ -412,6 +412,76 @@ Team Wadhwani Accelerate`;
     await sendEmail(toEmail, subject, htmlBody, plainText);
 }
 
+export async function sendPanelistAssignmentEmail(
+    toEmail: string,
+    panelistName: string,
+    businessName: string,
+    applicantName: string,
+    location: string,
+    applicationUrl: string
+): Promise<void> {
+    const subject = `Application Assigned for Panel Evaluation`;
+
+    const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #dc2626; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { padding: 20px; background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0 0 8px 8px; }
+        .details { background-color: #f0f4ff; border: 1px solid #c7d2fe; border-radius: 8px; padding: 16px; margin: 16px 0; }
+        .details p { margin: 4px 0; }
+        .cta-button { display: inline-block; background-color: #2563eb; color: #ffffff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; margin: 15px 0; }
+        .footer { text-align: center; padding: 20px; font-size: 12px; color: #6b7280; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Wadhwani Accelerate</h1>
+        </div>
+        <div class="content">
+            <p>Hi ${panelistName},</p>
+            <p>An application has been assigned to you for panel evaluation.</p>
+            <div class="details">
+                <p><strong>Business Name:</strong> ${businessName}</p>
+                <p><strong>Applicant Name:</strong> ${applicantName}</p>
+                <p><strong>Location:</strong> ${location}</p>
+            </div>
+            <p>Please review the application and submit your feedback.</p>
+            <p>You can access the application here:</p>
+            <p style="text-align: center;"><a href="${applicationUrl}" class="cta-button" style="display: inline-block; background-color: #2563eb; color: #ffffff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">Review Application</a></p>
+            <p>Thanks,<br>Team Wadhwani Accelerate</p>
+        </div>
+        <div class="footer">
+            <p>&copy; Wadhwani Foundation. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>`;
+
+    const plainText = `Hi ${panelistName},
+
+An application has been assigned to you for panel evaluation.
+
+Application details:
+Business Name: ${businessName}
+Applicant Name: ${applicantName}
+Location: ${location}
+
+Please review the application and submit your feedback.
+
+You can access the application here: ${applicationUrl}
+
+Thanks,
+Team Wadhwani Accelerate`;
+
+    await sendEmail(toEmail, subject, htmlBody, plainText);
+}
+
 export async function sendMentorSessionEmail(
     toEmail: string,
     recipientName: string,

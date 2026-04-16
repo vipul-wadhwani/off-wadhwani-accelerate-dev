@@ -2554,9 +2554,11 @@ router.post(
             });
             const formattedTime = scheduled_time.slice(0, 5); // HH:MM
 
-            // Email to VP/VM (mentor)
+            // Email to VP/VM (mentor) — use platform meeting link, not Zoom link
             if (mentor.email) {
-                const workbenchUrl = `${process.env.FRONTEND_URL || 'https://devaccelerate.wadhwaniliftoff.ai'}/vpvm/requests`;
+                const frontendUrl = process.env.FRONTEND_URL || 'https://devaccelerate.wadhwaniliftoff.ai';
+                const platformMeetingLink = `${frontendUrl}/meeting/${session.id}`;
+                const workbenchUrl = `${frontendUrl}/vpvm/requests`;
                 sendVPVMMeetingScheduledEmail(
                     mentor.email,
                     mentor.full_name || 'Venture Partner',
@@ -2564,7 +2566,7 @@ router.post(
                     venture.founder_name || 'Entrepreneur',
                     formattedDate,
                     formattedTime,
-                    join_url,
+                    platformMeetingLink,
                     workbenchUrl
                 ).catch(err => console.error('[MentorSession] Failed to email VP/VM:', err.message));
             }

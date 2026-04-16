@@ -77,9 +77,11 @@ export async function sendTomorrowMeetingReminders(): Promise<void> {
                 weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
             });
             const formattedTime = session.scheduled_time?.slice(0, 5) || 'TBD';
-            const workbenchUrl = `${process.env.FRONTEND_URL || 'https://devaccelerate.wadhwaniliftoff.ai'}/vpvm/requests`;
+            const frontendUrl = process.env.FRONTEND_URL || 'https://devaccelerate.wadhwaniliftoff.ai';
+            const platformMeetingLink = `${frontendUrl}/meeting/${session.id}`;
+            const workbenchUrl = `${frontendUrl}/vpvm/requests`;
 
-            // 1-day reminder to VP/VM
+            // 1-day reminder to VP/VM — use platform meeting link
             await sendVPVMMeetingReminderEmail(
                 mentor.email,
                 mentor.full_name || 'Venture Partner',
@@ -87,7 +89,7 @@ export async function sendTomorrowMeetingReminders(): Promise<void> {
                 venture.founder_name || 'Entrepreneur',
                 formattedDate,
                 formattedTime,
-                session.join_url || workbenchUrl,
+                platformMeetingLink,
                 workbenchUrl
             );
             console.log(`[Reminder] 1-day reminder sent to VP/VM ${mentor.email} for session ${session.id}`);
@@ -182,9 +184,11 @@ export async function send30MinReminders(): Promise<void> {
                 weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
             });
             const formattedTime = session.scheduled_time?.slice(0, 5) || 'TBD';
-            const workbenchUrl = `${process.env.FRONTEND_URL || 'https://devaccelerate.wadhwaniliftoff.ai'}/vpvm/requests`;
+            const frontendUrl = process.env.FRONTEND_URL || 'https://devaccelerate.wadhwaniliftoff.ai';
+            const platformMeetingLink = `${frontendUrl}/meeting/${session.id}`;
+            const workbenchUrl = `${frontendUrl}/vpvm/requests`;
 
-            // 30-min reminder to VP/VM
+            // 30-min reminder to VP/VM — use platform meeting link
             await sendVPVM30MinReminderEmail(
                 mentor.email,
                 mentor.full_name || 'Venture Partner',
@@ -192,7 +196,7 @@ export async function send30MinReminders(): Promise<void> {
                 venture.founder_name || 'Entrepreneur',
                 formattedDate,
                 formattedTime,
-                session.join_url || workbenchUrl,
+                platformMeetingLink,
                 workbenchUrl
             );
             console.log(`[Reminder] 30-min reminder sent to VP/VM ${mentor.email} for session ${session.id}`);

@@ -16,7 +16,7 @@ import {
     ventureQuerySchema
 } from '../types/schemas';
 import { successResponse, createdResponse, noContentResponse } from '../utils/response';
-import { sendPanelInvitationEmail, sendWelcomeEmail, sendSelectionWelcomeEmail, sendSelfserveEmail, sendMentorSessionEmail, sendPanelistAssignmentEmail, sendVPVMAssignmentEmail } from '../services/emailService';
+import { sendPanelInvitationEmail, sendWelcomeEmail, sendSelectionWelcomeEmail, sendSelfserveEmail, sendMentorSessionEmail, sendPanelistAssignmentEmail, sendVPVMAssignmentEmail, sendVPVMMeetingScheduledEmail } from '../services/emailService';
 import { createServiceRoleClient } from '../config/supabase';
 
 const upload = multer({
@@ -2554,18 +2554,19 @@ router.post(
             });
             const formattedTime = scheduled_time.slice(0, 5); // HH:MM
 
-            // Email to mentor
+            // Email to VP/VM (mentor)
             if (mentor.email) {
-                sendMentorSessionEmail(
+                const workbenchUrl = `${process.env.FRONTEND_URL || 'https://devaccelerate.wadhwaniliftoff.ai'}/vpvm/requests`;
+                sendVPVMMeetingScheduledEmail(
                     mentor.email,
-                    mentor.full_name || 'Mentor',
+                    mentor.full_name || 'Venture Partner',
                     venture.name,
                     venture.founder_name || 'Entrepreneur',
-                    topic || 'Mentoring Session',
                     formattedDate,
                     formattedTime,
-                    join_url
-                ).catch(err => console.error('[MentorSession] Failed to email mentor:', err.message));
+                    join_url,
+                    workbenchUrl
+                ).catch(err => console.error('[MentorSession] Failed to email VP/VM:', err.message));
             }
 
             // Email to entrepreneur

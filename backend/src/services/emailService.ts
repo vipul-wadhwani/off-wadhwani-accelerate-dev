@@ -552,6 +552,76 @@ Team Wadhwani Accelerate`;
     await sendEmail(toEmail, subject, htmlBody, plainText);
 }
 
+export async function sendVPVMMeetingScheduledEmail(
+    toEmail: string,
+    vpvmName: string,
+    businessName: string,
+    applicantName: string,
+    date: string,
+    time: string,
+    meetingLink: string,
+    workbenchUrl: string
+): Promise<void> {
+    const subject = `Meeting Scheduled with Venture`;
+
+    const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #dc2626; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { padding: 20px; background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0 0 8px 8px; }
+        .details { background-color: #f0f4ff; border: 1px solid #c7d2fe; border-radius: 8px; padding: 16px; margin: 16px 0; }
+        .details p { margin: 6px 0; }
+        .footer { text-align: center; padding: 20px; font-size: 12px; color: #6b7280; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Wadhwani Accelerate</h1>
+        </div>
+        <div class="content">
+            <p>Hi ${vpvmName},</p>
+            <p>This is to inform you that your meeting with the venture has been scheduled. Please find the details below:</p>
+            <div class="details">
+                <p><strong>Business Name:</strong> ${businessName}</p>
+                <p><strong>Name:</strong> ${applicantName}</p>
+                <p>&#128197; <strong>Date:</strong> ${date}</p>
+                <p>&#9200; <strong>Time:</strong> ${time}</p>
+                <p>&#128205; <strong>Meeting Link:</strong> <a href="${meetingLink}">${meetingLink}</a></p>
+            </div>
+            <p>You can review the pre-meeting brief under the Upcoming Meetings section in the <a href="${workbenchUrl}">Workbench</a>.</p>
+            <p>Thanks,<br>Team Wadhwani Accelerate</p>
+        </div>
+        <div class="footer">
+            <p>&copy; Wadhwani Foundation. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>`;
+
+    const plainText = `Hi ${vpvmName},
+
+This is to inform you that your meeting with the venture has been scheduled. Please find the details below:
+
+Business Name: ${businessName}
+Name: ${applicantName}
+Date: ${date}
+Time: ${time}
+Meeting Link: ${meetingLink}
+
+You can review the pre-meeting brief under the Upcoming Meetings section in the Workbench: ${workbenchUrl}
+
+Thanks,
+Team Wadhwani Accelerate`;
+
+    await sendEmail(toEmail, subject, htmlBody, plainText);
+}
+
 export async function sendMentorSessionEmail(
     toEmail: string,
     recipientName: string,

@@ -230,13 +230,6 @@ export async function sendSelectionWelcomeEmail(
 
             <p>We look forward to partnering with you on this journey and supporting your venture as you work towards meaningful, scalable growth.</p>
 
-            <div class="login-box">
-                <p style="margin: 0 0 8px 0; font-weight: bold;">Your Login Details</p>
-                <p style="margin: 0 0 4px 0;">Portal: <a href="${loginUrl}">${loginUrl}</a></p>
-                <p style="margin: 0 0 4px 0;">Email: <strong>${toEmail}</strong></p>
-                <p style="margin: 0;">Password: <strong>WadhwaniAccelerate123456</strong></p>
-            </div>
-
             <p><strong>Welcome aboard,</strong><br>Team Wadhwani Accelerate</p>
         </div>
         <div class="footer">
@@ -266,11 +259,6 @@ Following alignment, execution begins through structured 12-week growth sprints.
 Throughout the program, ventures are expected to commit clearly to the agreed growth direction, actively engage in execution, and track progress against defined outcomes.
 
 We look forward to partnering with you on this journey and supporting your venture as you work towards meaningful, scalable growth.
-
-Your Login Details:
-Portal: ${loginUrl}
-Email: ${toEmail}
-Password: WadhwaniAccelerate123456
 
 Welcome aboard,
 Team Wadhwani Accelerate`;

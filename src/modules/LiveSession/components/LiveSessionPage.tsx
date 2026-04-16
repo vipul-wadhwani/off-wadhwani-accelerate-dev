@@ -4,7 +4,7 @@ import { ZoomMeetingRoom } from '../../Zoom';
 import type { ZoomMeetingRoomHandle } from '../../Zoom';
 import { RightPanel } from './RightPanel';
 import { useAuth } from '../../../context/AuthContext';
-import { Loader2, Video, AlertCircle } from 'lucide-react';
+import { Loader2, Video, AlertCircle, ArrowLeft } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -292,6 +292,11 @@ export const LiveSessionPage: React.FC = () => {
             {/* Header — above Zoom SDK */}
             <div className="live-session-header flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200 shadow-sm">
                 <div className="flex items-center gap-3">
+                    {!hasJoined && (
+                        <button onClick={goBack} className="text-gray-500 hover:text-gray-900">
+                            <ArrowLeft className="w-5 h-5" />
+                        </button>
+                    )}
                     <div>
                         <h1 className="text-gray-900 text-sm font-semibold">{session.topic || 'Expert Session'}</h1>
                         <span className="text-gray-500 text-xs">

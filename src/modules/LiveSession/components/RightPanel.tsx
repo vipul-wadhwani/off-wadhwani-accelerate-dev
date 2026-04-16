@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { FileText, MessageSquare, Sparkles, Users, X } from 'lucide-react';
 import { BriefPanel } from '../../PreMeetingBrief';
 import { TranscriptPanel } from './TranscriptPanel';
@@ -76,9 +77,9 @@ export const RightPanel: React.FC<RightPanelProps> = ({ sessionId, ventureId, ve
             </div>
         </div>
 
-        {/* Connect to Expert Modal */}
-        {showExpertModal && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowExpertModal(false)}>
+        {/* Connect to Expert Modal — portaled to body to escape Zoom SDK stacking context */}
+        {showExpertModal && createPortal(
+            <div className="fixed inset-0 flex items-center justify-center bg-black/50" style={{ zIndex: 99999 }} onClick={() => setShowExpertModal(false)}>
                 <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
                         <div className="flex items-center gap-2">
@@ -93,7 +94,8 @@ export const RightPanel: React.FC<RightPanelProps> = ({ sessionId, ventureId, ve
                         <InlineExpertPanel ventureId={ventureId} ventureName={ventureName} />
                     </div>
                 </div>
-            </div>
+            </div>,
+            document.body
         )}
         </>
     );

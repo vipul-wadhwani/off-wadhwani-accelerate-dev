@@ -100,10 +100,10 @@ export const VPVMRequestsPage: React.FC = () => {
         );
     }
 
-    const stats = [
+    const stats: { label: string; value: number; bg: string; text: string; num: string; tab?: ListTab }[] = [
         { label: 'Total', value: counts.total, bg: 'bg-indigo-50/50 border border-indigo-200/60', text: 'text-indigo-600', num: 'text-indigo-700' },
-        { label: 'Upcoming', value: counts.pending + counts.in_progress, bg: 'bg-amber-50/50 border border-amber-200/60', text: 'text-amber-600', num: 'text-amber-600' },
-        { label: 'Completed', value: counts.completed, bg: 'bg-emerald-50/50 border border-emerald-200/60', text: 'text-emerald-600', num: 'text-emerald-700' },
+        { label: 'Upcoming', value: counts.pending + counts.in_progress, bg: 'bg-amber-50/50 border border-amber-200/60', text: 'text-amber-600', num: 'text-amber-600', tab: 'requests' },
+        { label: 'Completed', value: counts.completed, bg: 'bg-emerald-50/50 border border-emerald-200/60', text: 'text-emerald-600', num: 'text-emerald-700', tab: 'completed' },
     ];
 
     const mainTabs: { key: ListTab; label: string; icon: React.ReactNode }[] = [
@@ -123,8 +123,12 @@ export const VPVMRequestsPage: React.FC = () => {
 
             {/* Stat Cards */}
             <div className="grid grid-cols-3 gap-3">
-                {stats.map(({ label, value, bg, text, num }) => (
-                    <div key={label} className={`rounded-xl p-4 text-center ${bg}`}>
+                {stats.map(({ label, value, bg, text, num, tab }) => (
+                    <div
+                        key={label}
+                        onClick={() => tab && setActiveTab(tab)}
+                        className={`rounded-xl p-4 text-center ${bg} ${tab ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}
+                    >
                         <div className={`text-3xl font-bold ${num}`}>{value}</div>
                         <div className={`text-sm font-medium mt-1 ${text}`}>{label}</div>
                     </div>

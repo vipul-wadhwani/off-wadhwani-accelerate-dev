@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ZoomMeetingRoom } from '../../Zoom';
+import type { ZoomMeetingRoomHandle } from '../../Zoom';
 import { RightPanel } from './RightPanel';
 import { useAuth } from '../../../context/AuthContext';
 import { Loader2, ArrowLeft, Video, AlertCircle } from 'lucide-react';
@@ -29,7 +30,20 @@ export const LiveSessionPage: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [meetingEnded, setMeetingEnded] = useState(false);
     const [transcriptChunks, setTranscriptChunks] = useState<Array<{ speaker: string; text: string; time: string }>>([]);
+    const [zoomStatus, setZoomStatus] = useState<string>('idle');
     const pendingChunksRef = useRef<Array<{ speaker: string; text: string; time: string }>>([]);
+    const zoomRef = useRef<ZoomMeetingRoomHandle>(null);
+    const hasJoined = zoomStatus === 'joined';
+
+    // Toggle body class for CSS to resize #zmmtg-root when joined
+    useEffect(() => {
+        if (hasJoined) {
+            document.body.classList.add('zoom-joined');
+        } else {
+            document.body.classList.remove('zoom-joined');
+        }
+        return () => { document.body.classList.remove('zoom-joined'); };
+    }, [hasJoined]);
 
     // Determine user's role in the meeting
     const userRole = user?.user_metadata?.role;
@@ -126,6 +140,9 @@ export const LiveSessionPage: React.FC = () => {
     }, [sessionId]);
 
     const handleMeetingEnd = useCallback(async () => {
+        // Leave the Zoom meeting first
+        try { await zoomRef.current?.leave(); } catch { /* ignore */ }
+
         // Save any remaining transcript chunks
         if (pendingChunksRef.current.length > 0 && sessionId) {
             try {
@@ -196,11 +213,16 @@ export const LiveSessionPage: React.FC = () => {
         pending.push(chunk);
     }, []);
 
-    const goBack = () => {
+    const goBack = async () => {
+        // Leave Zoom and clean up SDK DOM elements
+        try { await zoomRef.current?.leave(); } catch { /* ignore */ }
+        const zmmtgRoot = document.getElementById('zmmtg-root');
+        if (zmmtgRoot) zmmtgRoot.style.display = 'none';
+
         const role = user?.user_metadata?.role;
         if (role === 'mentor') navigate('/expert/dashboard');
         else if (role === 'entrepreneur') navigate('/dashboard');
-        else navigate('/vpvm/dashboard');
+        else navigate('/vpvm/requests');
     };
 
     if (loading) {
@@ -266,13 +288,10 @@ export const LiveSessionPage: React.FC = () => {
     }
 
     return (
-        <div className="h-screen bg-gray-50 flex flex-col overflow-y-auto">
-            {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200 shadow-sm">
+        <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
+            {/* Header — above Zoom SDK */}
+            <div className="live-session-header flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200 shadow-sm">
                 <div className="flex items-center gap-3">
-                    <button onClick={goBack} className="text-gray-500 hover:text-gray-900">
-                        <ArrowLeft className="w-5 h-5" />
-                    </button>
                     <div>
                         <h1 className="text-gray-900 text-sm font-semibold">{session.topic || 'Expert Session'}</h1>
                         <span className="text-gray-500 text-xs">
@@ -281,11 +300,13 @@ export const LiveSessionPage: React.FC = () => {
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
-                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium">
-                        <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
-                        Live
-                    </span>
-                    {isMentor && (
+                    {hasJoined && (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium">
+                            <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+                            Live
+                        </span>
+                    )}
+                    {hasJoined && (isMentor || userRole === 'venture_mgr') && (
                         <button
                             onClick={handleMeetingEnd}
                             className="px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
@@ -298,26 +319,31 @@ export const LiveSessionPage: React.FC = () => {
 
             {/* Meeting area with right panel */}
             <div className="flex-1 flex min-h-0">
-                <div className="flex-1">
+                {/* Zoom SDK renders to #zmmtg-root (fixed position on body) — this div is a spacer */}
+                <div className={`flex-1 relative ${hasJoined ? '' : 'bg-white'}`}>
                     <ZoomMeetingRoom
+                        ref={zoomRef}
                         meetingNumber={String(session.zoomMeetingId)}
                         password={session.zoomPassword}
                         userName={user?.user_metadata?.full_name || user?.email || 'Participant'}
                         userEmail={user?.email}
                         role={zoomRole}
                         onMeetingEnd={handleMeetingEnd}
+                        onStatusChange={setZoomStatus}
                         onTranscriptChunk={handleTranscriptChunk}
                     />
                 </div>
-                {showRightPanel && (
-                    <RightPanel
-                        sessionId={session.sessionId}
-                        ventureId={session.ventureId}
-                        ventureName={session.topic?.replace('VP/VM Session: ', '').replace('Expert Session: ', '')}
-                        transcriptChunks={transcriptChunks}
-                        topic={session.topic}
-                        userRole={userRole}
-                    />
+                {showRightPanel && hasJoined && (
+                    <div className="relative z-[10001]">
+                        <RightPanel
+                            sessionId={session.sessionId}
+                            ventureId={session.ventureId}
+                            ventureName={session.topic?.replace('VP/VM Session: ', '').replace('Expert Session: ', '')}
+                            transcriptChunks={transcriptChunks}
+                            topic={session.topic}
+                            userRole={userRole}
+                        />
+                    </div>
                 )}
             </div>
         </div>

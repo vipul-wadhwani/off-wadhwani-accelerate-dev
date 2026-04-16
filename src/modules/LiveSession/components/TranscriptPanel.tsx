@@ -25,38 +25,54 @@ export const TranscriptPanel: React.FC<TranscriptPanelProps> = ({ chunks }) => {
     }, [chunks.length]);
 
     const enableCaptions = async () => {
-        // Step 1: Click "More" button in the Zoom toolbar to open the menu
-        const moreBtn = document.querySelector('button[title="More"]') as HTMLElement
-            || document.querySelector('[aria-label="more"]') as HTMLElement
-            || document.querySelector('[aria-label="More"]') as HTMLElement;
+        // Boost z-index on Zoom toolbar elements so they're clickable above our panel
+        const affected: { el: HTMLElement; prev: string }[] = [];
+        document.querySelectorAll('[class*="more"], [class*="toolbar"], [class*="footer"]').forEach(el => {
+            const htmlEl = el as HTMLElement;
+            affected.push({ el: htmlEl, prev: htmlEl.style.zIndex });
+            htmlEl.style.zIndex = '999999';
+        });
+        const restoreZIndex = () => affected.forEach(({ el, prev }) => { el.style.zIndex = prev; });
 
-        if (moreBtn) {
-            moreBtn.click();
+        // Step 1: Find and click "More" button by text content
+        const moreBtn = Array.from(document.querySelectorAll('button')).find(
+            b => b.textContent?.trim() === 'More'
+        ) as HTMLElement;
 
-            // Step 2: Wait for menu to appear, then click "Show Captions"
-            await new Promise(r => setTimeout(r, 600));
-
-            const showCaptionsBtn = Array.from(document.querySelectorAll('li, div, span, button')).find(
-                el => el.textContent?.trim() === 'Show Captions'
-            ) as HTMLElement;
-
-            if (showCaptionsBtn) {
-                showCaptionsBtn.click();
-                setCaptionsEnabled(true);
-                return;
-            }
-        }
-
-        // Fallback: try direct captions button
-        const directBtn = document.querySelector('[aria-label="show captions"]') as HTMLElement
-            || document.querySelector('[aria-label="Captions"]') as HTMLElement;
-        if (directBtn) {
-            directBtn.click();
-            setCaptionsEnabled(true);
+        if (!moreBtn) {
+            restoreZIndex();
+            setCaptionsEnabled(true); // Mark enabled, user clicks manually
             return;
         }
 
-        // Last resort — just mark enabled, user will need to click manually
+        moreBtn.click();
+
+        // Step 2: Wait for menu, click "Captions"
+        await new Promise(r => setTimeout(r, 400));
+        const captionsEl = Array.from(document.querySelectorAll('*')).find(
+            e => e.children.length === 0 && e.textContent?.trim() === 'Captions'
+        ) as HTMLElement;
+
+        if (captionsEl) {
+            captionsEl.click();
+
+            // Step 3: Wait for submenu, click "Show Captions"
+            await new Promise(r => setTimeout(r, 400));
+            const showCaptionsEl = Array.from(document.querySelectorAll('*')).find(
+                e => e.children.length === 0 && e.textContent?.trim() === 'Show Captions'
+            ) as HTMLElement;
+
+            if (showCaptionsEl) {
+                showCaptionsEl.click();
+                console.log('[Transcript] Captions enabled via More > Captions > Show Captions');
+            }
+
+            // Close any remaining menus
+            await new Promise(r => setTimeout(r, 150));
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        }
+
+        restoreZIndex();
         setCaptionsEnabled(true);
     };
 

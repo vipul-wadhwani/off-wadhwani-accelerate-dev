@@ -1,4 +1,5 @@
 import { EmailClient } from '@azure/communication-email';
+import { Sentry } from '../config/sentry';
 
 const connectionString = process.env.AZURE_COMMUNICATION_CONNECTION_STRING || '';
 const senderAddress = process.env.AZURE_EMAIL_SENDER || 'accelerate@wadhwanifoundation.org';
@@ -61,6 +62,10 @@ export async function sendEmail(
             code: error.code,
             statusCode: error.statusCode,
             stack: error.stack?.split('\n').slice(0, 3).join('\n'),
+        });
+        Sentry.captureException(error, {
+            tags: { service: 'email', recipient: to },
+            extra: { subject, statusCode: error.statusCode, code: error.code },
         });
         throw error;
     }

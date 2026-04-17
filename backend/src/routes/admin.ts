@@ -101,7 +101,10 @@ router.post(
                     : (req.body.program || 'Core');
                 const { error: panelistError } = await serviceClient
                     .from('panelists')
-                    .upsert({ name: full_name, email, program }, { onConflict: 'email' });
+                    .upsert(
+                        { name: full_name, email, program, profile_id: data.user.id },
+                        { onConflict: 'email' }
+                    );
 
                 if (panelistError) {
                     console.error('Panelist creation error:', panelistError);

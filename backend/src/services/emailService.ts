@@ -26,6 +26,13 @@ export async function sendEmail(
 ): Promise<void> {
     console.log(`[EmailService] Attempting to send email to: ${to}, subject: "${subject}"`);
 
+    Sentry.addBreadcrumb({
+        category: 'email',
+        message: 'Email send attempted',
+        level: 'info',
+        data: { to, subject },
+    });
+
     try {
         const client = getEmailClient();
 
@@ -52,6 +59,19 @@ export async function sendEmail(
         console.log(`[EmailService] Email to ${to} — status: ${result.status}, id: ${result.id}`);
         if (result.status !== 'Succeeded') {
             console.error(`[EmailService] Email to ${to} did not succeed. Status: ${result.status}, Error: ${JSON.stringify(result.error)}`);
+            Sentry.captureMessage(`Email delivery did not succeed: ${result.status}`, {
+                level: 'error',
+                tags: { service: 'email', recipient: to, delivery_status: result.status },
+                extra: { subject, operationId: result.id, azureError: result.error },
+            });
+            await Sentry.flush(2000);
+        } else {
+            Sentry.addBreadcrumb({
+                category: 'email',
+                message: 'Email delivered',
+                level: 'info',
+                data: { to, operationId: result.id },
+            });
         }
     } catch (error: any) {
         console.error(`[EmailService] Failed to send email to ${to}:`, {
@@ -66,6 +86,35 @@ export async function sendEmail(
         });
         await Sentry.flush(2000);
         throw error;
+    }
+}
+
+/**
+ * Log an email trigger to Sentry — useful for tracking attempts and skips
+ * from callers (e.g. when a recipient's email is missing and the send is skipped).
+ */
+export function logEmailTrigger(trigger: string, context: {
+    recipient?: string;
+    skipped?: boolean;
+    skipReason?: string;
+    metadata?: Record<string, any>;
+}): void {
+    const { recipient, skipped, skipReason, metadata } = context;
+
+    if (skipped) {
+        console.warn(`[EmailService] Email skipped — trigger: ${trigger}, reason: ${skipReason}`);
+        Sentry.captureMessage(`Email skipped: ${trigger}`, {
+            level: 'warning',
+            tags: { service: 'email', trigger, skipped: 'true' },
+            extra: { recipient, skipReason, ...metadata },
+        });
+    } else {
+        Sentry.addBreadcrumb({
+            category: 'email',
+            message: `Trigger: ${trigger}`,
+            level: 'info',
+            data: { recipient, ...metadata },
+        });
     }
 }
 

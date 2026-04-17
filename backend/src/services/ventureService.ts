@@ -8,7 +8,7 @@ import {
     VentureQueryParams
 } from '../types';
 import { createServiceRoleClient } from '../config/supabase';
-import { sendScreeningAssignmentEmail } from './emailService';
+import { sendScreeningAssignmentEmail, logEmailTrigger } from './emailService';
 
 // Revenue tiers for screening manager assignment
 // Legacy text ranges (backward compat for old data)
@@ -130,6 +130,10 @@ export async function autoAssignScreeningManager(
                 .single();
 
             if (managerProfile?.email && venture) {
+                logEmailTrigger('assignment.screening_manager', {
+                    recipient: managerProfile.email,
+                    metadata: { venture_id: ventureId, manager_id: selectedManager.id },
+                });
                 const location = [venture.city, venture.state].filter(Boolean).join(', ') || 'N/A';
                 const appUrl = `${process.env.FRONTEND_URL || 'https://devaccelerate.wadhwaniliftoff.ai'}/screening`;
                 sendScreeningAssignmentEmail(
@@ -140,6 +144,12 @@ export async function autoAssignScreeningManager(
                     location,
                     appUrl
                 ).catch(err => console.error('[AutoAssign] Failed to send screening email:', err.message));
+            } else {
+                logEmailTrigger('assignment.screening_manager', {
+                    skipped: true,
+                    skipReason: !managerProfile?.email ? 'Manager profile has no email' : 'Venture not found',
+                    metadata: { venture_id: ventureId, manager_id: selectedManager.id },
+                });
             }
         } catch (emailErr: any) {
             console.error('[AutoAssign] Email notification error:', emailErr.message);

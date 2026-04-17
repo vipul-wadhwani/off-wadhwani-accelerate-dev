@@ -16,7 +16,7 @@ import {
     ventureQuerySchema
 } from '../types/schemas';
 import { successResponse, createdResponse, noContentResponse } from '../utils/response';
-import { sendPanelInvitationEmail, sendWelcomeEmail, sendSelectionWelcomeEmail, sendSelfserveEmail, sendMentorSessionEmail, sendPanelistAssignmentEmail, sendVPVMAssignmentEmail, sendVPVMMeetingScheduledEmail, sendBusinessMeetingScheduledEmail } from '../services/emailService';
+import { sendPanelInvitationEmail, sendWelcomeEmail, sendSelectionWelcomeEmail, sendSelfserveEmail, sendMentorSessionEmail, sendPanelistAssignmentEmail, sendVPVMAssignmentEmail, sendVPVMMeetingScheduledEmail, sendBusinessMeetingScheduledEmail, logEmailTrigger } from '../services/emailService';
 import { createServiceRoleClient } from '../config/supabase';
 
 const upload = multer({
@@ -156,6 +156,10 @@ router.post(
             // 4. Send welcome email (await to report status)
             let emailStatus = 'skipped';
             if (body.email) {
+                logEmailTrigger('welcome.public_apply', {
+                    recipient: body.email,
+                    metadata: { venture_id: venture.id, venture_name: body.name },
+                });
                 console.log(`[PublicApply] Triggering welcome email to ${body.email} for venture "${body.name}"`);
                 try {
                     await sendWelcomeEmail(body.email, body.founder_name, body.name);
@@ -166,6 +170,11 @@ router.post(
                     console.error(`[PublicApply] Failed to send welcome email to ${body.email}:`, err.message || err);
                 }
             } else {
+                logEmailTrigger('welcome.public_apply', {
+                    skipped: true,
+                    skipReason: 'No email provided in application body',
+                    metadata: { venture_id: venture.id, venture_name: body.name },
+                });
                 console.warn('[PublicApply] No email provided in application body, skipping welcome email');
             }
 
@@ -739,6 +748,10 @@ router.post(
                         .single();
 
                     if (vmProfile?.email && ventureInfo) {
+                        logEmailTrigger('assignment.vpvm', {
+                            recipient: vmProfile.email,
+                            metadata: { venture_id: req.params.id, vm_id: assigned_vm_id },
+                        });
                         const location = [ventureInfo.city, ventureInfo.state].filter(Boolean).join(', ') || 'N/A';
                         const appUrl = `${process.env.FRONTEND_URL || 'https://devaccelerate.wadhwaniliftoff.ai'}/vpvm/requests`;
                         await sendVPVMAssignmentEmail(
@@ -750,6 +763,12 @@ router.post(
                             appUrl
                         );
                         console.log(`VP/VM assignment email sent to ${vmProfile.email} for venture ${ventureInfo.name}`);
+                    } else {
+                        logEmailTrigger('assignment.vpvm', {
+                            skipped: true,
+                            skipReason: !vmProfile?.email ? 'VP/VM profile has no email' : 'Venture info not found',
+                            metadata: { venture_id: req.params.id, vm_id: assigned_vm_id },
+                        });
                     }
                 } catch (emailError) {
                     console.error('Failed to send VP/VM assignment email:', emailError);
@@ -833,11 +852,20 @@ router.put(
                             .single();
 
                         if (profile?.email) {
+                            logEmailTrigger('panel_invitation.status_change', {
+                                recipient: profile.email,
+                                metadata: { venture_id: req.params.id },
+                            });
                             const founderName = profile.full_name || 'Founder';
                             const ventureName = venture.name || 'Your Venture';
                             await sendPanelInvitationEmail(profile.email, founderName, ventureName);
                             console.log(`Panel invitation email sent to ${profile.email} for venture ${venture.name}`);
                         } else {
+                            logEmailTrigger('panel_invitation.status_change', {
+                                skipped: true,
+                                skipReason: 'No entrepreneur email found for venture.user_id',
+                                metadata: { venture_id: req.params.id, user_id: venture.user_id },
+                            });
                             console.warn(`No email found for user_id ${venture.user_id}, skipping panel invitation email`);
                         }
                     } catch (emailError) {
@@ -860,11 +888,20 @@ router.put(
 
                         const founderEmail = app?.founder_email;
                         if (founderEmail) {
+                            logEmailTrigger('selfserve.recommendation', {
+                                recipient: founderEmail,
+                                metadata: { venture_id: req.params.id },
+                            });
                             const founderName = venture.founder_name || 'Founder';
                             const ventureName = venture.name || 'Your Venture';
                             await sendSelfserveEmail(founderEmail, founderName, ventureName);
                             console.log(`Selfserve LiftOff AI email sent to ${founderEmail} for venture ${venture.name}`);
                         } else {
+                            logEmailTrigger('selfserve.recommendation', {
+                                skipped: true,
+                                skipReason: 'No founder_email on venture_applications',
+                                metadata: { venture_id: req.params.id },
+                            });
                             console.warn(`No founder email found for venture ${req.params.id}, skipping selfserve email`);
                         }
                     } catch (emailError) {
@@ -879,12 +916,16 @@ router.put(
                     try {
                         const serviceClient = createServiceRoleClient();
                         const { data: panelist } = await serviceClient
-                            .from('profiles')
-                            .select('email, full_name')
+                            .from('panelists')
+                            .select('email, name')
                             .eq('id', req.body.assigned_panelist_id)
                             .single();
 
                         if (panelist?.email) {
+                            logEmailTrigger('assignment.panelist', {
+                                recipient: panelist.email,
+                                metadata: { venture_id: req.params.id, panelist_id: req.body.assigned_panelist_id },
+                            });
                             const { data: ventureDetails } = await serviceClient
                                 .from('ventures')
                                 .select('name, founder_name, city, state')
@@ -894,13 +935,19 @@ router.put(
                             const appUrl = `${process.env.FRONTEND_URL || 'https://devaccelerate.wadhwaniliftoff.ai'}/panel/dashboard`;
                             await sendPanelistAssignmentEmail(
                                 panelist.email,
-                                panelist.full_name || 'Panelist',
+                                panelist.name || 'Panelist',
                                 ventureDetails?.name || 'Venture',
                                 ventureDetails?.founder_name || 'Applicant',
                                 location,
                                 appUrl
                             );
                             console.log(`Panelist assignment email sent to ${panelist.email} for venture ${venture.name}`);
+                        } else {
+                            logEmailTrigger('assignment.panelist', {
+                                skipped: true,
+                                skipReason: 'Panelist record not found or has no email',
+                                metadata: { venture_id: req.params.id, panelist_id: req.body.assigned_panelist_id },
+                            });
                         }
                     } catch (emailError) {
                         console.error('Failed to send panelist assignment email:', emailError);
@@ -1367,6 +1414,10 @@ router.post(
             const founderName = venture.founder_name || 'Founder';
             const ventureName = venture.name || 'Your Venture';
 
+            logEmailTrigger('panel_invitation.manual', {
+                recipient: founderEmail,
+                metadata: { venture_id: req.params.id },
+            });
             // Fire-and-forget
             sendPanelInvitationEmail(founderEmail, founderName, ventureName)
                 .then(() => console.log(`Panel invitation email sent to ${founderEmail} for venture ${ventureName}`))
@@ -1474,6 +1525,10 @@ router.post(
                 }
             }
 
+            logEmailTrigger('selection.welcome', {
+                recipient: founderEmail,
+                metadata: { venture_id: venture.id, program_category },
+            });
             // Send selection welcome email
             sendSelectionWelcomeEmail(founderEmail, founderName, ventureName, program_category, loginUrl)
                 .then(() => console.log(`Selection welcome email sent to ${founderEmail} for venture ${ventureName} (${program_category})`))
@@ -2556,6 +2611,10 @@ router.post(
 
             // Email to VP/VM (mentor) — use platform meeting link, not Zoom link
             if (mentor.email) {
+                logEmailTrigger('mentor_session.vpvm', {
+                    recipient: mentor.email,
+                    metadata: { venture_id: ventureId, session_id: session.id },
+                });
                 const frontendUrl = process.env.FRONTEND_URL || 'https://devaccelerate.wadhwaniliftoff.ai';
                 const platformMeetingLink = `${frontendUrl}/meeting/${session.id}`;
                 const workbenchUrl = `${frontendUrl}/vpvm/requests`;
@@ -2569,6 +2628,12 @@ router.post(
                     platformMeetingLink,
                     workbenchUrl
                 ).catch(err => console.error('[MentorSession] Failed to email VP/VM:', err.message));
+            } else {
+                logEmailTrigger('mentor_session.vpvm', {
+                    skipped: true,
+                    skipReason: 'Mentor profile has no email',
+                    metadata: { venture_id: ventureId, session_id: session.id },
+                });
             }
 
             // Email to entrepreneur (business)
@@ -2580,6 +2645,10 @@ router.post(
                     .single();
 
                 if (entrepreneur?.email) {
+                    logEmailTrigger('mentor_session.entrepreneur', {
+                        recipient: entrepreneur.email,
+                        metadata: { venture_id: ventureId, session_id: session.id },
+                    });
                     sendBusinessMeetingScheduledEmail(
                         entrepreneur.email,
                         entrepreneur.full_name || venture.founder_name || 'Founder',
@@ -2589,6 +2658,12 @@ router.post(
                         formattedTime,
                         join_url
                     ).catch(err => console.error('[MentorSession] Failed to email entrepreneur:', err.message));
+                } else {
+                    logEmailTrigger('mentor_session.entrepreneur', {
+                        skipped: true,
+                        skipReason: 'Entrepreneur profile has no email',
+                        metadata: { venture_id: ventureId, session_id: session.id, user_id: venture.user_id },
+                    });
                 }
             }
 

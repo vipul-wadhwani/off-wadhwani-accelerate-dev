@@ -1,6 +1,6 @@
 import cron from 'node-cron';
 import { createServiceRoleClient } from '../config/supabase';
-import { sendVPVMMeetingReminderEmail, sendVPVM30MinReminderEmail, sendBusinessMeetingReminderEmail } from './emailService';
+import { sendVPVMMeetingReminderEmail, sendVPVM30MinReminderEmail, sendBusinessMeetingReminderEmail, logEmailTrigger } from './emailService';
 
 /**
  * Starts all meeting reminder schedulers.
@@ -69,6 +69,11 @@ export async function sendTomorrowMeetingReminders(): Promise<void> {
                 .single();
 
             if (!mentor?.email || !venture) {
+                logEmailTrigger('reminder_1day.vpvm', {
+                    skipped: true,
+                    skipReason: !mentor?.email ? 'Mentor has no email' : 'Venture not found',
+                    metadata: { session_id: session.id, venture_id: session.venture_id, mentor_id: session.mentor_id },
+                });
                 console.warn(`[Reminder] Skipping session ${session.id}: missing mentor email or venture data`);
                 continue;
             }
@@ -82,6 +87,10 @@ export async function sendTomorrowMeetingReminders(): Promise<void> {
             const workbenchUrl = `${frontendUrl}/vpvm/requests`;
 
             // 1-day reminder to VP/VM — use platform meeting link
+            logEmailTrigger('reminder_1day.vpvm', {
+                recipient: mentor.email,
+                metadata: { session_id: session.id, venture_id: session.venture_id },
+            });
             await sendVPVMMeetingReminderEmail(
                 mentor.email,
                 mentor.full_name || 'Venture Partner',
@@ -103,6 +112,10 @@ export async function sendTomorrowMeetingReminders(): Promise<void> {
                     .single();
 
                 if (entrepreneur?.email) {
+                    logEmailTrigger('reminder_1day.entrepreneur', {
+                        recipient: entrepreneur.email,
+                        metadata: { session_id: session.id, venture_id: session.venture_id },
+                    });
                     await sendBusinessMeetingReminderEmail(
                         entrepreneur.email,
                         entrepreneur.full_name || venture.founder_name || 'Founder',
@@ -114,6 +127,12 @@ export async function sendTomorrowMeetingReminders(): Promise<void> {
                         true // isTomorrow
                     );
                     console.log(`[Reminder] 1-day reminder sent to entrepreneur ${entrepreneur.email} for session ${session.id}`);
+                } else {
+                    logEmailTrigger('reminder_1day.entrepreneur', {
+                        skipped: true,
+                        skipReason: 'Entrepreneur profile has no email',
+                        metadata: { session_id: session.id, venture_id: session.venture_id, user_id: venture.user_id },
+                    });
                 }
             }
         } catch (err: any) {
@@ -178,7 +197,14 @@ export async function send30MinReminders(): Promise<void> {
                 .eq('id', session.venture_id)
                 .single();
 
-            if (!mentor?.email || !venture) continue;
+            if (!mentor?.email || !venture) {
+                logEmailTrigger('reminder_30min.vpvm', {
+                    skipped: true,
+                    skipReason: !mentor?.email ? 'Mentor has no email' : 'Venture not found',
+                    metadata: { session_id: session.id, venture_id: session.venture_id, mentor_id: session.mentor_id },
+                });
+                continue;
+            }
 
             const formattedDate = new Date(session.scheduled_date).toLocaleDateString('en-IN', {
                 weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
@@ -189,6 +215,10 @@ export async function send30MinReminders(): Promise<void> {
             const workbenchUrl = `${frontendUrl}/vpvm/requests`;
 
             // 30-min reminder to VP/VM — use platform meeting link
+            logEmailTrigger('reminder_30min.vpvm', {
+                recipient: mentor.email,
+                metadata: { session_id: session.id, venture_id: session.venture_id },
+            });
             await sendVPVM30MinReminderEmail(
                 mentor.email,
                 mentor.full_name || 'Venture Partner',
@@ -210,6 +240,10 @@ export async function send30MinReminders(): Promise<void> {
                     .single();
 
                 if (entrepreneur?.email) {
+                    logEmailTrigger('reminder_30min.entrepreneur', {
+                        recipient: entrepreneur.email,
+                        metadata: { session_id: session.id, venture_id: session.venture_id },
+                    });
                     await sendBusinessMeetingReminderEmail(
                         entrepreneur.email,
                         entrepreneur.full_name || venture.founder_name || 'Founder',
@@ -221,6 +255,12 @@ export async function send30MinReminders(): Promise<void> {
                         false // is30Min
                     );
                     console.log(`[Reminder] 30-min reminder sent to entrepreneur ${entrepreneur.email} for session ${session.id}`);
+                } else {
+                    logEmailTrigger('reminder_30min.entrepreneur', {
+                        skipped: true,
+                        skipReason: 'Entrepreneur profile has no email',
+                        metadata: { session_id: session.id, venture_id: session.venture_id, user_id: venture.user_id },
+                    });
                 }
             }
 

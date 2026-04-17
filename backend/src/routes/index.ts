@@ -12,6 +12,7 @@ import { matchingRoutes } from '../modules/expertMatching';
 import { requestRoutes } from '../modules/meetingRequests';
 import { briefRoutes } from '../modules/preMeetingBrief';
 import { sessionRoutes } from '../modules/liveSession';
+import { testFrameworkRoutes } from '../modules/testFramework';
 
 const router = Router();
 
@@ -29,5 +30,6 @@ router.use('/matching', matchingRoutes);
 router.use('/meeting-requests', requestRoutes);
 router.use('/briefs', briefRoutes);
 router.use('/sessions', sessionRoutes);
+router.use('/test-framework', testFrameworkRoutes);
 
 export default router;

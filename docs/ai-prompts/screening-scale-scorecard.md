@@ -1,6 +1,6 @@
 # Screening SCALE Scorecard — Production Prompt
 
-**Last Updated:** 2026-04-17
+**Last Updated:** 2026-04-18
 
 ## Purpose
 
@@ -56,7 +56,13 @@ Pulled from `ventures` + `venture_applications` tables and passed to the prompt:
 
 ### New Growth Idea
 - `growth_focus`, `focus_product`, `focus_segment`, `focus_geography`
-- `support_description`
+- `support_request` — applicant's free-text description of what help they need (primary field; saved by application form)
+- `support_description` — legacy alias for the same field (fallback if `support_request` is empty)
+
+### Growth Idea Support Status (`venture_streams` table)
+Applicant self-assessed support need per functional area, set during the application form:
+- `stream_name` — one of: Product, GTM, Capital Planning, Supply Chain, Operations, Team
+- `status` — e.g. `Need some advice`, `Need help`, `Not started`, `Done`
 
 ### Additional Context
 - `growth_current` / `growth_target` (JSON blobs)
@@ -159,7 +165,7 @@ VSM Dashboard → click "Generate AI Analysis"
 POST /api/ventures/:id/generate-insights?type=screening
       │
       ├── 1. Verify role (success_mgr, venture_mgr, committee_member, admin)
-      ├── 2. Fetch venture + application data from Supabase
+      ├── 2. Fetch venture + application + venture_streams data from Supabase
       ├── 3. Extract corporate presentation text (if available)
       ├── 4. Call Claude with web_search tool (up to 3 uses)
       ├── 5. Parse JSON response (validate 7 items)

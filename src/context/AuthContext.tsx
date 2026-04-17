@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Sentry } from '../config/sentry';
 import { api } from '../lib/api';
+import { supabase } from '../lib/supabase';
 import { logger } from '../utils/logger';
 
 interface User {
@@ -27,6 +28,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        // Keep localStorage in sync when Supabase auto-refreshes the token.
+        // Without this, access_token in localStorage expires after ~1 hour and
+        // any code that reads it directly (e.g. TestFramework API client) gets 401.
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            if (session?.access_token) {
+                localStorage.setItem('access_token', session.access_token);
+                localStorage.setItem('refresh_token', session.refresh_token ?? '');
+            }
+        });
+
         // Check if user is logged in (has access token)
         const token = localStorage.getItem('access_token');
         if (token) {
@@ -57,6 +68,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             logger.info('Auth', 'No token found, user not authenticated');
             setLoading(false);
         }
+
+        return () => subscription.unsubscribe();
     }, []);
 
     const signIn = async (email: string, password: string): Promise<User | null> => {

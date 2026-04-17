@@ -41,6 +41,7 @@ import { RequestListPage } from './modules/MeetingRequests';
 import { UpcomingMeetingsPage } from './pages/UpcomingMeetingsPage';
 import { VPVMRequestsPage } from './pages/VPVMRequestsPage';
 import { VPVMRequestDetailPage } from './pages/VPVMRequestDetailPage';
+import { TestFrameworkPage } from './modules/TestFramework';
 
 const Header = () => (
   <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 fixed top-0 w-full z-50">
@@ -190,6 +191,13 @@ function App() {
             <Route path="screening-performance" element={<AdminDashboard tab="performance" />} />
             <Route path="users" element={<AdminDashboard tab="users" />} />
           </Route>
+
+          {/* AI Test Framework — standalone page under admin, no DB writes */}
+          <Route path="/admin/test-framework" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <TestFrameworkPage />
+            </ProtectedRoute>
+          } />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

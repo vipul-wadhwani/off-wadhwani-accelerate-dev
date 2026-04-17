@@ -296,22 +296,21 @@ router.get('/context/:ventureId/:feature', async (req: Request, res: Response, n
                 )
                 .join('\n\n');
 
-            const panelAssessment = assessments.find(
-                (a) => a.is_current && a.assessment_type === 'committee'
-            );
-            const panelFeedback =
-                panelAssessment?.ai_analysis?.panel_feedback ||
-                pfRows?.[0] ||
-                null;
-            const panelScorecard = panelAssessment?.panel_ai_analysis?.panel_scorecard || panelAssessment?.ai_analysis?.panel_scorecard || null;
-            const gateQuestions = screeningAssessment?.gate_questions || panelAssessment?.gate_questions || null;
+            // Production uses find(is_current) — no type filter — panel_ai_analysis is
+            // stored on whatever the current assessment is (ventures.ts:651, 1580)
+            const currentAssessment = assessments.find((a) => a.is_current) || assessments[0] || null;
+            const panelFeedback = pfRows?.[0] || null;
+            const panelScorecard = currentAssessment?.panel_ai_analysis?.panel_scorecard || null;
+            const gateQuestions = currentAssessment?.gate_questions || screeningAssessment?.gate_questions || null;
 
             // Roadmap uses assessment.notes as vsmNotes source (matches production ventures.ts:696)
-            const roadmapVsmNotes = screeningAssessment?.notes || vsmNotesFromVenture;
+            const roadmapVsmNotes = currentAssessment?.notes || vsmNotesFromVenture;
+
+            const roadmapAiAnalysis = currentAssessment?.ai_analysis || aiAnalysis;
 
             const roadmapCtx: RoadmapContext = {
                 vsmNotes: roadmapVsmNotes,
-                aiAnalysis,
+                aiAnalysis: roadmapAiAnalysis,
                 interactionNotes,
                 panelFeedback,
                 panelScorecard,
@@ -339,7 +338,7 @@ router.get('/context/:ventureId/:feature', async (req: Request, res: Response, n
                     focus_geography: ventureData.focus_geography,
                 },
                 vsm_notes: roadmapVsmNotes || null,
-                screening_ai_analysis: aiAnalysis,
+                screening_ai_analysis: roadmapAiAnalysis,
                 panel_feedback: panelFeedback,
                 panel_scorecard: panelScorecard,
                 gate_questions: gateQuestions,

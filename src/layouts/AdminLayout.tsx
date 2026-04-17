@@ -20,7 +20,7 @@ export const AdminLayout: React.FC = () => {
         { to: '/admin/dashboard/screening-performance', label: 'Screening Performance', icon: BarChart3, end: false },
         { to: '/admin/dashboard/users', label: 'Users', icon: Users, end: false },
         // Dev-only: excluded from production builds
-        ...(import.meta.env.DEV ? [{ to: '/admin/test-framework', label: 'AI Test Framework', icon: FlaskConical, end: false }] : []),
+        ...(import.meta.env.VITE_ENABLE_TEST_FRAMEWORK === 'true' ? [{ to: '/admin/test-framework', label: 'AI Test Framework', icon: FlaskConical, end: false }] : []),
     ];
 
     return (

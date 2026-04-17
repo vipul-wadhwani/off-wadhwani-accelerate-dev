@@ -43,7 +43,7 @@ import { VPVMRequestsPage } from './pages/VPVMRequestsPage';
 import { VPVMRequestDetailPage } from './pages/VPVMRequestDetailPage';
 import React from 'react';
 // Dev-only: TestFrameworkPage is excluded from production builds
-const TestFrameworkPage = import.meta.env.DEV
+const TestFrameworkPage = import.meta.env.VITE_ENABLE_TEST_FRAMEWORK === 'true'
     ? React.lazy(() => import('./modules/TestFramework').then(m => ({ default: m.TestFrameworkPage })))
     : null;
 
@@ -197,7 +197,7 @@ function App() {
           </Route>
 
           {/* AI Test Framework — dev-only, no DB writes, excluded from prod build */}
-          {import.meta.env.DEV && TestFrameworkPage && (
+          {import.meta.env.VITE_ENABLE_TEST_FRAMEWORK === 'true' && TestFrameworkPage && (
             <Route path="/admin/test-framework" element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <React.Suspense fallback={null}>

@@ -381,6 +381,27 @@ class ApiClient {
             })();
         }
 
+        // Fire-and-forget: send panelist assignment email when a panelist is assigned.
+        // This must be an explicit call because updates above write directly to
+        // Supabase (bypassing backend PUT /:id), so backend-side triggers don't fire.
+        if (data.assigned_panelist_id) {
+            (async () => {
+                try {
+                    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+                    const session = await supabase.auth.getSession();
+                    fetch(`${API_URL}/api/ventures/${id}/send-panelist-email`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${session.data.session?.access_token}`
+                        }
+                    }).catch(err => console.error('Failed to trigger panelist assignment email:', err));
+                } catch (err) {
+                    console.error('Failed to trigger panelist assignment email:', err);
+                }
+            })();
+        }
+
         return { venture };
     }
 

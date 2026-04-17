@@ -1459,6 +1459,87 @@ router.post(
 );
 
 /**
+ * POST /api/ventures/:id/send-panelist-email
+ * Send panelist assignment email to the currently-assigned panelist.
+ * Called by the frontend after a panelist change (frontend bypasses PUT /:id
+ * by writing directly to Supabase, so backend triggers on the PUT route
+ * don't fire — this explicit endpoint is the email trigger).
+ */
+router.post(
+    '/:id/send-panelist-email',
+    authenticateUser,
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const serviceClient = createServiceRoleClient();
+
+            const { data: venture, error: ventureError } = await serviceClient
+                .from('ventures')
+                .select('name, founder_name, city, location, assigned_panelist_id')
+                .eq('id', req.params.id)
+                .single();
+
+            if (ventureError || !venture) {
+                return res.status(404).json({ success: false, message: 'Venture not found' });
+            }
+
+            if (!venture.assigned_panelist_id) {
+                logEmailTrigger('assignment.panelist', {
+                    skipped: true,
+                    skipReason: 'Venture has no assigned_panelist_id',
+                    metadata: { venture_id: req.params.id },
+                });
+                return res.status(400).json({ success: false, message: 'Venture has no assigned panelist' });
+            }
+
+            const { data: panelist } = await serviceClient
+                .from('panelists')
+                .select('email, name')
+                .eq('id', venture.assigned_panelist_id)
+                .single();
+
+            if (!panelist?.email) {
+                logEmailTrigger('assignment.panelist', {
+                    skipped: true,
+                    skipReason: 'Panelist record not found or has no email',
+                    metadata: { venture_id: req.params.id, panelist_id: venture.assigned_panelist_id },
+                });
+                return res.status(400).json({ success: false, message: 'Panelist has no email' });
+            }
+
+            logEmailTrigger('assignment.panelist', {
+                recipient: panelist.email,
+                metadata: { venture_id: req.params.id, panelist_id: venture.assigned_panelist_id },
+            });
+
+            const location = venture.location || venture.city || 'N/A';
+            const appUrl = `${process.env.FRONTEND_URL || 'https://devaccelerate.wadhwaniliftoff.ai'}/panel/dashboard`;
+
+            // Fire-and-forget
+            sendPanelistAssignmentEmail(
+                panelist.email,
+                panelist.name || 'Panelist',
+                venture.name || 'Venture',
+                venture.founder_name || 'Applicant',
+                location,
+                appUrl
+            )
+                .then(() => console.log(`Panelist assignment email sent to ${panelist.email} for venture ${venture.name}`))
+                .catch((err) => {
+                    console.error('Failed to send panelist assignment email:', err);
+                    logEmailTrigger('assignment.panelist', {
+                        error: err,
+                        metadata: { venture_id: req.params.id, panelist_id: venture.assigned_panelist_id },
+                    });
+                });
+
+            successResponse(res, { message: 'Panelist assignment email queued' });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
+/**
  * POST /api/ventures/:id/send-selection-email
  * Create venture founder account (if needed) and send selection welcome email
  * when panel approves a venture for Prime/Core/Select

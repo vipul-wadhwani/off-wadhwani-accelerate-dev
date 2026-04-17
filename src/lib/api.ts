@@ -402,6 +402,25 @@ class ApiClient {
             })();
         }
 
+        // Fire-and-forget: send Self-Serve LiftOff AI email when program = Selfserve.
+        if (program === 'Selfserve') {
+            (async () => {
+                try {
+                    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+                    const session = await supabase.auth.getSession();
+                    fetch(`${API_URL}/api/ventures/${id}/send-selfserve-email`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${session.data.session?.access_token}`
+                        }
+                    }).catch(err => console.error('Failed to trigger selfserve email:', err));
+                } catch (err) {
+                    console.error('Failed to trigger selfserve email:', err);
+                }
+            })();
+        }
+
         return { venture };
     }
 

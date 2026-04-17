@@ -1540,6 +1540,72 @@ router.post(
 );
 
 /**
+ * POST /api/ventures/:id/send-selfserve-email
+ * Send Self-Serve LiftOff AI email to the entrepreneur (founder_email from
+ * venture_applications). Called by the frontend after VSM marks the program
+ * as Selfserve (frontend bypasses backend PUT /:id — this explicit endpoint
+ * is the email trigger).
+ */
+router.post(
+    '/:id/send-selfserve-email',
+    authenticateUser,
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const serviceClient = createServiceRoleClient();
+
+            const { data: venture, error: ventureError } = await serviceClient
+                .from('ventures')
+                .select('name, founder_name')
+                .eq('id', req.params.id)
+                .single();
+
+            if (ventureError || !venture) {
+                return res.status(404).json({ success: false, message: 'Venture not found' });
+            }
+
+            const { data: application } = await serviceClient
+                .from('venture_applications')
+                .select('founder_email')
+                .eq('venture_id', req.params.id)
+                .maybeSingle();
+
+            const founderEmail = application?.founder_email;
+            if (!founderEmail) {
+                logEmailTrigger('selfserve.recommendation', {
+                    skipped: true,
+                    skipReason: 'No founder_email on venture_applications',
+                    metadata: { venture_id: req.params.id },
+                });
+                return res.status(400).json({ success: false, message: 'Founder email not found in application' });
+            }
+
+            logEmailTrigger('selfserve.recommendation', {
+                recipient: founderEmail,
+                metadata: { venture_id: req.params.id },
+            });
+
+            const founderName = venture.founder_name || 'Founder';
+            const ventureName = venture.name || 'Your Venture';
+
+            // Fire-and-forget
+            sendSelfserveEmail(founderEmail, founderName, ventureName)
+                .then(() => console.log(`Selfserve email sent to ${founderEmail} for venture ${ventureName}`))
+                .catch((err) => {
+                    console.error('Failed to send selfserve email:', err);
+                    logEmailTrigger('selfserve.recommendation', {
+                        error: err,
+                        metadata: { venture_id: req.params.id },
+                    });
+                });
+
+            successResponse(res, { message: 'Selfserve email queued' });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
+/**
  * POST /api/ventures/:id/send-selection-email
  * Create venture founder account (if needed) and send selection welcome email
  * when panel approves a venture for Prime/Core/Select

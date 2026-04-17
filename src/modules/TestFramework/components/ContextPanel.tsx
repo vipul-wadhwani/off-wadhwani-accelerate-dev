@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { RotateCcw, RefreshCw } from 'lucide-react';
 
 // ─── Main ContextPanel ────────────────────────────────────────────────────────
@@ -22,17 +22,19 @@ export const ContextPanel: React.FC<Props> = ({
     const [editedJson, setEditedJson] = useState('');
     const [jsonError, setJsonError] = useState<string | null>(null);
     const [rebuilding, setRebuilding] = useState(false);
+    const originalJsonRef = useRef('');
 
     // Sync textarea whenever inputContext is (re)loaded
     useEffect(() => {
         if (inputContext) {
-            setEditedJson(JSON.stringify(inputContext, null, 2));
+            const json = JSON.stringify(inputContext, null, 2);
+            originalJsonRef.current = json;
+            setEditedJson(json);
             setJsonError(null);
         }
     }, [inputContext]);
 
-    const originalJson = inputContext ? JSON.stringify(inputContext, null, 2) : '';
-    const isDirty = editedJson !== originalJson;
+    const isDirty = editedJson !== originalJsonRef.current;
 
     function handleJsonChange(value: string) {
         setEditedJson(value);
@@ -45,7 +47,7 @@ export const ContextPanel: React.FC<Props> = ({
     }
 
     function handleReset() {
-        setEditedJson(originalJson);
+        setEditedJson(originalJsonRef.current);
         setJsonError(null);
     }
 

@@ -6,6 +6,7 @@
  * dependencies on existing service files and can be dropped into any branch.
  *
  * Keep in sync with aiService.ts when prompts are updated.
+ * Last synced: 2026-04-17
  */
 
 // ─── Shared types ──────────────────────────────────────────────────────────────
@@ -78,6 +79,7 @@ export const FEATURE_MODEL_CONFIG: Record<string, ModelConfig> = {
 };
 
 // ─── Screening Scorecard Prompt ────────────────────────────────────────────────
+// Exact copy of buildInsightsPrompt() from aiService.ts (lines 149-309)
 
 export function buildScreeningPrompt(venture: VentureInputData, vsmNotes = ''): string {
     const growthDimensions = Array.isArray(venture.growth_dimensions_selected)
@@ -105,36 +107,40 @@ Do NOT write lengthy narratives. The screening manager wants a quick-glance tabl
    - Green: Sector at 8%+ 3-year CAGR, projected to grow above GDP.
    - Yellow: Sector growing at GDP-level (5–8%) or mixed signals.
    - Red: Sector stagnant, declining, or facing structural headwinds.
-   - IMPORTANT: You MUST use the web_search tool to look up current growth data for the sector the venture operates in. Search for "[sector name] India market size CAGR growth" or similar. Your brief must reference the specific sector and the growth data found.
+   - IMPORTANT: You MUST use the web_search tool to look up current growth data for the sector the venture operates in. Identify the sector from the venture's product/service description and target market, then search for "[sector name] India market size CAGR growth" or similar. Your brief must reference the specific sector identified and the growth data found. Do NOT rely solely on static knowledge — always search.
 
 3. **Capital** — Balance sheet strength. Can the venture fund this growth?
    - Green: Positive cash flow & PAT for Core/Select (SMBs); 12+ month runway for Prime (startups).
    - Yellow: Cash-flow positive but PAT-negative for SMBs; 6–12 month runway for startups.
    - Red: Negative cash flow and PAT; < 6 month runway; or not disclosed.
-   - Use the "Financial Condition" field as the primary signal. If financial condition is not disclosed, rate as Yellow with "Financial condition not disclosed — manual review recommended."
+   - Use the "Financial Condition" field (e.g. "PAT profitable and cash positive", "Not yet profitable but have 12+ months runway", "6-12 months runway available", "Less than 6 months runway") as the primary signal. Also consider min_investment and the "Funding Plan" field as additional context. If financial condition is not disclosed, rate as Yellow with "Financial condition not disclosed — manual review recommended."
 
 4. **Ambition** — Target Incremental Revenue (3Y). Is the growth target ambitious enough?
    - Green: Min 8% incremental CAGR, on track to double revenue in 5 years for Core/Select or 3 years for Prime.
    - Yellow: Moderate growth target (4–8% CAGR).
    - Red: < 4% CAGR or no clear revenue target stated.
-   - IMPORTANT: revenue_potential_3y is INCREMENTAL revenue on top of the current base — NOT total projected revenue.
-   - Calculate: Incremental % = (revenue_potential_3y / revenue_12m) × 100. CAGR = ((revenue_12m + revenue_potential_3y) / revenue_12m)^(1/3) − 1. State both in the brief.
+   - IMPORTANT: The "Target Incremental Revenue (3Y)" field represents INCREMENTAL revenue on top of the current base — it is NOT total projected revenue. For example, if current revenue is ₹25Cr and incremental target is ₹50Cr, total projected 3Y revenue is ₹75Cr.
+   - Calculate: Incremental % = (revenue_potential_3y / revenue_12m) × 100. CAGR = ((revenue_12m + revenue_potential_3y) / revenue_12m)^(1/3) − 1. State both the incremental % and estimated CAGR in the brief.
+   - Revenue figures may be numeric (in Cr) or legacy text ranges. If numeric, use the actual value. If a text range, use the midpoint (e.g. "5Cr-25Cr" → ₹15Cr, "50Cr+" → ₹50Cr). If either revenue figure is missing, rate as Red.
 
 5. **Leadership** — Committed team. Will the leadership invest time?
-   - Green: Owner/founder personally committed AND second-in-line management team in place.
-   - Yellow: One of the two is weak or unclear.
-   - Red: Neither founder commitment nor second-line team availability is evident.
+   - Green: Owner/founder personally committed (Fully or Actively involved) AND second-in-line management team in place (Yes — Experienced team).
+   - Yellow: One of the two is weak or unclear (e.g. Partially involved, or team is still being built).
+   - Red: Neither founder commitment nor second-line team availability is evident (Not involved, or No dedicated team).
+   - Use the "Owner Involvement" and "Leadership Team" fields below. If both are missing, look for signals in the corporate presentation and screening manager notes, and rate as Yellow with "Leadership commitment details not disclosed."
 
 6. **Jobs / Employment Generation Potential** — Direct job creation potential over 3 years.
    - Green: 50+ jobs for Core/Prime; 150+ jobs for Select.
    - Yellow: 25–49 jobs (Core/Prime); 75–149 jobs (Select).
    - Red: < 25 jobs or not disclosed (Core/Prime); < 75 jobs or not disclosed (Select).
-   - Use target_jobs (planned hires). If target_jobs is null/missing, rate as Red with "Job creation target not disclosed."
+   - Use target_jobs (planned hires entered by the applicant). The "Funding Plan" field is NOT a hiring count — it describes how the venture plans to fund growth (e.g. "Internal Cashflows", "Bank Loan"). If target_jobs is null/missing, rate as Red with "Job creation target not disclosed."
 
 7. **Venture Clarity** — How clearly has the applicant defined their new growth idea?
-   - Green: All selected dimensions are specific, concrete, and well-articulated.
-   - Yellow: At least one selected dimension is clear, but others are vague.
-   - Red: Most or all selected dimensions are vague or lack substantive detail.
+   - The venture has selected one or more growth dimensions from: product, segment, geography. Assess clarity ONLY for the dimensions they selected — ignore dimensions they did not choose.
+   - Green: All **selected** dimensions are specific, concrete, and well-articulated.
+   - Yellow: At least one selected dimension is clear, but other selected dimensions are vague or generic.
+   - Red: Most or all selected dimensions are vague, generic, or lack substantive detail despite being chosen.
+   - Evaluate ONLY based on what the applicant has explicitly stated. Do NOT penalise for dimensions not selected. Do NOT infer details.
 
 **Venture Information:**
 - Company Name: ${venture.name}
@@ -182,27 +188,63 @@ Return your assessment in the following JSON format. Return ONLY the JSON object
 
 {
   "scorecard": [
-    { "dimension": "Size", "assessment": "Current Revenue", "rating": "<Green | Yellow | Red>", "brief": "<exactly 2 sentences>" },
-    { "dimension": "Sector", "assessment": "Growth Sector", "rating": "<Green | Yellow | Red>", "brief": "<exactly 2 sentences>" },
-    { "dimension": "Capital", "assessment": "Balance Sheet Strength", "rating": "<Green | Yellow | Red>", "brief": "<exactly 2 sentences>" },
-    { "dimension": "Ambition", "assessment": "Revenue Addition", "rating": "<Green | Yellow | Red>", "brief": "<exactly 2 sentences>" },
-    { "dimension": "Leadership", "assessment": "Committed Team", "rating": "<Green | Yellow | Red>", "brief": "<exactly 2 sentences>" },
-    { "dimension": "Jobs / Employment Generation Potential", "assessment": "Direct Jobs Creation (3Y)", "rating": "<Green | Yellow | Red>", "brief": "<exactly 2 sentences>" },
-    { "dimension": "Venture Clarity", "assessment": "New Venture Definition", "rating": "<Green | Yellow | Red>", "brief": "<exactly 2 sentences>" }
+    {
+      "dimension": "Size",
+      "assessment": "Current Revenue",
+      "rating": "<Green | Yellow | Red>",
+      "brief": "<exactly 2 sentences>"
+    },
+    {
+      "dimension": "Sector",
+      "assessment": "Growth Sector",
+      "rating": "<Green | Yellow | Red>",
+      "brief": "<exactly 2 sentences>"
+    },
+    {
+      "dimension": "Capital",
+      "assessment": "Balance Sheet Strength",
+      "rating": "<Green | Yellow | Red>",
+      "brief": "<exactly 2 sentences>"
+    },
+    {
+      "dimension": "Ambition",
+      "assessment": "Revenue Addition",
+      "rating": "<Green | Yellow | Red>",
+      "brief": "<exactly 2 sentences>"
+    },
+    {
+      "dimension": "Leadership",
+      "assessment": "Committed Team",
+      "rating": "<Green | Yellow | Red>",
+      "brief": "<exactly 2 sentences>"
+    },
+    {
+      "dimension": "Jobs / Employment Generation Potential",
+      "assessment": "Direct Jobs Creation (3Y)",
+      "rating": "<Green | Yellow | Red>",
+      "brief": "<exactly 2 sentences>"
+    },
+    {
+      "dimension": "Venture Clarity",
+      "assessment": "New Venture Definition",
+      "rating": "<Green | Yellow | Red>",
+      "brief": "<exactly 2 sentences>"
+    }
   ]
 }
 
 **Critical Instructions:**
-- Each "brief" must be exactly 2 sentences.
+- Each "brief" must be exactly 2 sentences. Sentence 1: state the key data point or finding. Sentence 2: explain the implication or why it maps to the given rating.
 - Each "rating" must be exactly one of: "Green", "Yellow", or "Red".
-- For "Sector", you MUST use the web_search tool before answering.
-- For "Ambition", calculate incremental % and CAGR. State both in the brief.
-- If data for a dimension is missing, default to Red (or Yellow if partially available).
+- For "Sector", you MUST use the web_search tool before answering. Search for the sector's growth data and cite it.
+- For "Ambition", calculate incremental % and CAGR using the formulas above (revenue_potential_3y is incremental, not total). State both in the brief.
+- If data for a dimension is missing or insufficient, default to Red (or Yellow if partially available) and state what is missing.
 
 Return ONLY the JSON object, no additional text.`;
 }
 
 // ─── Panel Scorecard Prompt ────────────────────────────────────────────────────
+// Exact copy of buildPanelInsightsPrompt() from aiService.ts (lines 767-891)
 
 export function buildPanelPrompt(
     venture: VentureInputData,
@@ -220,11 +262,11 @@ export function buildPanelPrompt(
 2. Interaction transcripts (call transcripts, meeting notes, emails) from the panel's conversations with the venture's founder/team.
 3. Additional panel notes from the panel discussion.
 
-Your task is to produce a **Panel Recommendation** rating for each of the 7 scorecard dimensions, based on what was discussed in the interactions and panel notes. The panel rating may agree with or differ from the application rating — it reflects new information, clarifications, or concerns that emerged during the discussions.
+Your task is to produce a **Panel Recommendation** rating for each of the 7 scorecard dimensions, based on what was discussed in the interactions and panel notes. The panel rating may agree with or differ from the application rating — it reflects new information, clarifications, or concerns that emerged during the discussions. Pay close attention to the interaction transcripts as they contain the primary evidence from panel conversations.
 
 For each dimension, provide:
 - A **panel_rating**: Green, Yellow, or Red
-- A **panel_brief** (exactly 2 sentences): Sentence 1 states what was revealed or clarified during the panel discussion. Sentence 2 explains whether this changes the assessment and why.
+- A **panel_brief** (exactly 2 sentences): Sentence 1 states what was revealed or clarified during the panel discussion for this dimension. Sentence 2 explains whether this changes the assessment and why.
 
 If neither the interaction transcripts nor the panel notes cover a particular dimension, carry forward the application rating and state "Not discussed in panel interactions — application rating carried forward." in the brief.
 
@@ -269,30 +311,69 @@ ${venture.corporate_presentation_text.length > 8000 ? '\n[... truncated ...]' : 
 ` : ''}
 
 **Your Task:**
-Return ONLY the JSON object, no additional text.
+Return your assessment in the following JSON format. Return ONLY the JSON object, no additional text.
 
 {
   "panel_scorecard": [
-    { "dimension": "Size", "application_rating": "<from screening>", "panel_rating": "<Green | Yellow | Red>", "panel_brief": "<2 sentences>" },
-    { "dimension": "Sector", "application_rating": "<from screening>", "panel_rating": "<Green | Yellow | Red>", "panel_brief": "<2 sentences>" },
-    { "dimension": "Capital", "application_rating": "<from screening>", "panel_rating": "<Green | Yellow | Red>", "panel_brief": "<2 sentences>" },
-    { "dimension": "Ambition", "application_rating": "<from screening>", "panel_rating": "<Green | Yellow | Red>", "panel_brief": "<2 sentences>" },
-    { "dimension": "Leadership", "application_rating": "<from screening>", "panel_rating": "<Green | Yellow | Red>", "panel_brief": "<2 sentences>" },
-    { "dimension": "Jobs / Employment Generation Potential", "application_rating": "<from screening>", "panel_rating": "<Green | Yellow | Red>", "panel_brief": "<2 sentences>" },
-    { "dimension": "Venture Clarity", "application_rating": "<from screening>", "panel_rating": "<Green | Yellow | Red>", "panel_brief": "<2 sentences>" }
+    {
+      "dimension": "Size",
+      "application_rating": "<carried from screening>",
+      "panel_rating": "<Green | Yellow | Red>",
+      "panel_brief": "<2 sentence explanation based on panel discussion>"
+    },
+    {
+      "dimension": "Sector",
+      "application_rating": "<carried from screening>",
+      "panel_rating": "<Green | Yellow | Red>",
+      "panel_brief": "<2 sentence explanation based on panel discussion>"
+    },
+    {
+      "dimension": "Capital",
+      "application_rating": "<carried from screening>",
+      "panel_rating": "<Green | Yellow | Red>",
+      "panel_brief": "<2 sentence explanation based on panel discussion>"
+    },
+    {
+      "dimension": "Ambition",
+      "application_rating": "<carried from screening>",
+      "panel_rating": "<Green | Yellow | Red>",
+      "panel_brief": "<2 sentence explanation based on panel discussion>"
+    },
+    {
+      "dimension": "Leadership",
+      "application_rating": "<carried from screening>",
+      "panel_rating": "<Green | Yellow | Red>",
+      "panel_brief": "<2 sentence explanation based on panel discussion>"
+    },
+    {
+      "dimension": "Jobs / Employment Generation Potential",
+      "application_rating": "<carried from screening>",
+      "panel_rating": "<Green | Yellow | Red>",
+      "panel_brief": "<2 sentence explanation based on panel discussion>"
+    },
+    {
+      "dimension": "Venture Clarity",
+      "application_rating": "<carried from screening>",
+      "panel_rating": "<Green | Yellow | Red>",
+      "panel_brief": "<2 sentence explanation based on panel discussion>"
+    }
   ]
 }
 
 **Critical Instructions:**
-- Each "panel_brief" must be exactly 2 sentences, dynamic and specific to what was discussed.
-- NEVER use individual names — use role-based references (e.g. "the founder", "the panelist").
+- Each "panel_brief" must be exactly 2 sentences, dynamic and specific to what was discussed. Never use generic language.
+- If the panel notes revealed new information that changes the rating (up or down), explain what changed. Reference specific statements or clarifications from the notes.
+- If the panel notes confirmed the application-based assessment, state what was confirmed.
 - If the dimension was not discussed, carry forward the application rating and state this clearly.
+- The panel_rating is the AI's recommendation — the panelist will be able to override it on the frontend.
+- NEVER use individual names in panel_brief. Replace with role-based references (e.g. "the founder", "the CEO", "the panelist", "the screening manager"). This ensures anonymity in the scorecard output.
 - Strip any citation tags from your response.
 
 Return ONLY the JSON object, no additional text.`;
 }
 
 // ─── Journey Roadmap Prompt ────────────────────────────────────────────────────
+// Exact copy of buildRoadmapPrompt() from aiService.ts (lines 395-551)
 
 export interface RoadmapContext {
     vsmNotes?: string;
@@ -305,32 +386,48 @@ export interface RoadmapContext {
 
 export function buildRoadmapPrompt(venture: VentureInputData, ctx: RoadmapContext = {}): string {
     let aiSummary = '';
-    if (ctx.aiAnalysis?.scorecard) {
-        const lines = (ctx.aiAnalysis.scorecard as any[])
-            .map((d: any) => `- ${d.dimension} (${d.rating}): ${d.brief}`)
-            .join('\n');
-        aiSummary = `\n**AI Screening Scorecard:**\n${lines}`;
-        const strengths = (ctx.aiAnalysis.scorecard as any[]).filter((d: any) => d.rating === 'Green').map((d: any) => d.dimension);
-        const risks = (ctx.aiAnalysis.scorecard as any[]).filter((d: any) => d.rating === 'Red').map((d: any) => d.dimension);
-        if (strengths.length) aiSummary += `\n- Strengths: ${strengths.join('; ')}`;
-        if (risks.length) aiSummary += `\n- Risks: ${risks.join('; ')}`;
+    if (ctx.aiAnalysis) {
+        if (ctx.aiAnalysis.scorecard) {
+            const scorecardLines = (ctx.aiAnalysis.scorecard as any[])
+                .map((d: any) => `- ${d.dimension} (${d.rating}): ${d.brief}`)
+                .join('\n');
+            aiSummary = `\n**AI Screening Scorecard:**\n${scorecardLines}`;
+            const strengths = (ctx.aiAnalysis.scorecard as any[]).filter((d: any) => d.rating === 'Green').map((d: any) => d.dimension);
+            const risks = (ctx.aiAnalysis.scorecard as any[]).filter((d: any) => d.rating === 'Red').map((d: any) => d.dimension);
+            if (strengths.length) aiSummary += `\n- Strengths: ${strengths.join('; ')}`;
+            if (risks.length) aiSummary += `\n- Risks: ${risks.join('; ')}`;
+        } else if (ctx.aiAnalysis.recommendation) {
+            aiSummary = `\n**AI Screening Analysis:**\n- Recommendation: ${ctx.aiAnalysis.recommendation || 'N/A'}\n- Summary: ${ctx.aiAnalysis.summary || 'N/A'}\n- Strengths: ${(ctx.aiAnalysis.strengths || []).join('; ')}\n- Risks: ${(ctx.aiAnalysis.risks || []).join('; ')}`;
+        }
     }
 
     const pf = ctx.panelFeedback || {};
     const panelSection = ctx.panelFeedback ? `
 **Panel Feedback:**
+- Panel Expert: ${pf.panel_expert_name || 'N/A'}
+- Panel Date: ${pf.panel_date || 'N/A'}
+- SME Participant: ${pf.sme_name || 'N/A'}
 - Final Recommendation: ${pf.final_recommendation || 'N/A'}
 - Program Category: ${pf.program_category || 'N/A'}
+- Business Overview: ${pf.business_overview || 'N/A'}
+- Annual Revenue Actuals: ${pf.annual_revenue_actuals || 'N/A'}
+- Projected Annual Revenue: ${pf.projected_annual_revenue || 'N/A'}
 - Financial Health Rating: ${pf.rating_financial_health || 'N/A'}/5
 - Leadership Rating: ${pf.rating_leadership || 'N/A'}/5
 - Financial Health Insights: ${pf.insights_financial_health || 'N/A'}
 - Leadership Insights: ${pf.insights_leadership || 'N/A'}
 - Proposed Expansion Idea: ${pf.proposed_expansion_idea || 'N/A'}
 - Expansion Type: ${pf.selected_expansion_type || 'N/A'}
+- Market Entry Routes: ${(pf.market_entry_routes || []).join?.(',  ') || pf.market_entry_routes || 'N/A'}
 - Expansion Description: ${pf.expansion_idea_description || 'N/A'}
+- Current Progress on Expansion: ${pf.current_progress || 'N/A'}
 - Incremental Revenue (3Y): ${pf.incremental_revenue_3y || 'N/A'}
 - Incremental Jobs (3Y): ${pf.incremental_jobs_3y || 'N/A'}
+- Expansion Clarity Rating: ${pf.rating_clarity_expansion || 'N/A'}/5
+- Expansion Clarity Comments: ${pf.comments_clarity_expansion || 'N/A'}
+- Support Type Proposal: ${pf.support_type_proposal || 'N/A'}
 - Risks / Red Flags: ${pf.risks_red_flags || 'N/A'}
+- Additional Notes: ${pf.additional_notes || 'N/A'}
 
 **Panel Stream Assessment:**
 - GTM: ${pf.stream_gtm || 'N/A'}
@@ -340,15 +437,27 @@ export function buildRoadmapPrompt(venture: VentureInputData, ctx: RoadmapContex
 - Org Design / Team: ${pf.stream_org_design || 'N/A'}
 - Finance / Capital: ${pf.stream_finance || 'N/A'}` : '';
 
-    const scorecardSection = ctx.panelScorecard
-        ? `\n**Panel SCALE Scorecard:**\n${JSON.stringify(ctx.panelScorecard, null, 2)}`
-        : '';
+    const scorecardSection = ctx.panelScorecard ? `
+**Panel SCALE Scorecard:**
+${JSON.stringify(ctx.panelScorecard, null, 2)}` : '';
 
-    const gateSection = ctx.gateQuestions
-        ? `\n**Panel Gate Questions:**\n${JSON.stringify(ctx.gateQuestions, null, 2)}`
-        : '';
+    const gateSection = ctx.gateQuestions ? `
+**Panel Gate Questions:**
+${JSON.stringify(ctx.gateQuestions, null, 2)}` : '';
 
-    return `You are a strategic program advisor for the Accelerate Assisted Growth Platform. Generate a tailored, actionable roadmap for a venture approved by the selection committee.
+    return `You are a strategic program advisor for the Accelerate Assisted Growth Platform. Your role is to generate a tailored, actionable roadmap for ventures that have been approved by the selection committee. This roadmap will guide the venture through the program to achieve their stated growth idea.
+
+## INPUT DATA
+
+You will receive the following context for the approved venture:
+
+1. **Business Profile**
+2. **Growth Idea**
+3. **Support Areas Requested**
+4. **Screening & Evaluation Context**
+5. **Corporate Presentation** (optional)
+6. **Panel Feedback Form**
+7. **Panel SCALE Scorecard & Gate Questions**
 
 **Venture Information:**
 - Company: ${venture.name || 'N/A'}
@@ -363,7 +472,9 @@ export function buildRoadmapPrompt(venture: VentureInputData, ctx: RoadmapContex
 - Focus Product: ${venture.focus_product || 'N/A'}
 - Focus Segment: ${venture.focus_segment || 'N/A'}
 - Focus Geography: ${venture.focus_geography || 'N/A'}
+- Blockers: ${venture.blockers || 'N/A'}
 - Support Request: ${venture.support_request || 'N/A'}
+- Incremental Hiring: ${venture.incremental_hiring || 'N/A'}
 
 **VSM Notes:**
 ${ctx.vsmNotes || 'No notes provided.'}
@@ -379,29 +490,52 @@ ${venture.corporate_presentation_text ? `
 ${venture.corporate_presentation_text.slice(0, 8000)}
 ${venture.corporate_presentation_text.length > 8000 ? '\n[... truncated ...]' : ''}
 ` : ''}
+## OUTPUT FORMAT
 
-Generate a structured roadmap covering ALL SIX functional support areas with exactly 5 actions each.
+Generate a structured roadmap covering ALL SIX functional support areas. For each area, provide an end goal, support status, and exactly 5 actions/deliverables that are specific to this venture's context, growth idea, panel feedback, and identified gaps.
 
-Return ONLY a JSON object:
+Return ONLY a JSON object in this format:
 
 {
   "product": {
-    "relevance": "<why Product matters for this venture>",
-    "support_status": "<Need Deep Support | Need Some Guidance | Do Not Need Help>",
-    "end_goal": "<specific measurable outcome — do NOT start with 'By week X'>",
+    "relevance": "<One sentence explaining why Product matters for this specific venture's growth idea>",
+    "support_status": "<Need Deep Support | Need Some Guidance | Do Not Need Help — mapped from panel stream_product_quality>",
+    "end_goal": "<One sentence stating the specific measurable outcome for this area. Do NOT start with 'By week X' — state the outcome directly, e.g. 'Product roadmap defined and MVP validated with 3 pilot customers.'>",
     "actions": [
-      { "id": "prod_1", "title": "<3-5 words>", "description": "<1-2 sentences>", "context_reference": "<source>", "timeline": "<Week range>", "success_metric": "<measurable outcome>", "status": "pending", "priority": "<high | medium | low>" },
-      { "id": "prod_2" }, { "id": "prod_3" }, { "id": "prod_4" }, { "id": "prod_5" }
+      {
+        "id": "prod_1",
+        "title": "<Specific action — 3-5 words>",
+        "description": "<What needs to be done and why — 1-2 sentences>",
+        "context_reference": "<Which input data point drives this action — cite source explicitly>",
+        "timeline": "<Week/Month range within 12-16 week program>",
+        "success_metric": "<Measurable outcome>",
+        "status": "pending",
+        "priority": "<high | medium | low>"
+      },
+      { "id": "prod_2", ... }, { "id": "prod_3", ... }, { "id": "prod_4", ... }, { "id": "prod_5", ... }
     ]
   },
-  "gtm": { ... },
-  "capital_planning": { ... },
-  "team": { ... },
-  "supply_chain": { ... },
-  "operations": { ... }
+  "gtm": { ... }, "capital_planning": { ... }, "team": { ... }, "supply_chain": { ... }, "operations": { ... }
 }
 
-Rules: Every action must trace to a specific data point. All 30 actions must serve the stated growth idea. Address panel-identified risks. Spread across 12-16 weeks.
+## GENERATION RULES
+
+1. **Context-driven, not generic:** Every action must trace back to a specific data point. The "context_reference" field must cite the source explicitly. No generic advice.
+2. **Growth idea alignment:** All 30 actions must collectively serve the venture's stated growth idea.
+3. **Address the Cons:** At least 2 actions must directly address risks or gaps from screening.
+4. **Leverage the Pros:** At least 2 actions should build on identified strengths.
+5. **Interaction notes integration:** If interaction notes reveal specific concerns or commitments, reflect them in relevant actions.
+6. **Prioritization logic:**
+   - support_status = Need Deep Support (panel stream = need_deep_support) → actions must be detailed and execution-ready; priority = high
+   - support_status = Need Some Guidance (panel stream = need_some_advice) → actions should be diagnostic and advisory; priority = medium
+   - support_status = Do Not Need Help (panel stream = not_started, on_track, or completed) → lightweight checkpoints; priority = low
+7. **Timeline realism:** Spread across 12-16 weeks: early = assess/plan, mid = execute, late = validate/sustain.
+8. **Sequencing:** Diagnose → Plan → Build → Test → Refine. Note cross-functional dependencies.
+9. **Deliverable clarity:** Each action should produce a tangible, reusable output.
+10. **Tone:** Professional, supportive, and direct.
+11. **Panel feedback integration:** Actions must reflect panel stream status assessments. Panelist-identified risks must be addressed. Panel expansion idea and support proposal must be incorporated.
+12. **SCALE scorecard alignment:** Red panel ratings → at least 1 remediation action per Red dimension. Green → build on strengths. Yellow → advisory/monitoring.
+13. **Per-stream end goal coherence:** Each area's end_goal must state the specific measurable outcome. Do NOT prefix with "By week X" — state the outcome directly (e.g. "Product roadmap defined and MVP validated with 3 pilot customers"). The 5 actions must collectively lead to it.
 
 Return ONLY the JSON object, no additional text.`;
 }

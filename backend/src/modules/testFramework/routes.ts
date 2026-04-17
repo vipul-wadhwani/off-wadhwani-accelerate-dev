@@ -12,7 +12,7 @@
 
 import { Router, Request, Response, NextFunction } from 'express';
 import Anthropic from '@anthropic-ai/sdk';
-import { createServiceRoleClient, createAuthenticatedClient } from '../../config/supabase';
+import { createAuthenticatedClient } from '../../config/supabase';
 import { authenticateUser } from '../../middleware/auth';
 import { cache, TTL } from './cache';
 import {
@@ -288,7 +288,7 @@ router.get('/context/:ventureId/:feature', async (req: Request, res: Response, n
                 panelAssessment?.ai_analysis?.panel_feedback ||
                 pfRows?.[0] ||
                 null;
-            const panelScorecard = panelAssessment?.ai_analysis?.panel_scorecard || null;
+            const panelScorecard = panelAssessment?.panel_ai_analysis?.panel_scorecard || panelAssessment?.ai_analysis?.panel_scorecard || null;
             const gateQuestions = screeningAssessment?.gate_questions || panelAssessment?.gate_questions || null;
 
             const roadmapCtx: RoadmapContext = {
@@ -308,7 +308,9 @@ router.get('/context/:ventureId/:feature', async (req: Request, res: Response, n
                     revenue_potential_3y: ventureData.revenue_potential_3y,
                     full_time_employees: ventureData.full_time_employees,
                     growth_focus: ventureData.growth_focus,
+                    blockers: ventureData.blockers,
                     support_request: ventureData.support_request,
+                    incremental_hiring: ventureData.incremental_hiring,
                 },
                 current_business: {
                     what_do_you_sell: ventureData.what_do_you_sell,
@@ -319,7 +321,7 @@ router.get('/context/:ventureId/:feature', async (req: Request, res: Response, n
                     focus_geography: ventureData.focus_geography,
                 },
                 vsm_notes: vsmNotes || null,
-                screening_scorecard: screeningScorecard,
+                screening_ai_analysis: aiAnalysis,
                 panel_feedback: panelFeedback,
                 panel_scorecard: panelScorecard,
                 gate_questions: gateQuestions,

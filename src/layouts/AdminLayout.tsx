@@ -1,6 +1,7 @@
 import React from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { Rocket, LayoutDashboard, Users, BarChart3, Building2, LogOut, FlaskConical } from 'lucide-react';
+// FlaskConical only used in dev for AI Test Framework nav item
 import { useAuth } from '../context/AuthContext';
 
 export const AdminLayout: React.FC = () => {
@@ -18,7 +19,8 @@ export const AdminLayout: React.FC = () => {
         { to: '/admin/dashboard/ventures', label: 'Venture Dashboard', icon: Building2, end: false },
         { to: '/admin/dashboard/screening-performance', label: 'Screening Performance', icon: BarChart3, end: false },
         { to: '/admin/dashboard/users', label: 'Users', icon: Users, end: false },
-        { to: '/admin/test-framework', label: 'AI Test Framework', icon: FlaskConical, end: false },
+        // Dev-only: excluded from production builds
+        ...(import.meta.env.DEV ? [{ to: '/admin/test-framework', label: 'AI Test Framework', icon: FlaskConical, end: false }] : []),
     ];
 
     return (

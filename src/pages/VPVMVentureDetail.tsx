@@ -23,11 +23,6 @@ import {
     Truck,
     Settings,
     Video,
-    MessageSquare,
-    TrendingUp,
-    AlertTriangle,
-    CheckSquare,
-    HelpCircle,
 } from 'lucide-react';
 
 const STREAM_ICONS: Record<string, any> = {

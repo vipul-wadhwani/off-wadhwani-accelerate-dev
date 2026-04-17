@@ -44,6 +44,8 @@ export interface VentureInputData {
     vsm_notes?: string;
     corporate_presentation_text?: string;
     program_type?: string;
+    // Applicant self-assessed support streams (venture_streams table)
+    workstream_statuses?: Array<{ stream_name: string; status: string }>;
     // Panel-only fields
     panel_notes?: string;
     screening_recommendation?: string;
@@ -171,6 +173,11 @@ Do NOT write lengthy narratives. The screening manager wants a quick-glance tabl
 - New Customer Segment: ${venture.focus_segment || 'N/A'}
 - New Geography: ${venture.focus_geography || 'N/A'}
 - Support Description: ${venture.support_description || 'N/A'}
+
+**Growth Idea Support Status (Applicant Self-Assessment):**
+${venture.workstream_statuses && venture.workstream_statuses.length > 0
+    ? venture.workstream_statuses.map(s => `- ${s.stream_name}: ${s.status}`).join('\n')
+    : 'Not provided.'}
 
 **Additional Context:**
 - Current Market: ${JSON.stringify(venture.growth_current || {})}

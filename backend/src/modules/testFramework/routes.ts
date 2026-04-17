@@ -86,12 +86,12 @@ router.get('/context/:ventureId/:feature', async (req: Request, res: Response, n
         const token = (req.headers.authorization ?? '').replace('Bearer ', '');
         const supabase = createAuthenticatedClient(token);
 
-        // ── Fetch venture + application + assessments (read-only) ─────────────
+        // ── Fetch venture + application + assessments + streams (read-only) ──
         // Use select('*') for ventures to avoid column-not-found errors — the DB
         // schema may differ from what we expect.
         const { data: venture, error: vErr } = await supabase
             .from('ventures')
-            .select('*, application:venture_applications (*), assessments:venture_assessments (*)')
+            .select('*, application:venture_applications (*), assessments:venture_assessments (*), streams:venture_streams(*)')
             .eq('id', ventureId)
             .single();
 
@@ -110,6 +110,9 @@ router.get('/context/:ventureId/:feature', async (req: Request, res: Response, n
 
         // application comes back as array (one-to-many) or object depending on Supabase config
         const app: any = (Array.isArray(venture.application) ? venture.application[0] : venture.application) || {};
+
+        // venture_streams: applicant self-assessed support areas (stream_name + status)
+        const ventureStreams: any[] = venture.streams || [];
 
         // ── Merge venture + application fields ────────────────────────────────
         const ventureData: VentureInputData = {
@@ -145,6 +148,7 @@ router.get('/context/:ventureId/:feature', async (req: Request, res: Response, n
             vsm_notes: venture.vsm_notes,
             corporate_presentation_text: undefined, // PDF extraction not done in test framework
             program_type: venture.program_name,
+            workstream_statuses: ventureStreams,
         };
 
         // vsmNotes: screening/panel use venture.vsm_notes (same as production ventures.ts:1057)
@@ -199,6 +203,10 @@ router.get('/context/:ventureId/:feature', async (req: Request, res: Response, n
                     focus_segment: ventureData.focus_segment,
                     focus_geography: ventureData.focus_geography,
                     support_description: ventureData.support_description,
+                    growth_idea_support_status: ventureStreams.map((s: any) => ({
+                        stream: s.stream_name,
+                        status: s.status,
+                    })),
                 },
                 current_business: {
                     what_do_you_sell: ventureData.what_do_you_sell,

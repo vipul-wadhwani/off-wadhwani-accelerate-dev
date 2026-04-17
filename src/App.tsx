@@ -41,7 +41,11 @@ import { RequestListPage } from './modules/MeetingRequests';
 import { UpcomingMeetingsPage } from './pages/UpcomingMeetingsPage';
 import { VPVMRequestsPage } from './pages/VPVMRequestsPage';
 import { VPVMRequestDetailPage } from './pages/VPVMRequestDetailPage';
-import { TestFrameworkPage } from './modules/TestFramework';
+import React from 'react';
+// Dev-only: TestFrameworkPage is excluded from production builds
+const TestFrameworkPage = import.meta.env.DEV
+    ? React.lazy(() => import('./modules/TestFramework').then(m => ({ default: m.TestFrameworkPage })))
+    : null;
 
 const Header = () => (
   <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 fixed top-0 w-full z-50">
@@ -192,12 +196,16 @@ function App() {
             <Route path="users" element={<AdminDashboard tab="users" />} />
           </Route>
 
-          {/* AI Test Framework — standalone page under admin, no DB writes */}
-          <Route path="/admin/test-framework" element={
-            <ProtectedRoute allowedRoles={['admin']}>
-              <TestFrameworkPage />
-            </ProtectedRoute>
-          } />
+          {/* AI Test Framework — dev-only, no DB writes, excluded from prod build */}
+          {import.meta.env.DEV && TestFrameworkPage && (
+            <Route path="/admin/test-framework" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <React.Suspense fallback={null}>
+                  <TestFrameworkPage />
+                </React.Suspense>
+              </ProtectedRoute>
+            } />
+          )}
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

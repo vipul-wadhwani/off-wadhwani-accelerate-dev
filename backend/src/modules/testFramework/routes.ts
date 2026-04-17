@@ -147,15 +147,21 @@ router.get('/context/:ventureId/:feature', async (req: Request, res: Response, n
             program_type: venture.program_name,
         };
 
-        const vsmNotes: string = venture.vsm_notes || '';
+        // vsmNotes: screening/panel use venture.vsm_notes (same as production ventures.ts:1057)
+        // roadmap uses screeningAssessment.notes (same as production ventures.ts:696)
+        const vsmNotesFromVenture: string = venture.vsm_notes || '';
         const assessments: any[] = venture.assessments || [];
 
         // Current screening AI analysis
         const screeningAssessment = assessments.find(
             (a) => a.is_current && a.assessment_type === 'screening'
-        );
+        ) || assessments[0] || null;
         const aiAnalysis = screeningAssessment?.ai_analysis || null;
         const screeningScorecard = aiAnalysis?.scorecard || null;
+
+        // For screening/panel: use venture.vsm_notes
+        // For roadmap: use assessment.notes (contains structured VSM review notes)
+        const vsmNotes = vsmNotesFromVenture;
 
         let inputContext: any = {};
         let prompt = '';
@@ -291,8 +297,11 @@ router.get('/context/:ventureId/:feature', async (req: Request, res: Response, n
             const panelScorecard = panelAssessment?.panel_ai_analysis?.panel_scorecard || panelAssessment?.ai_analysis?.panel_scorecard || null;
             const gateQuestions = screeningAssessment?.gate_questions || panelAssessment?.gate_questions || null;
 
+            // Roadmap uses assessment.notes as vsmNotes source (matches production ventures.ts:696)
+            const roadmapVsmNotes = screeningAssessment?.notes || vsmNotesFromVenture;
+
             const roadmapCtx: RoadmapContext = {
-                vsmNotes,
+                vsmNotes: roadmapVsmNotes,
                 aiAnalysis,
                 interactionNotes,
                 panelFeedback,
@@ -320,7 +329,7 @@ router.get('/context/:ventureId/:feature', async (req: Request, res: Response, n
                     focus_segment: ventureData.focus_segment,
                     focus_geography: ventureData.focus_geography,
                 },
-                vsm_notes: vsmNotes || null,
+                vsm_notes: roadmapVsmNotes || null,
                 screening_ai_analysis: aiAnalysis,
                 panel_feedback: panelFeedback,
                 panel_scorecard: panelScorecard,

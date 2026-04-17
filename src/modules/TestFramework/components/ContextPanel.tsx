@@ -8,8 +8,7 @@ function JsonValue({ value }: { value: any }) {
     if (typeof value === 'boolean') return <span className="text-purple-600">{String(value)}</span>;
     if (typeof value === 'number') return <span className="text-blue-600">{value}</span>;
     if (typeof value === 'string') {
-        if (value.length > 200) return <span className="text-green-700">"{value.slice(0, 200)}…"</span>;
-        return <span className="text-green-700">"{value}"</span>;
+        return <span className="text-green-700 whitespace-pre-wrap break-words">"{value}"</span>;
     }
     if (Array.isArray(value)) {
         if (value.length === 0) return <span className="text-gray-400">[]</span>;
@@ -23,7 +22,7 @@ function JsonValue({ value }: { value: any }) {
             </span>
         );
     }
-    return <span className="text-gray-700">{JSON.stringify(value)}</span>;
+    return <span className="text-gray-700 whitespace-pre-wrap break-words">{JSON.stringify(value, null, 2)}</span>;
 }
 
 function CollapsibleSection({ title, data }: { title: string; data: Record<string, any> }) {
@@ -53,12 +52,12 @@ function CollapsibleSection({ title, data }: { title: string; data: Record<strin
                         <div className="text-xs text-gray-400 italic">No data available</div>
                     ) : (
                         entries.map(([key, val]) => (
-                            <div key={key} className="flex gap-2 text-xs font-mono">
-                                <span className="text-indigo-600 flex-shrink-0 w-40 truncate">{key}</span>
-                                <span className="text-gray-400">:</span>
-                                <span className="flex-1 overflow-hidden">
+                            <div key={key} className="flex gap-2 text-xs font-mono py-0.5">
+                                <span className="text-indigo-600 flex-shrink-0 w-44">{key}</span>
+                                <span className="text-gray-400 flex-shrink-0">:</span>
+                                <span className="flex-1 min-w-0">
                                     {typeof val === 'object' && val !== null ? (
-                                        <span className="text-gray-500 text-xs">{JSON.stringify(val).slice(0, 150)}{JSON.stringify(val).length > 150 ? '…' : ''}</span>
+                                        <span className="text-gray-600 whitespace-pre-wrap break-words">{JSON.stringify(val, null, 2)}</span>
                                     ) : (
                                         <JsonValue value={val} />
                                     )}

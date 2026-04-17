@@ -27,7 +27,7 @@ export interface VentureSummary {
     name: string;
     founder_name?: string;
     status: string;
-    program_recommendation?: string;
+    program_name?: string;
     created_at: string;
 }
 

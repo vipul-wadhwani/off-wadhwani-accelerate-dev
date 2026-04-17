@@ -12,7 +12,7 @@
 
 import { Router, Request, Response, NextFunction } from 'express';
 import Anthropic from '@anthropic-ai/sdk';
-import { createServiceRoleClient } from '../../config/supabase';
+import { createServiceRoleClient, createAuthenticatedClient } from '../../config/supabase';
 import { authenticateUser } from '../../middleware/auth';
 import { cache, TTL } from './cache';
 import {
@@ -41,16 +41,17 @@ router.use(authenticateUser);
 // Lists all non-deleted ventures for the venture selector dropdown.
 // Cached 5 min.
 // ─────────────────────────────────────────────────────────────────────────────
-router.get('/ventures', async (_req: Request, res: Response, next: NextFunction) => {
+router.get('/ventures', async (req: Request, res: Response, next: NextFunction) => {
     try {
         const CACHE_KEY = 'tf:ventures';
         const cached = cache.get<any[]>(CACHE_KEY);
         if (cached) return res.json({ success: true, data: cached, cached: true });
 
-        const supabase = createServiceRoleClient();
+        const token = (req.headers.authorization ?? '').replace('Bearer ', '');
+        const supabase = createAuthenticatedClient(token);
         const { data, error } = await supabase
             .from('ventures')
-            .select('id, name, founder_name, status, program_recommendation, created_at')
+            .select('id, name, founder_name, status, program_name, created_at')
             .is('deleted_at', null)
             .order('created_at', { ascending: false })
             .limit(300);
@@ -82,35 +83,33 @@ router.get('/context/:ventureId/:feature', async (req: Request, res: Response, n
         const cached = cache.get<any>(CACHE_KEY);
         if (cached) return res.json({ success: true, data: cached, cached: true });
 
-        const supabase = createServiceRoleClient();
+        const token = (req.headers.authorization ?? '').replace('Bearer ', '');
+        const supabase = createAuthenticatedClient(token);
 
         // ── Fetch venture + application + assessments (read-only) ─────────────
+        // Use select('*') for ventures to avoid column-not-found errors — the DB
+        // schema may differ from what we expect.
         const { data: venture, error: vErr } = await supabase
             .from('ventures')
-            .select(`
-                id, name, founder_name, city, location, status,
-                vsm_notes, corporate_presentation_text, panel_feedback,
-                gate_questions, program_recommendation,
-                application:venture_applications (
-                    revenue_12m, revenue_potential_3y, full_time_employees,
-                    growth_focus, growth_dimensions_selected, growth_current, growth_target,
-                    target_jobs, financial_condition, time_commitment, second_line_team,
-                    incremental_hiring, min_investment, what_do_you_sell, who_do_you_sell_to,
-                    which_regions, focus_product, focus_segment, focus_geography,
-                    support_request, support_description, business_type, designation, blockers
-                ),
-                assessments:venture_assessments (
-                    assessment_type, ai_analysis, is_current, created_at
-                )
-            `)
+            .select('*, application:venture_applications (*), assessments:venture_assessments (*)')
             .eq('id', ventureId)
             .single();
 
         if (vErr || !venture) {
+            console.error('Venture fetch error:', vErr);
             return res.status(404).json({ success: false, message: 'Venture not found' });
         }
 
-        const app: any = venture.application || {};
+        // ── Fetch panel_feedback (separate table) ─────────────────────────────
+        const { data: pfRows } = await supabase
+            .from('panel_feedback')
+            .select('*')
+            .eq('venture_id', ventureId)
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+        // application comes back as array (one-to-many) or object depending on Supabase config
+        const app: any = (Array.isArray(venture.application) ? venture.application[0] : venture.application) || {};
 
         // ── Merge venture + application fields ────────────────────────────────
         const ventureData: VentureInputData = {
@@ -144,8 +143,8 @@ router.get('/context/:ventureId/:feature', async (req: Request, res: Response, n
             support_description: app.support_description,
             blockers: app.blockers,
             vsm_notes: venture.vsm_notes,
-            corporate_presentation_text: venture.corporate_presentation_text,
-            program_type: venture.program_recommendation,
+            corporate_presentation_text: undefined, // PDF extraction not done in test framework
+            program_type: venture.program_name,
         };
 
         const vsmNotes: string = venture.vsm_notes || '';
@@ -214,15 +213,15 @@ router.get('/context/:ventureId/:feature', async (req: Request, res: Response, n
         // ── PANEL ─────────────────────────────────────────────────────────────
         if (feature === 'panel') {
             const { data: interactions } = await supabase
-                .from('interactions')
-                .select('interaction_type, created_at, summary, notes, content')
+                .from('venture_interactions')
+                .select('interaction_type, interaction_date, title, transcript, summary, notes')
                 .eq('venture_id', ventureId)
-                .order('created_at', { ascending: false })
+                .order('interaction_date', { ascending: true })
                 .limit(20);
 
             const interactionTranscripts = (interactions || [])
                 .map((i: any) =>
-                    `[${i.interaction_type || 'Note'}] ${(i.created_at || '').slice(0, 10)}: ${i.summary || i.notes || i.content || '(no content)'}`
+                    `[${i.interaction_type || 'Note'}] ${(i.interaction_date || '').slice(0, 10)} — ${i.title || ''}: ${i.transcript || i.summary || i.notes || '(no content)'}`
                 )
                 .join('\n\n');
 
@@ -242,6 +241,11 @@ router.get('/context/:ventureId/:feature', async (req: Request, res: Response, n
                     target_jobs: ventureData.target_jobs,
                     screening_recommendation: venture.status,
                 },
+                current_business: {
+                    what_do_you_sell: ventureData.what_do_you_sell,
+                    who_do_you_sell_to: ventureData.who_do_you_sell_to,
+                    which_regions: ventureData.which_regions,
+                },
                 growth_idea: {
                     growth_focus: ventureData.growth_focus,
                     focus_product: ventureData.focus_product,
@@ -250,10 +254,7 @@ router.get('/context/:ventureId/:feature', async (req: Request, res: Response, n
                 },
                 screening_scorecard: screeningScorecard,
                 vsm_notes: vsmNotes || null,
-                interactions: {
-                    count: (interactions || []).length,
-                    transcripts_preview: interactionTranscripts.slice(0, 600) + (interactionTranscripts.length > 600 ? '…' : ''),
-                },
+                interaction_transcripts: interactionTranscripts || null,
             };
 
             prompt = buildPanelPrompt(
@@ -268,15 +269,15 @@ router.get('/context/:ventureId/:feature', async (req: Request, res: Response, n
         // ── ROADMAP ───────────────────────────────────────────────────────────
         if (feature === 'roadmap') {
             const { data: interactions } = await supabase
-                .from('interactions')
-                .select('interaction_type, created_at, summary, notes, content')
+                .from('venture_interactions')
+                .select('interaction_type, interaction_date, title, transcript, summary, notes')
                 .eq('venture_id', ventureId)
-                .order('created_at', { ascending: false })
+                .order('interaction_date', { ascending: true })
                 .limit(20);
 
             const interactionNotes = (interactions || [])
                 .map((i: any) =>
-                    `[${i.interaction_type || 'Note'}] ${(i.created_at || '').slice(0, 10)}: ${i.summary || i.notes || i.content || '(no content)'}`
+                    `[${i.interaction_type || 'Note'}] ${(i.interaction_date || '').slice(0, 10)} — ${i.title || ''}: ${i.transcript || i.summary || i.notes || '(no content)'}`
                 )
                 .join('\n\n');
 
@@ -285,10 +286,10 @@ router.get('/context/:ventureId/:feature', async (req: Request, res: Response, n
             );
             const panelFeedback =
                 panelAssessment?.ai_analysis?.panel_feedback ||
-                (venture as any).panel_feedback ||
+                pfRows?.[0] ||
                 null;
             const panelScorecard = panelAssessment?.ai_analysis?.panel_scorecard || null;
-            const gateQuestions = (venture as any).gate_questions || null;
+            const gateQuestions = screeningAssessment?.gate_questions || panelAssessment?.gate_questions || null;
 
             const roadmapCtx: RoadmapContext = {
                 vsmNotes,
@@ -322,7 +323,7 @@ router.get('/context/:ventureId/:feature', async (req: Request, res: Response, n
                 panel_feedback: panelFeedback,
                 panel_scorecard: panelScorecard,
                 gate_questions: gateQuestions,
-                interactions: { count: (interactions || []).length },
+                interaction_notes: interactionNotes || null,
             };
 
             prompt = buildRoadmapPrompt(ventureData, roadmapCtx);

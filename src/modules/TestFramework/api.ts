@@ -8,18 +8,32 @@ import type { VentureSummary, ContextResponse, RunResponse, Feature } from './ty
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
-async function authHeaders(): Promise<HeadersInit> {
+/**
+ * Gets a fresh access token. Tries Supabase session first (auto-refreshes if
+ * expired), then falls back to localStorage for cases where getSession() returns null.
+ */
+async function getToken(): Promise<string> {
     const { data } = await supabase.auth.getSession();
+    if (data.session?.access_token) {
+        // Keep localStorage in sync so other parts of the app stay up-to-date
+        localStorage.setItem('access_token', data.session.access_token);
+        return data.session.access_token;
+    }
+    return localStorage.getItem('access_token') ?? '';
+}
+
+async function authHeaders(): Promise<HeadersInit> {
+    const token = await getToken();
     return {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${data.session?.access_token ?? ''}`,
+        Authorization: `Bearer ${token}`,
     };
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {
     const json = await res.json();
     if (!res.ok || !json.success) {
-        throw new Error(json.message || `Request failed: ${res.status}`);
+        throw new Error(json.message || json.error || `Request failed: ${res.status}`);
     }
     return json.data as T;
 }

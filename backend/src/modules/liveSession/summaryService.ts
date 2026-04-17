@@ -81,16 +81,26 @@ Return a JSON object (no markdown):
                     action_items: result.action_items || [],
                 });
 
-            // Save as final insight
-            await supabase
+            // Save as final insight (only if one doesn't already exist)
+            const { data: existingFinal } = await supabase
                 .from('session_insight_snapshots')
-                .insert({
-                    session_id: sessionId,
-                    summary: result.summary_text,
-                    questions: [],
-                    transcript_length: fullText.length,
-                    is_final: true,
-                });
+                .select('id')
+                .eq('session_id', sessionId)
+                .eq('is_final', true)
+                .limit(1)
+                .maybeSingle();
+
+            if (!existingFinal) {
+                await supabase
+                    .from('session_insight_snapshots')
+                    .insert({
+                        session_id: sessionId,
+                        summary: result.summary_text,
+                        questions: [],
+                        transcript_length: fullText.length,
+                        is_final: true,
+                    });
+            }
 
             return { summary: result, transcript: fullText };
         } catch (err) {

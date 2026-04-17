@@ -3,6 +3,7 @@ import { authenticateUser } from '../middleware/auth';
 import { createAuthenticatedClient, createServiceRoleClient } from '../config/supabase';
 import { successResponse, createdResponse } from '../utils/response';
 import { isZoomConfigured, generateMeetingLink, generateMeetingWithDetails } from '../services/zoomService';
+import { sendVPVMMeetingScheduledEmail, sendBusinessMeetingScheduledEmail, logEmailTrigger } from '../services/emailService';
 
 const router = Router();
 
@@ -216,8 +217,8 @@ router.post(
             }
 
             // For VP/VM calls, also create a mentor_session so it appears in both dashboards
+            let vpvmSessionId: string | null = null;
             if (participant_type === 'vpvm' && participant_profile_id) {
-                const serviceClient = createServiceRoleClient();
                 const meetingIdStr = `vpvm-${venture_id.slice(0, 8)}-${timestamp}`;
 
                 // Get venture name for topic
@@ -229,7 +230,7 @@ router.post(
 
                 const sessionTopic = `VP/VM Session: ${ventureData?.name || 'Venture'}`;
 
-                const { error: sessionErr } = await serviceClient
+                const { data: sessionInserted, error: sessionErr } = await serviceClient
                     .from('mentor_sessions')
                     .insert({
                         meeting_id: meetingIdStr,
@@ -246,12 +247,110 @@ router.post(
                         scheduled_date: call_date,
                         scheduled_time: start_time,
                         source: 'ops_scheduled',
-                    });
+                    })
+                    .select('id')
+                    .single();
 
                 if (sessionErr) {
                     console.error('[ScheduledCalls] Failed to create mentor_session for VP/VM call:', sessionErr);
                     // Non-blocking — the scheduled_call was already created
+                } else {
+                    vpvmSessionId = sessionInserted?.id || null;
                 }
+            }
+
+            // Send email notifications for VP/VM calls (fire-and-forget)
+            if (participant_type === 'vpvm' && participant_profile_id) {
+                (async () => {
+                    try {
+                        const { data: mentor } = await serviceClient
+                            .from('profiles')
+                            .select('email, full_name')
+                            .eq('id', participant_profile_id)
+                            .single();
+
+                        const { data: ventureFull } = await serviceClient
+                            .from('ventures')
+                            .select('name, founder_name, user_id')
+                            .eq('id', venture_id)
+                            .single();
+
+                        const frontendUrl = process.env.FRONTEND_URL || 'https://devaccelerate.wadhwaniliftoff.ai';
+                        const formattedDate = new Date(call_date).toLocaleDateString('en-IN', {
+                            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+                        });
+                        const formattedTime = start_time.slice(0, 5);
+                        const ventureName = ventureFull?.name || 'Venture';
+                        const founderName = ventureFull?.founder_name || 'Entrepreneur';
+
+                        if (mentor?.email) {
+                            logEmailTrigger('scheduled_call.vpvm', {
+                                recipient: mentor.email,
+                                metadata: { venture_id, scheduled_call_id: data?.id },
+                            });
+                            const platformMeetingLink = vpvmSessionId
+                                ? `${frontendUrl}/meeting/${vpvmSessionId}`
+                                : meet_link;
+                            const workbenchUrl = `${frontendUrl}/vpvm/requests`;
+                            await sendVPVMMeetingScheduledEmail(
+                                mentor.email,
+                                mentor.full_name || 'Venture Partner',
+                                ventureName,
+                                founderName,
+                                formattedDate,
+                                formattedTime,
+                                platformMeetingLink,
+                                workbenchUrl
+                            );
+                            console.log(`[ScheduledCalls] VP/VM meeting email sent to ${mentor.email}`);
+                        } else {
+                            logEmailTrigger('scheduled_call.vpvm', {
+                                skipped: true,
+                                skipReason: 'VP/VM profile has no email',
+                                metadata: { venture_id, participant_profile_id, scheduled_call_id: data?.id },
+                            });
+                        }
+
+                        if (ventureFull?.user_id) {
+                            const { data: entrepreneur } = await serviceClient
+                                .from('profiles')
+                                .select('email, full_name')
+                                .eq('id', ventureFull.user_id)
+                                .single();
+
+                            if (entrepreneur?.email) {
+                                logEmailTrigger('scheduled_call.entrepreneur', {
+                                    recipient: entrepreneur.email,
+                                    metadata: { venture_id, scheduled_call_id: data?.id },
+                                });
+                                await sendBusinessMeetingScheduledEmail(
+                                    entrepreneur.email,
+                                    entrepreneur.full_name || founderName,
+                                    mentor?.full_name || 'Venture Partner',
+                                    'Venture Partner',
+                                    formattedDate,
+                                    formattedTime,
+                                    meet_link
+                                );
+                                console.log(`[ScheduledCalls] Entrepreneur meeting email sent to ${entrepreneur.email}`);
+                            } else {
+                                logEmailTrigger('scheduled_call.entrepreneur', {
+                                    skipped: true,
+                                    skipReason: 'Entrepreneur profile has no email',
+                                    metadata: { venture_id, user_id: ventureFull.user_id, scheduled_call_id: data?.id },
+                                });
+                            }
+                        } else {
+                            logEmailTrigger('scheduled_call.entrepreneur', {
+                                skipped: true,
+                                skipReason: 'Venture has no linked user_id',
+                                metadata: { venture_id, scheduled_call_id: data?.id },
+                            });
+                        }
+                    } catch (emailError: any) {
+                        console.error('[ScheduledCalls] Failed to send meeting emails:', emailError?.message || emailError);
+                    }
+                })();
             }
 
             createdResponse(res, { scheduled_call: data });

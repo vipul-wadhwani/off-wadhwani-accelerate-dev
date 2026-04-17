@@ -19,12 +19,12 @@ interface UseZoomMeetingReturn {
 }
 
 export function useZoomMeeting(
-    containerId: string = 'zoomMeetingContainer',
+    _containerId?: string,
     onTranscriptChunk?: (chunk: { speaker: string; text: string; time: string }) => void,
 ): UseZoomMeetingReturn {
     const [status, setStatus] = useState<ZoomStatus>('idle');
     const [error, setError] = useState<string | null>(null);
-    const clientRef = useRef<any>(null);
+    const zoomRef = useRef<any>(null);
 
     const getSignature = async (meetingNumber: string, role: number): Promise<ZoomSignatureResponse> => {
         const token = (await (await import('../../../lib/supabase')).supabase.auth.getSession()).data.session?.access_token;
@@ -52,147 +52,80 @@ export function useZoomMeeting(
         setError(null);
 
         try {
-            // @ts-ignore
-            const ZoomMtgEmbedded = (await import(/* @vite-ignore */ '@zoom/meetingsdk/embedded')).default;
+            // @ts-ignore — no type declarations
+            const { ZoomMtg } = await import('@zoom/meetingsdk');
+            zoomRef.current = ZoomMtg;
+
+            ZoomMtg.preLoadWasm();
+            ZoomMtg.prepareWebSDK();
+
+            // Set up transcript listener before joining
+            if (onTranscriptChunk) {
+                try {
+                    ZoomMtg.inMeetingServiceListener('onReceiveTranscriptionMsg', (data: any) => {
+                        if (!data?.text?.trim()) return;
+                        onTranscriptChunk({
+                            speaker: data.displayName || 'Unknown',
+                            text: data.text,
+                            time: new Date().toISOString(),
+                        });
+                    });
+                } catch (e) {
+                    console.warn('[Zoom] Transcript listener setup error:', e);
+                }
+            }
 
             const { signature, sdkKey } = await getSignature(params.meetingNumber, params.role || 0);
 
-            const client = ZoomMtgEmbedded.createClient();
-            clientRef.current = client;
-
-            const container = document.getElementById(containerId);
-            if (!container) throw new Error(`Container element #${containerId} not found`);
-
-            // Conservative initial size — will be adjusted after render
-            const parentEl = container.parentElement;
-            const parentRect = parentEl?.getBoundingClientRect();
-            const initWidth = Math.floor(parentRect?.width || window.innerWidth * 0.7);
-            const initHeight = Math.floor((parentRect?.height || window.innerHeight) * 0.6);
-
-            await client.init({
-                zoomAppRoot: container,
-                language: 'en-US',
-                patchJsMedia: true,
-                leaveOnPageUnload: true,
-                customize: {
-                    video: {
-                        isResizable: true,
-                        viewSizes: {
-                            default: {
-                                width: initWidth,
-                                height: initHeight,
+            await new Promise<void>((resolve, reject) => {
+                ZoomMtg.init({
+                    leaveUrl: window.location.href,
+                    patchJsMedia: true,
+                    leaveOnPageUnload: true,
+                    success: () => {
+                        ZoomMtg.join({
+                            signature,
+                            sdkKey,
+                            meetingNumber: params.meetingNumber,
+                            userName: params.userName,
+                            userEmail: params.userEmail || '',
+                            passWord: params.password,
+                            success: () => {
+                                setStatus('joined');
+                                resolve();
                             },
-                        },
-                        popper: {
-                            disableDraggable: true,
-                        },
+                            error: (err: any) => {
+                                console.error('[Zoom] Join error:', err);
+                                setError(err?.reason || err?.errorMessage || JSON.stringify(err));
+                                setStatus('error');
+                                reject(err);
+                            },
+                        });
                     },
-                },
-            });
-
-            await client.join({
-                sdkKey,
-                signature,
-                meetingNumber: params.meetingNumber,
-                password: params.password,
-                userName: params.userName,
-                userEmail: params.userEmail || '',
-            });
-
-            // Listen for transcript events
-            if (onTranscriptChunk) {
-                client.on('caption-message', (payload: any) => {
-                    onTranscriptChunk({
-                        speaker: payload.displayName || 'Unknown',
-                        text: payload.text || '',
-                        time: new Date().toISOString(),
-                    });
+                    error: (err: any) => {
+                        console.error('[Zoom] Init error:', err);
+                        setError(err?.reason || err?.errorMessage || JSON.stringify(err));
+                        setStatus('error');
+                        reject(err);
+                    },
                 });
-            }
-
-            setStatus('joined');
-
-            // After SDK renders, dynamically resize to fit container exactly
-            setTimeout(() => {
-                if (!parentEl || !clientRef.current) return;
-                const rect = parentEl.getBoundingClientRect();
-                // Find Zoom toolbar actual height from rendered DOM
-                const zoomFooter = container.querySelector('[class*="footer"]')
-                    || container.querySelector('[class*="toolbar"]')
-                    || container.querySelector('[class*="meeting-info-icon"]')?.closest('div');
-                const toolbarH = zoomFooter?.getBoundingClientRect().height || 48;
-
-                try {
-                    clientRef.current.updateVideoOptions({
-                        viewSizes: {
-                            default: {
-                                width: Math.floor(rect.width),
-                                height: Math.floor(rect.height - toolbarH),
-                            }
-                        }
-                    });
-                    console.log(`[Zoom] Resized video to ${Math.floor(rect.width)}x${Math.floor(rect.height - toolbarH)} (toolbar: ${toolbarH}px)`);
-                } catch (e) {
-                    console.warn('[Zoom] updateVideoOptions failed:', e);
-                }
-            }, 2000);
-
-            // Also observe container for future resizes
-            const resizeObserver = new ResizeObserver((entries) => {
-                const entry = entries[0];
-                if (!entry || !clientRef.current) return;
-                const { width, height } = entry.contentRect;
-                const zf = container.querySelector('[class*="footer"]')
-                    || container.querySelector('[class*="toolbar"]');
-                const th = zf?.getBoundingClientRect().height || 48;
-                try {
-                    clientRef.current.updateVideoOptions({
-                        viewSizes: {
-                            default: {
-                                width: Math.floor(width),
-                                height: Math.floor(height - th),
-                            }
-                        }
-                    });
-                } catch { /* ignore */ }
             });
-            if (parentEl) resizeObserver.observe(parentEl);
 
-            // Auto-enable captions after a short delay for the Zoom UI to render
-            setTimeout(async () => {
-                try {
-                    const moreBtn = document.querySelector('button[title="More"]') as HTMLElement;
-                    if (moreBtn) {
-                        moreBtn.click();
-                        await new Promise(r => setTimeout(r, 600));
-                        const captionsItem = Array.from(document.querySelectorAll('li, div, span, button')).find(
-                            el => el.textContent?.trim() === 'Show Captions'
-                        ) as HTMLElement;
-                        if (captionsItem) {
-                            captionsItem.click();
-                            console.log('[Zoom] Auto-enabled captions');
-                        } else {
-                            // Close the menu if captions not found
-                            moreBtn.click();
-                        }
-                    }
-                } catch (e) {
-                    console.warn('[Zoom] Auto-enable captions failed:', e);
-                }
-            }, 3000);
+            // Fallback: if still loading after 10s, assume joined
+            setTimeout(() => setStatus(prev => prev === 'loading' ? 'joined' : prev), 10000);
 
         } catch (err: any) {
             console.error('[Zoom] Join error:', err);
             setError(err.message || 'Failed to join meeting');
             setStatus('error');
         }
-    }, [containerId, onTranscriptChunk]);
+    }, [onTranscriptChunk]);
 
     const leave = useCallback(async () => {
         try {
-            if (clientRef.current) {
-                await clientRef.current.leaveMeeting();
-                clientRef.current = null;
+            if (zoomRef.current) {
+                zoomRef.current.leaveMeeting({});
+                zoomRef.current = null;
             }
             setStatus('left');
         } catch (err: any) {

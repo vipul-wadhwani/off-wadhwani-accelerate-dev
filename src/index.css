@@ -10,6 +10,32 @@
     }
 }
 
+/* Zoom Full-Page SDK — position alongside right panel during live sessions */
+#zmmtg-root {
+    display: block !important;
+    position: fixed !important;
+    top: 52px !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: calc(100vh - 52px) !important;
+    z-index: 500 !important;
+    background: #fff !important;
+}
+/* When right panel is visible (joined state), shrink Zoom to make room */
+body.zoom-joined #zmmtg-root {
+    width: calc(100vw - 420px) !important;
+    background: #1a1a1a !important;
+}
+.meeting-client, .meeting-client-inner {
+    width: 100% !important;
+    height: 100% !important;
+}
+/* Live session header must stay above Zoom SDK */
+.live-session-header {
+    position: relative;
+    z-index: 10000 !important;
+}
+
 /* Custom Utilities for "Meetul" Theme */
 .glass-panel {
     @apply bg-white/80 backdrop-blur-md border border-white/50 shadow-sm;

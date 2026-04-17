@@ -650,13 +650,13 @@ export const PanelFeedbackForm: React.FC = () => {
                     {/* A1-A2: Revenue fields */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            {coreQuestion(1, 'Annual Revenue (FY25-26: Q1-Q3 Actuals) in INR Cr')}
+                            {coreQuestion(1, 'Annual Revenue (FY25-26: Actuals) in INR Cr')}
                             <div className="ml-9">
                                 <input type="number" step="0.01" value={annualRevenueActuals} onChange={e => setAnnualRevenueActuals(e.target.value)} className={inputClass} placeholder="e.g., 15" required />
                             </div>
                         </div>
                         <div>
-                            {coreQuestion(2, 'Projected Annual Revenue (FY26) in INR Cr')}
+                            {coreQuestion(2, 'Projected Annual Revenue (FY27) in INR Cr')}
                             <div className="ml-9">
                                 <input type="number" step="0.01" value={projectedAnnualRevenue} onChange={e => setProjectedAnnualRevenue(e.target.value)} className={inputClass} placeholder="e.g., 25" required />
                             </div>

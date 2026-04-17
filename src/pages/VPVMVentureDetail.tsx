@@ -22,7 +22,11 @@ import {
     Truck,
     Settings,
     Video,
-    Clock,
+    MessageSquare,
+    TrendingUp,
+    AlertTriangle,
+    CheckSquare,
+    HelpCircle,
 } from 'lucide-react';
 
 const STREAM_ICONS: Record<string, any> = {
@@ -713,10 +717,10 @@ export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId:
             )}
 
 
-            {/* Expert Sessions Section */}
+            {/* My Interactions Section */}
             <SectionHeader
                 icon={Video}
-                title={`Expert Sessions${expertSessions.length > 0 ? ` (${expertSessions.length})` : ''}`}
+                title="My Interactions"
                 open={expertSessionsOpen}
                 onToggle={() => {
                     setExpertSessionsOpen(!expertSessionsOpen);
@@ -725,14 +729,6 @@ export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId:
                         api.getVentureMentorSessions(id).then(s => setExpertSessions(s)).catch(() => {}).finally(() => setLoadingExpertSessions(false));
                     }
                 }}
-                action={!readOnly ? (
-                    <button
-                        onClick={() => setShowScheduleExpertModal(true)}
-                        className="px-3 py-1.5 text-xs font-medium text-teal-700 bg-teal-50 border border-teal-200 rounded-lg hover:bg-teal-100 transition-colors"
-                    >
-                        + Schedule
-                    </button>
-                ) : undefined}
             />
             {expertSessionsOpen && (
                 <div className="bg-white border border-gray-200 rounded-xl p-5">
@@ -744,7 +740,7 @@ export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId:
                     ) : expertSessions.length === 0 ? (
                         <div className="text-center py-8 text-gray-500">
                             <Video className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                            <p className="text-sm">No expert sessions scheduled yet.</p>
+                            <p className="text-sm">No sessions yet.</p>
                             {!readOnly && (
                                 <button
                                     onClick={() => setShowScheduleExpertModal(true)}
@@ -755,62 +751,20 @@ export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId:
                             )}
                         </div>
                     ) : (
-                        <div className="space-y-3">
-                            {expertSessions.map((session: any) => {
-                                const statusColors: Record<string, string> = {
-                                    scheduled: 'bg-blue-50 text-blue-700 border-blue-200',
-                                    active: 'bg-green-50 text-green-700 border-green-200',
-                                    ended: 'bg-gray-50 text-gray-600 border-gray-200',
-                                    cancelled: 'bg-red-50 text-red-600 border-red-200',
-                                };
-                                const dateStr = session.scheduled_date
-                                    ? new Date(session.scheduled_date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
-                                    : '-';
-                                const timeStr = session.scheduled_time ? session.scheduled_time.slice(0, 5) : '-';
-
-                                return (
-                                    <div key={session.id} className="flex items-center justify-between p-4 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-10 h-10 rounded-full bg-teal-50 flex items-center justify-center">
-                                                <Video className="w-5 h-5 text-teal-600" />
-                                            </div>
-                                            <div>
-                                                <div className="text-sm font-semibold text-gray-900">
-                                                    {session.topic || 'Expert Session'}
-                                                </div>
-                                                <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
-                                                    <span className="flex items-center gap-1">
-                                                        <Calendar className="w-3 h-3" /> {dateStr}
-                                                    </span>
-                                                    <span className="flex items-center gap-1">
-                                                        <Clock className="w-3 h-3" /> {timeStr}
-                                                    </span>
-                                                    <span className="flex items-center gap-1">
-                                                        <Users className="w-3 h-3" /> {session.mentor?.full_name || 'Expert'}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                            <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium border ${statusColors[session.status] || statusColors.scheduled}`}>
-                                                {session.status}
-                                            </span>
-                                            {session.join_url && session.status === 'scheduled' && (
-                                                <button
-                                                    onClick={() => navigate(`/meeting/${session.id}`)}
-                                                    className="flex items-center gap-1 px-3 py-1 text-xs font-medium text-white bg-teal-600 border border-teal-600 rounded-lg hover:bg-teal-700 transition-colors"
-                                                >
-                                                    <Video className="w-3 h-3" /> Join
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
+                        <SessionCardList sessions={expertSessions} venture={venture} navigate={navigate} />
                     )}
                 </div>
             )}
+
+            {/* Expert Interactions Section (disabled) */}
+            <div className="opacity-50 pointer-events-none">
+                <SectionHeader
+                    icon={Video}
+                    title="Expert Interactions"
+                    open={false}
+                    onToggle={() => {}}
+                />
+            </div>
 
             {/* Schedule Expert Session Modal */}
             {showScheduleExpertModal && id && venture && (
@@ -853,6 +807,333 @@ export const VPVMVentureDetail: React.FC<VPVMVentureDetailProps> = ({ ventureId:
                 </div>
             )}
 
+        </div>
+    );
+};
+
+/* ============ Session Card List with Inline Expansion ============ */
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+async function getToken() {
+    const { supabase: sb } = await import('../lib/supabase');
+    return (await sb.auth.getSession()).data.session?.access_token || '';
+}
+
+const SessionCardList: React.FC<{ sessions: any[]; venture: any; navigate: any }> = ({ sessions, venture, navigate }) => {
+    const [expandedId, setExpandedId] = useState<string | null>(null);
+
+    return (
+        <div className="space-y-2">
+            {sessions.map((session: any) => (
+                <div key={session.id}>
+                    <div
+                        className={`bg-white border border-gray-200 border-l-4 border-l-emerald-400 rounded-lg px-5 py-4 cursor-pointer hover:shadow-md hover:border-gray-300 transition-all ${expandedId === session.id ? 'ring-2 ring-indigo-100 border-indigo-300' : ''}`}
+                        onClick={() => setExpandedId(expandedId === session.id ? null : session.id)}
+                    >
+                        <div className="flex items-start justify-between">
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-gray-900 truncate">
+                                    {venture?.name || 'Venture'}
+                                </p>
+                                <div className="flex items-center gap-2 mt-1 text-xs text-gray-500 flex-wrap">
+                                    {venture?.founder_name && (
+                                        <span>with <span className="font-medium text-gray-700">{venture.founder_name}</span></span>
+                                    )}
+                                    {session.scheduled_date && (
+                                        <>
+                                            {venture?.founder_name && <span className="text-gray-300">·</span>}
+                                            <span className="flex items-center gap-1">
+                                                <Calendar className="w-3 h-3" />
+                                                {new Date(session.scheduled_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                            </span>
+                                        </>
+                                    )}
+                                    {session.scheduled_time && (
+                                        <>
+                                            <span className="text-gray-300">·</span>
+                                            <span>{new Date(`1970-01-01T${session.scheduled_time}`).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true })}</span>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {session.status === 'ended' && (
+                                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 flex-shrink-0">
+                                        ended
+                                    </span>
+                                )}
+                                {session.join_url && session.status === 'scheduled' && (
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); navigate(`/meeting/${session.id}`); }}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors flex-shrink-0"
+                                    >
+                                        <Video className="w-3.5 h-3.5" /> Join
+                                    </button>
+                                )}
+                                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${expandedId === session.id ? 'rotate-180' : ''}`} />
+                            </div>
+                        </div>
+                    </div>
+                    {expandedId === session.id && (
+                        <SessionExpandedPanel sessionId={session.id} isUpcoming={session.status === 'scheduled'} ventureId={venture?.id} />
+                    )}
+                </div>
+            ))}
+        </div>
+    );
+};
+
+/* ============ Expanded Panel for a Session ============ */
+
+type ExpandedTab = 'summary' | 'insights' | 'preBrief';
+
+const SessionExpandedPanel: React.FC<{ sessionId: string; isUpcoming: boolean; ventureId?: string }> = ({ sessionId, isUpcoming, ventureId }) => {
+    const [tab, setTab] = useState<ExpandedTab>(isUpcoming ? 'preBrief' : 'summary');
+    const [summary, setSummary] = useState<any>(null);
+    const [brief, setBrief] = useState<any>(null);
+    const [insights, setInsights] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [loadingBrief, setLoadingBrief] = useState(true);
+
+    useEffect(() => {
+        let cancelled = false;
+        const controller = new AbortController();
+        setLoading(true);
+        setLoadingBrief(true);
+        setBrief(null);
+
+        (async () => {
+            try {
+                const token = await getToken();
+                const headers = { Authorization: `Bearer ${token}` };
+
+                // Fetch summary & insights in parallel (fast)
+                const fastFetch = Promise.all([
+                    fetch(`${API_URL}/api/sessions/${sessionId}/summary`, { headers, signal: controller.signal }),
+                    fetch(ventureId ? `${API_URL}/api/sessions/venture/${ventureId}/insights` : `${API_URL}/api/sessions/${sessionId}/insights`, { headers, signal: controller.signal }),
+                ]).then(async ([summaryRes, insightsRes]) => {
+                    if (cancelled) return;
+                    const summaryData = await summaryRes.json();
+                    const insightsData = await insightsRes.json();
+                    if (summaryData.success) setSummary(summaryData.data);
+                    setInsights(insightsData.data || insightsData.insights || []);
+                    setLoading(false);
+                });
+
+                // Brief fetch separately (may take 15s+ on first generation)
+                const briefFetch = fetch(`${API_URL}/api/briefs/${sessionId}?autoGenerate=true`, { headers, signal: controller.signal })
+                    .then(async (res) => {
+                        if (cancelled) return;
+                        const briefData = await res.json();
+                        if (briefData.success && briefData.data) setBrief(briefData.data);
+                        setLoadingBrief(false);
+                    });
+
+                await Promise.all([fastFetch, briefFetch]);
+            } catch (err: any) {
+                if (err.name !== 'AbortError') console.error('[SessionPanel] Fetch error:', err);
+                if (!cancelled) { setLoading(false); setLoadingBrief(false); }
+            }
+        })();
+        return () => { cancelled = true; controller.abort(); };
+    }, [sessionId]);
+
+    const tabs: { key: ExpandedTab; label: string; icon: React.ReactNode; disabled?: boolean }[] = [
+        { key: 'summary', label: 'Transcript Summary', icon: <MessageSquare className="w-3.5 h-3.5" />, disabled: isUpcoming },
+        { key: 'insights', label: 'Cumulative Insights', icon: <TrendingUp className="w-3.5 h-3.5" /> },
+        { key: 'preBrief', label: 'Pre-Meeting Brief', icon: <Sparkles className="w-3.5 h-3.5" /> },
+    ];
+
+    return (
+        <div className="bg-gray-50 border border-t-0 border-gray-200 rounded-b-lg px-5 py-4 space-y-4">
+            {/* Tabs */}
+            <div className="flex gap-2">
+                {tabs.map(({ key, label, icon, disabled }) => (
+                    <button
+                        key={key}
+                        onClick={() => !disabled && setTab(key)}
+                        disabled={disabled}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors flex items-center gap-1.5 ${
+                            disabled
+                                ? 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed'
+                                : tab === key
+                                    ? 'bg-indigo-600 text-white border-indigo-600'
+                                    : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                        }`}
+                    >
+                        {icon} {label}
+                    </button>
+                ))}
+            </div>
+
+            {/* Content */}
+            {loading ? (
+                <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
+                </div>
+            ) : (
+                <>
+                    {tab === 'summary' && <ExpandedSummary summary={summary} />}
+                    {tab === 'insights' && <ExpandedInsights insights={insights} />}
+                    {tab === 'preBrief' && <ExpandedBrief brief={brief} loading={loadingBrief} />}
+                </>
+            )}
+        </div>
+    );
+};
+
+const ExpandedSummary: React.FC<{ summary: any }> = ({ summary }) => {
+    if (!summary) return <p className="text-sm text-gray-500 text-center py-4">No meeting summary available yet.</p>;
+    return (
+        <div className="space-y-3">
+            {summary.summary_text && (
+                <div>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Session Summary</p>
+                    <p className="text-sm text-gray-700 leading-relaxed">{summary.summary_text}</p>
+                </div>
+            )}
+            {summary.key_points?.length > 0 && (
+                <div>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Key Points</p>
+                    <div className="space-y-1">
+                        {summary.key_points.map((point: string, i: number) => (
+                            <div key={i} className="flex items-start gap-2 text-xs text-gray-600">
+                                <span className="w-4 h-4 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">{i + 1}</span>
+                                <span>{point}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+            {summary.action_items?.length > 0 && (
+                <div>
+                    <p className="text-[10px] font-bold text-red-500 uppercase tracking-wider mb-1">Action Items</p>
+                    <div className="space-y-1">
+                        {summary.action_items.map((item: any, i: number) => (
+                            <div key={i} className="flex items-start gap-2 text-xs text-gray-600">
+                                <CheckSquare className="w-3.5 h-3.5 text-red-400 flex-shrink-0 mt-0.5" />
+                                <span>{typeof item === 'string' ? item : item?.title || item?.description}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const ExpandedInsights: React.FC<{ insights: any[] }> = ({ insights }) => {
+    if (!insights || insights.length === 0) return <p className="text-sm text-gray-500 text-center py-4">No cumulative insights available.</p>;
+
+    const filtered = [...insights].filter((ins) => !ins.is_final);
+
+    // Group by session_id, keep only the latest snapshot per session
+    const bySession = new Map<string, any>();
+    for (const ins of filtered) {
+        const existing = bySession.get(ins.session_id);
+        if (!existing || new Date(ins.snapshot_time) > new Date(existing.snapshot_time)) {
+            bySession.set(ins.session_id, ins);
+        }
+    }
+    const latestPerSession = [...bySession.values()].sort((a, b) =>
+        new Date(b.snapshot_time).getTime() - new Date(a.snapshot_time).getTime()
+    );
+
+    const allQuestions = latestPerSession.flatMap((ins: any) => ins.questions || []);
+    const uniqueQuestions = [...new Set(allQuestions)];
+
+    const combinedSummary = latestPerSession.map((ins: any) => ins.summary).filter(Boolean).join('\n\n');
+
+    return (
+        <div className="space-y-3">
+            <div className="border-2 border-indigo-200 rounded-lg p-4 bg-indigo-50/30">
+                <div className="flex items-center gap-2 mb-2">
+                    <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-indigo-600 text-white uppercase tracking-wider">Overall Insights</span>
+                </div>
+                <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-line mb-3">{combinedSummary}</p>
+                {uniqueQuestions.length > 0 && (
+                    <div>
+                        <span className="text-[10px] font-semibold text-indigo-600 uppercase tracking-wider">Key Questions Across All Sessions</span>
+                        <div className="mt-1.5 space-y-1.5">
+                            {uniqueQuestions.slice(0, 10).map((q: string, qi: number) => (
+                                <div key={qi} className="flex items-start gap-2 text-xs text-gray-600">
+                                    <span className="w-4 h-4 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">
+                                        {qi + 1}
+                                    </span>
+                                    {q}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+const ExpandedBrief: React.FC<{ brief: any; loading?: boolean }> = ({ brief, loading }) => {
+    if (loading) return (
+        <div className="flex flex-col items-center justify-center py-6 gap-2">
+            <Loader2 className="w-5 h-5 animate-spin text-indigo-500" />
+            <p className="text-xs text-gray-500">Preparing pre-meeting brief...</p>
+        </div>
+    );
+    const content = brief?.brief_content;
+    if (!content) return <p className="text-sm text-gray-500 text-center py-4">Brief generation unavailable for this session.</p>;
+    return (
+        <div className="space-y-3">
+            {content.summary && (
+                <div>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Overview</p>
+                    <p className="text-sm text-gray-700 leading-relaxed">{content.summary}</p>
+                </div>
+            )}
+            {content.red_flags?.length > 0 && (
+                <div>
+                    <p className="text-[10px] font-bold text-red-500 uppercase tracking-wider mb-1">Red Flags</p>
+                    <div className="space-y-1">
+                        {content.red_flags.map((flag: string, i: number) => (
+                            <div key={i} className="flex items-start gap-2 text-xs">
+                                <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0 mt-0.5" />
+                                <span className="text-red-800">{flag}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+            {content.focus_areas?.length > 0 && (
+                <div>
+                    <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-1">Focus Areas</p>
+                    <div className="space-y-1">
+                        {content.focus_areas.map((area: string, i: number) => (
+                            <div key={i} className="flex items-start gap-2 text-xs text-gray-600">
+                                <Target className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0 mt-0.5" />
+                                <span>{area}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+            {content.key_questions?.length > 0 && (
+                <div>
+                    <p className="text-[10px] font-bold text-amber-500 uppercase tracking-wider mb-1">Key Questions</p>
+                    <div className="space-y-1">
+                        {content.key_questions.map((q: string, i: number) => (
+                            <div key={i} className="flex items-start gap-2 text-xs text-gray-600">
+                                <HelpCircle className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
+                                <span>{q}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+            {content.progress_summary && (
+                <div>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Progress</p>
+                    <p className="text-xs text-gray-700">{content.progress_summary}</p>
+                </div>
+            )}
         </div>
     );
 };

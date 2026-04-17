@@ -1,20 +1,18 @@
 import { EmailClient } from '@azure/communication-email';
+import { Sentry } from '../config/sentry';
 
-const connectionString = process.env.AZURE_COMMUNICATION_CONNECTION_STRING || '';
-const senderAddress = process.env.AZURE_EMAIL_SENDER || 'accelerate@wadhwanifoundation.org';
-
-// Log email config status on startup
-console.log(`[EmailService] Initialized — connection string configured: ${!!connectionString}, sender: ${senderAddress}`);
-
+// Read lazily — Key Vault loads secrets async after module imports
 let emailClient: EmailClient | null = null;
 
 function getEmailClient(): EmailClient {
     if (!emailClient) {
+        const connectionString = process.env.AZURE_COMMUNICATION_CONNECTION_STRING || '';
         if (!connectionString) {
             console.error('[EmailService] AZURE_COMMUNICATION_CONNECTION_STRING is NOT set. Email will not work.');
             throw new Error('AZURE_COMMUNICATION_CONNECTION_STRING is not configured');
         }
-        console.log('[EmailService] Creating Azure EmailClient...');
+        const senderAddress = process.env.AZURE_EMAIL_SENDER || 'accelerate@wadhwanifoundation.org';
+        console.log(`[EmailService] Creating Azure EmailClient (sender: ${senderAddress})...`);
         emailClient = new EmailClient(connectionString);
     }
     return emailClient;
@@ -28,32 +26,52 @@ export async function sendEmail(
 ): Promise<void> {
     console.log(`[EmailService] Attempting to send email to: ${to}, subject: "${subject}"`);
 
-    const client = getEmailClient();
-
-    const message = {
-        senderAddress,
-        content: {
-            subject,
-            html: htmlBody,
-            plainText: plainText || '',
-        },
-        recipients: {
-            to: [{ address: to }],
-        },
-    };
-
-    const EMAIL_TIMEOUT_MS = 30000;
-    const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(`Email send timed out after ${EMAIL_TIMEOUT_MS / 1000}s`)), EMAIL_TIMEOUT_MS)
-    );
+    Sentry.addBreadcrumb({
+        category: 'email',
+        message: 'Email send attempted',
+        level: 'info',
+        data: { to, subject },
+    });
 
     try {
+        const client = getEmailClient();
+
+        const message = {
+            senderAddress: process.env.AZURE_EMAIL_SENDER || 'accelerate@wadhwanifoundation.org',
+            content: {
+                subject,
+                html: htmlBody,
+                plainText: plainText || '',
+            },
+            recipients: {
+                to: [{ address: to }],
+            },
+        };
+
+        const EMAIL_TIMEOUT_MS = 30000;
+        const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error(`Email send timed out after ${EMAIL_TIMEOUT_MS / 1000}s`)), EMAIL_TIMEOUT_MS)
+        );
+
         const poller = await Promise.race([client.beginSend(message), timeoutPromise]);
         console.log(`[EmailService] Email send initiated for ${to}, polling for result...`);
         const result = await Promise.race([poller.pollUntilDone(), timeoutPromise]);
         console.log(`[EmailService] Email to ${to} — status: ${result.status}, id: ${result.id}`);
         if (result.status !== 'Succeeded') {
             console.error(`[EmailService] Email to ${to} did not succeed. Status: ${result.status}, Error: ${JSON.stringify(result.error)}`);
+            Sentry.captureMessage(`Email delivery did not succeed: ${result.status}`, {
+                level: 'error',
+                tags: { service: 'email', recipient: to, delivery_status: result.status },
+                extra: { subject, operationId: result.id, azureError: result.error },
+            });
+            await Sentry.flush(2000);
+        } else {
+            Sentry.addBreadcrumb({
+                category: 'email',
+                message: 'Email delivered',
+                level: 'info',
+                data: { to, operationId: result.id },
+            });
         }
     } catch (error: any) {
         console.error(`[EmailService] Failed to send email to ${to}:`, {
@@ -62,7 +80,41 @@ export async function sendEmail(
             statusCode: error.statusCode,
             stack: error.stack?.split('\n').slice(0, 3).join('\n'),
         });
+        Sentry.captureException(error, {
+            tags: { service: 'email', recipient: to },
+            extra: { subject, statusCode: error.statusCode, code: error.code },
+        });
+        await Sentry.flush(2000);
         throw error;
+    }
+}
+
+/**
+ * Log an email trigger to Sentry — useful for tracking attempts and skips
+ * from callers (e.g. when a recipient's email is missing and the send is skipped).
+ */
+export function logEmailTrigger(trigger: string, context: {
+    recipient?: string;
+    skipped?: boolean;
+    skipReason?: string;
+    metadata?: Record<string, any>;
+}): void {
+    const { recipient, skipped, skipReason, metadata } = context;
+
+    if (skipped) {
+        console.warn(`[EmailService] Email skipped — trigger: ${trigger}, reason: ${skipReason}`);
+        Sentry.captureMessage(`Email skipped: ${trigger}`, {
+            level: 'warning',
+            tags: { service: 'email', trigger, skipped: 'true' },
+            extra: { recipient, skipReason, ...metadata },
+        });
+    } else {
+        Sentry.addBreadcrumb({
+            category: 'email',
+            message: `Trigger: ${trigger}`,
+            level: 'info',
+            data: { recipient, ...metadata },
+        });
     }
 }
 
@@ -227,13 +279,6 @@ export async function sendSelectionWelcomeEmail(
 
             <p>We look forward to partnering with you on this journey and supporting your venture as you work towards meaningful, scalable growth.</p>
 
-            <div class="login-box">
-                <p style="margin: 0 0 8px 0; font-weight: bold;">Your Login Details</p>
-                <p style="margin: 0 0 4px 0;">Portal: <a href="${loginUrl}">${loginUrl}</a></p>
-                <p style="margin: 0 0 4px 0;">Email: <strong>${toEmail}</strong></p>
-                <p style="margin: 0;">Password: <strong>WadhwaniAccelerate123456</strong></p>
-            </div>
-
             <p><strong>Welcome aboard,</strong><br>Team Wadhwani Accelerate</p>
         </div>
         <div class="footer">
@@ -264,11 +309,6 @@ Throughout the program, ventures are expected to commit clearly to the agreed gr
 
 We look forward to partnering with you on this journey and supporting your venture as you work towards meaningful, scalable growth.
 
-Your Login Details:
-Portal: ${loginUrl}
-Email: ${toEmail}
-Password: WadhwaniAccelerate123456
-
 Welcome aboard,
 Team Wadhwani Accelerate`;
 
@@ -294,7 +334,7 @@ export async function sendSelfserveEmail(
         .content { padding: 20px; background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0 0 8px 8px; }
         .content ul { margin: 10px 0; padding-left: 20px; }
         .content li { margin-bottom: 8px; }
-        .cta-button { display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; margin: 15px 0; }
+        .cta-button { display: inline-block; background-color: #2563eb; color: #ffffff !important; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; margin: 15px 0; }
         .footer { text-align: center; padding: 20px; font-size: 12px; color: #6b7280; }
     </style>
 </head>
@@ -314,7 +354,7 @@ export async function sendSelfserveEmail(
                 <li>Mentor Connect support, enabling you to seek insights and guidance from experienced mentors within the ecosystem</li>
             </ul>
             <p>We encourage you to activate your access and begin immediately by visiting:</p>
-            <p style="text-align: center;"><a href="https://wadhwaniliftoff.ai" class="cta-button">Visit Wadhwani LiftOff AI</a></p>
+            <p style="text-align: center;"><a href="https://wadhwaniliftoff.ai" class="cta-button" style="display: inline-block; background-color: #2563eb; color: #ffffff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">Visit Wadhwani LiftOff AI</a></p>
             <p>Engaging with LiftOff AI will help you build momentum and position yourself strongly as your venture evolves.</p>
             <p>Wishing you focused execution and steady progress ahead.</p>
             <p>Thanks,<br>Team Wadhwani Accelerate</p>
@@ -344,6 +384,570 @@ https://wadhwaniliftoff.ai
 Engaging with LiftOff AI will help you build momentum and position yourself strongly as your venture evolves.
 
 Wishing you focused execution and steady progress ahead.
+
+Thanks,
+Team Wadhwani Accelerate`;
+
+    await sendEmail(toEmail, subject, htmlBody, plainText);
+}
+
+export async function sendScreeningAssignmentEmail(
+    toEmail: string,
+    managerName: string,
+    businessName: string,
+    applicantName: string,
+    location: string,
+    applicationUrl: string
+): Promise<void> {
+    const subject = `New Application Assigned for Screening`;
+
+    const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #dc2626; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { padding: 20px; background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0 0 8px 8px; }
+        .details { background-color: #f0f4ff; border: 1px solid #c7d2fe; border-radius: 8px; padding: 16px; margin: 16px 0; }
+        .details p { margin: 4px 0; }
+        .cta-button { display: inline-block; background-color: #2563eb; color: #ffffff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; margin: 15px 0; }
+        .footer { text-align: center; padding: 20px; font-size: 12px; color: #6b7280; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Wadhwani Accelerate</h1>
+        </div>
+        <div class="content">
+            <p>Hi ${managerName},</p>
+            <p>A new application has been assigned to you for screening.</p>
+            <div class="details">
+                <p><strong>Business Name:</strong> ${businessName}</p>
+                <p><strong>Applicant Name:</strong> ${applicantName}</p>
+                <p><strong>Location:</strong> ${location}</p>
+            </div>
+            <p>Please review the application, assess its eligibility, and proceed with your evaluation at the earliest.</p>
+            <p>You can access the application here:</p>
+            <p style="text-align: center;"><a href="${applicationUrl}" class="cta-button" style="display: inline-block; background-color: #2563eb; color: #ffffff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">Review Application</a></p>
+            <p>Thanks,<br>Team Wadhwani Accelerate</p>
+        </div>
+        <div class="footer">
+            <p>&copy; Wadhwani Foundation. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>`;
+
+    const plainText = `Hi ${managerName},
+
+A new application has been assigned to you for screening.
+
+Application details:
+Business Name: ${businessName}
+Applicant Name: ${applicantName}
+Location: ${location}
+
+Please review the application, assess its eligibility, and proceed with your evaluation at the earliest.
+
+You can access the application here: ${applicationUrl}
+
+Thanks,
+Team Wadhwani Accelerate`;
+
+    await sendEmail(toEmail, subject, htmlBody, plainText);
+}
+
+export async function sendPanelistAssignmentEmail(
+    toEmail: string,
+    panelistName: string,
+    businessName: string,
+    applicantName: string,
+    location: string,
+    applicationUrl: string
+): Promise<void> {
+    const subject = `Application Assigned for Panel Evaluation`;
+
+    const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #dc2626; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { padding: 20px; background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0 0 8px 8px; }
+        .details { background-color: #f0f4ff; border: 1px solid #c7d2fe; border-radius: 8px; padding: 16px; margin: 16px 0; }
+        .details p { margin: 4px 0; }
+        .cta-button { display: inline-block; background-color: #2563eb; color: #ffffff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; margin: 15px 0; }
+        .footer { text-align: center; padding: 20px; font-size: 12px; color: #6b7280; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Wadhwani Accelerate</h1>
+        </div>
+        <div class="content">
+            <p>Hi ${panelistName},</p>
+            <p>An application has been assigned to you for panel evaluation.</p>
+            <div class="details">
+                <p><strong>Business Name:</strong> ${businessName}</p>
+                <p><strong>Applicant Name:</strong> ${applicantName}</p>
+                <p><strong>Location:</strong> ${location}</p>
+            </div>
+            <p>Please review the application and submit your feedback.</p>
+            <p>You can access the application here:</p>
+            <p style="text-align: center;"><a href="${applicationUrl}" class="cta-button" style="display: inline-block; background-color: #2563eb; color: #ffffff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">Review Application</a></p>
+            <p>Thanks,<br>Team Wadhwani Accelerate</p>
+        </div>
+        <div class="footer">
+            <p>&copy; Wadhwani Foundation. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>`;
+
+    const plainText = `Hi ${panelistName},
+
+An application has been assigned to you for panel evaluation.
+
+Application details:
+Business Name: ${businessName}
+Applicant Name: ${applicantName}
+Location: ${location}
+
+Please review the application and submit your feedback.
+
+You can access the application here: ${applicationUrl}
+
+Thanks,
+Team Wadhwani Accelerate`;
+
+    await sendEmail(toEmail, subject, htmlBody, plainText);
+}
+
+export async function sendVPVMAssignmentEmail(
+    toEmail: string,
+    vpvmName: string,
+    businessName: string,
+    applicantName: string,
+    location: string,
+    ventureUrl: string
+): Promise<void> {
+    const subject = `New Venture Assigned to You to Review and Begin Growth Plan Execution`;
+
+    const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #dc2626; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { padding: 20px; background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0 0 8px 8px; }
+        .details { background-color: #f0f4ff; border: 1px solid #c7d2fe; border-radius: 8px; padding: 16px; margin: 16px 0; }
+        .details p { margin: 4px 0; }
+        .cta-button { display: inline-block; background-color: #2563eb; color: #ffffff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; margin: 15px 0; }
+        .footer { text-align: center; padding: 20px; font-size: 12px; color: #6b7280; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Wadhwani Accelerate</h1>
+        </div>
+        <div class="content">
+            <p>Hi ${vpvmName},</p>
+            <p>A new venture has been assigned to you.</p>
+            <div class="details">
+                <p><strong>Business Name:</strong> ${businessName}</p>
+                <p><strong>Applicant Name:</strong> ${applicantName}</p>
+                <p><strong>Location:</strong> ${location}</p>
+            </div>
+            <p>Please review the venture details and start working with the venture to support their growth plan.</p>
+            <p>You can access the venture details here:</p>
+            <p style="text-align: center;"><a href="${ventureUrl}" class="cta-button" style="display: inline-block; background-color: #2563eb; color: #ffffff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">View Venture</a></p>
+            <p>Thanks,<br>Team Wadhwani Accelerate</p>
+        </div>
+        <div class="footer">
+            <p>&copy; Wadhwani Foundation. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>`;
+
+    const plainText = `Hi ${vpvmName},
+
+A new venture has been assigned to you.
+
+Venture details:
+Business Name: ${businessName}
+Applicant Name: ${applicantName}
+Location: ${location}
+
+Please review the venture details and start working with the venture to support their growth plan.
+
+You can access the venture details here: ${ventureUrl}
+
+Thanks,
+Team Wadhwani Accelerate`;
+
+    await sendEmail(toEmail, subject, htmlBody, plainText);
+}
+
+export async function sendVPVMMeetingScheduledEmail(
+    toEmail: string,
+    vpvmName: string,
+    businessName: string,
+    applicantName: string,
+    date: string,
+    time: string,
+    meetingLink: string,
+    workbenchUrl: string
+): Promise<void> {
+    const subject = `Meeting Scheduled with Venture`;
+
+    const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #dc2626; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { padding: 20px; background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0 0 8px 8px; }
+        .details { background-color: #f0f4ff; border: 1px solid #c7d2fe; border-radius: 8px; padding: 16px; margin: 16px 0; }
+        .details p { margin: 6px 0; }
+        .footer { text-align: center; padding: 20px; font-size: 12px; color: #6b7280; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Wadhwani Accelerate</h1>
+        </div>
+        <div class="content">
+            <p>Hi ${vpvmName},</p>
+            <p>This is to inform you that your meeting with the venture has been scheduled. Please find the details below:</p>
+            <div class="details">
+                <p><strong>Business Name:</strong> ${businessName}</p>
+                <p><strong>Name:</strong> ${applicantName}</p>
+                <p>&#128197; <strong>Date:</strong> ${date}</p>
+                <p>&#9200; <strong>Time:</strong> ${time}</p>
+                <p>&#128205; <strong>Meeting Link:</strong> <a href="${meetingLink}">${meetingLink}</a></p>
+            </div>
+            <p>You can review the pre-meeting brief under the Upcoming Meetings section in the <a href="${workbenchUrl}">Workbench</a>.</p>
+            <p>Thanks,<br>Team Wadhwani Accelerate</p>
+        </div>
+        <div class="footer">
+            <p>&copy; Wadhwani Foundation. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>`;
+
+    const plainText = `Hi ${vpvmName},
+
+This is to inform you that your meeting with the venture has been scheduled. Please find the details below:
+
+Business Name: ${businessName}
+Name: ${applicantName}
+Date: ${date}
+Time: ${time}
+Meeting Link: ${meetingLink}
+
+You can review the pre-meeting brief under the Upcoming Meetings section in the Workbench: ${workbenchUrl}
+
+Thanks,
+Team Wadhwani Accelerate`;
+
+    await sendEmail(toEmail, subject, htmlBody, plainText);
+}
+
+export async function sendVPVMMeetingReminderEmail(
+    toEmail: string,
+    vpvmName: string,
+    businessName: string,
+    applicantName: string,
+    date: string,
+    time: string,
+    meetingLink: string,
+    workbenchUrl: string
+): Promise<void> {
+    const subject = `Reminder: Your Meeting with the Venture is Tomorrow`;
+
+    const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #dc2626; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { padding: 20px; background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0 0 8px 8px; }
+        .details { background-color: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 16px; margin: 16px 0; }
+        .details p { margin: 6px 0; }
+        .footer { text-align: center; padding: 20px; font-size: 12px; color: #6b7280; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Wadhwani Accelerate</h1>
+            <p style="margin: 8px 0 0 0; opacity: 0.9;">Meeting Reminder</p>
+        </div>
+        <div class="content">
+            <p>Hi ${vpvmName},</p>
+            <p>This is a reminder that your meeting with the venture is scheduled for tomorrow. Please find the details below:</p>
+            <div class="details">
+                <p><strong>Business Name:</strong> ${businessName}</p>
+                <p><strong>Name:</strong> ${applicantName}</p>
+                <p>&#128197; <strong>Date:</strong> ${date}</p>
+                <p>&#9200; <strong>Time:</strong> ${time}</p>
+                <p>&#128205; <strong>Meeting Link:</strong> <a href="${meetingLink}">${meetingLink}</a></p>
+            </div>
+            <p>You can review the pre-meeting brief under the Upcoming Meetings section in the <a href="${workbenchUrl}">Workbench</a>.</p>
+            <p>Thanks,<br>Team Wadhwani Accelerate</p>
+        </div>
+        <div class="footer">
+            <p>&copy; Wadhwani Foundation. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>`;
+
+    const plainText = `Hi ${vpvmName},
+
+This is a reminder that your meeting with the venture is scheduled for tomorrow. Please find the details below:
+
+Business Name: ${businessName}
+Name: ${applicantName}
+Date: ${date}
+Time: ${time}
+Meeting Link: ${meetingLink}
+
+You can review the pre-meeting brief under the Upcoming Meetings section in the Workbench: ${workbenchUrl}
+
+Thanks,
+Team Wadhwani Accelerate`;
+
+    await sendEmail(toEmail, subject, htmlBody, plainText);
+}
+
+export async function sendVPVM30MinReminderEmail(
+    toEmail: string,
+    vpvmName: string,
+    businessName: string,
+    applicantName: string,
+    date: string,
+    time: string,
+    meetingLink: string,
+    workbenchUrl: string
+): Promise<void> {
+    const subject = `Reminder: Your Meeting with the Venture starts in 30 mins`;
+
+    const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #dc2626; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { padding: 20px; background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0 0 8px 8px; }
+        .details { background-color: #fee2e2; border: 1px solid #fca5a5; border-radius: 8px; padding: 16px; margin: 16px 0; }
+        .details p { margin: 6px 0; }
+        .footer { text-align: center; padding: 20px; font-size: 12px; color: #6b7280; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Wadhwani Accelerate</h1>
+            <p style="margin: 8px 0 0 0; opacity: 0.9;">&#9200; Starting in 30 minutes</p>
+        </div>
+        <div class="content">
+            <p>Hi ${vpvmName},</p>
+            <p>This is a reminder that your meeting with the venture will begin in <strong>30 minutes</strong>. Please find the details below:</p>
+            <div class="details">
+                <p><strong>Business Name:</strong> ${businessName}</p>
+                <p><strong>Name:</strong> ${applicantName}</p>
+                <p>&#128197; <strong>Date:</strong> ${date}</p>
+                <p>&#9200; <strong>Time:</strong> ${time}</p>
+                <p>&#128205; <strong>Meeting Link:</strong> <a href="${meetingLink}">${meetingLink}</a></p>
+            </div>
+            <p>You can review the pre-meeting brief under the Upcoming Meetings section in the <a href="${workbenchUrl}">Workbench</a>.</p>
+            <p>Thanks,<br>Team Wadhwani Accelerate</p>
+        </div>
+        <div class="footer">
+            <p>&copy; Wadhwani Foundation. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>`;
+
+    const plainText = `Hi ${vpvmName},
+
+This is a reminder that your meeting with the venture will begin in 30 minutes. Please find the details below:
+
+Business Name: ${businessName}
+Name: ${applicantName}
+Date: ${date}
+Time: ${time}
+Meeting Link: ${meetingLink}
+
+You can review the pre-meeting brief under the Upcoming Meetings section in the Workbench: ${workbenchUrl}
+
+Thanks,
+Team Wadhwani Accelerate`;
+
+    await sendEmail(toEmail, subject, htmlBody, plainText);
+}
+
+export async function sendBusinessMeetingScheduledEmail(
+    toEmail: string,
+    applicantName: string,
+    vpvmName: string,
+    vpvmRole: string,
+    date: string,
+    time: string,
+    meetingLink: string
+): Promise<void> {
+    const subject = `Your Meeting with the ${vpvmRole} Has Been Scheduled`;
+
+    const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #dc2626; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { padding: 20px; background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0 0 8px 8px; }
+        .details { background-color: #f0f4ff; border: 1px solid #c7d2fe; border-radius: 8px; padding: 16px; margin: 16px 0; }
+        .details p { margin: 6px 0; }
+        .footer { text-align: center; padding: 20px; font-size: 12px; color: #6b7280; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Wadhwani Accelerate</h1>
+        </div>
+        <div class="content">
+            <p>Hi ${applicantName},</p>
+            <p>This is to inform you that your meeting with the ${vpvmRole} <strong>${vpvmName}</strong> has been scheduled. Please find the details below:</p>
+            <div class="details">
+                <p>&#128197; <strong>Date:</strong> ${date}</p>
+                <p>&#9200; <strong>Time:</strong> ${time}</p>
+                <p>&#128205; <strong>Meeting Link:</strong> <a href="${meetingLink}">${meetingLink}</a></p>
+            </div>
+            <p>This session will help you discuss your business and next steps for growth with the ${vpvmRole}.</p>
+            <p>Thanks,<br>Team Wadhwani Accelerate</p>
+        </div>
+        <div class="footer">
+            <p>&copy; Wadhwani Foundation. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>`;
+
+    const plainText = `Hi ${applicantName},
+
+This is to inform you that your meeting with the ${vpvmRole} ${vpvmName} has been scheduled. Please find the details below:
+
+Date: ${date}
+Time: ${time}
+Meeting Link: ${meetingLink}
+
+This session will help you discuss your business and next steps for growth with the ${vpvmRole}.
+
+Thanks,
+Team Wadhwani Accelerate`;
+
+    await sendEmail(toEmail, subject, htmlBody, plainText);
+}
+
+export async function sendBusinessMeetingReminderEmail(
+    toEmail: string,
+    applicantName: string,
+    vpvmName: string,
+    vpvmRole: string,
+    date: string,
+    time: string,
+    meetingLink: string,
+    isTomorrow: boolean
+): Promise<void> {
+    const subject = isTomorrow
+        ? `Reminder: Your Meeting with the ${vpvmRole} is Tomorrow`
+        : `Reminder: Your Meeting with the ${vpvmRole} will begin in 30 mins`;
+
+    const leadText = isTomorrow
+        ? `This is a reminder that your meeting with the ${vpvmRole} <strong>${vpvmName}</strong> is scheduled for tomorrow.`
+        : `This is a reminder that your meeting with the ${vpvmRole} <strong>${vpvmName}</strong> will begin in <strong>30 minutes</strong>.`;
+
+    const leadTextPlain = isTomorrow
+        ? `This is a reminder that your meeting with the ${vpvmRole} ${vpvmName} is scheduled for tomorrow.`
+        : `This is a reminder that your meeting with the ${vpvmRole} ${vpvmName} will begin in 30 minutes.`;
+
+    const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #dc2626; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { padding: 20px; background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0 0 8px 8px; }
+        .details { background-color: ${isTomorrow ? '#fef3c7' : '#fee2e2'}; border: 1px solid ${isTomorrow ? '#fcd34d' : '#fca5a5'}; border-radius: 8px; padding: 16px; margin: 16px 0; }
+        .details p { margin: 6px 0; }
+        .footer { text-align: center; padding: 20px; font-size: 12px; color: #6b7280; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Wadhwani Accelerate</h1>
+            ${!isTomorrow ? '<p style="margin: 8px 0 0 0; opacity: 0.9;">&#9200; Starting in 30 minutes</p>' : ''}
+        </div>
+        <div class="content">
+            <p>Hi ${applicantName},</p>
+            <p>${leadText} Please find the details below:</p>
+            <div class="details">
+                <p>&#128197; <strong>Date:</strong> ${date}</p>
+                <p>&#9200; <strong>Time:</strong> ${time}</p>
+                <p>&#128205; <strong>Meeting Link:</strong> <a href="${meetingLink}">${meetingLink}</a></p>
+            </div>
+            <p>Please join the call on time.</p>
+            <p>Thanks,<br>Team Wadhwani Accelerate</p>
+        </div>
+        <div class="footer">
+            <p>&copy; Wadhwani Foundation. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>`;
+
+    const plainText = `Hi ${applicantName},
+
+${leadTextPlain} Please find the details below:
+
+Date: ${date}
+Time: ${time}
+Meeting Link: ${meetingLink}
+
+Please join the call on time.
 
 Thanks,
 Team Wadhwani Accelerate`;

@@ -1,75 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, ChevronRight, RotateCcw, Pencil, RefreshCw, X } from 'lucide-react';
-
-// ─── JSON section viewer ──────────────────────────────────────────────────────
-
-function JsonValue({ value }: { value: any }) {
-    if (value === null || value === undefined) return <span className="text-gray-400">null</span>;
-    if (typeof value === 'boolean') return <span className="text-purple-600">{String(value)}</span>;
-    if (typeof value === 'number') return <span className="text-blue-600">{value}</span>;
-    if (typeof value === 'string') {
-        return <span className="text-green-700 whitespace-pre-wrap break-words">"{value}"</span>;
-    }
-    if (Array.isArray(value)) {
-        if (value.length === 0) return <span className="text-gray-400">[]</span>;
-        return (
-            <span>
-                [{value.map((v, i) => (
-                    <span key={i}>
-                        <JsonValue value={v} />{i < value.length - 1 ? ', ' : ''}
-                    </span>
-                ))}]
-            </span>
-        );
-    }
-    return <span className="text-gray-700 whitespace-pre-wrap break-words">{JSON.stringify(value, null, 2)}</span>;
-}
-
-function CollapsibleSection({ title, data }: { title: string; data: Record<string, any> }) {
-    const [open, setOpen] = useState(true);
-
-    const entries = Object.entries(data).filter(([, v]) => v !== null && v !== undefined && v !== '');
-
-    return (
-        <div className="border border-gray-200 rounded-lg overflow-hidden mb-2">
-            <button
-                type="button"
-                onClick={() => setOpen((o) => !o)}
-                className="w-full flex items-center justify-between px-3 py-2 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
-            >
-                <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">{title}</span>
-                <div className="flex items-center gap-1">
-                    <span className="text-xs text-gray-400">{entries.length} fields</span>
-                    {open
-                        ? <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
-                        : <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
-                    }
-                </div>
-            </button>
-            {open && (
-                <div className="px-3 py-2 space-y-1 bg-white">
-                    {entries.length === 0 ? (
-                        <div className="text-xs text-gray-400 italic">No data available</div>
-                    ) : (
-                        entries.map(([key, val]) => (
-                            <div key={key} className="flex gap-2 text-xs font-mono py-0.5">
-                                <span className="text-indigo-600 flex-shrink-0 w-44">{key}</span>
-                                <span className="text-gray-400 flex-shrink-0">:</span>
-                                <span className="flex-1 min-w-0">
-                                    {typeof val === 'object' && val !== null ? (
-                                        <span className="text-gray-600 whitespace-pre-wrap break-words">{JSON.stringify(val, null, 2)}</span>
-                                    ) : (
-                                        <JsonValue value={val} />
-                                    )}
-                                </span>
-                            </div>
-                        ))
-                    )}
-                </div>
-            )}
-        </div>
-    );
-}
+import { RotateCcw, RefreshCw } from 'lucide-react';
 
 // ─── Main ContextPanel ────────────────────────────────────────────────────────
 
@@ -89,22 +19,20 @@ export const ContextPanel: React.FC<Props> = ({
     onRebuildPrompt,
 }) => {
     const [tab, setTab] = useState<'context' | 'prompt'>('context');
-    const [isEditing, setIsEditing] = useState(false);
     const [editedJson, setEditedJson] = useState('');
     const [jsonError, setJsonError] = useState<string | null>(null);
     const [rebuilding, setRebuilding] = useState(false);
 
-    // Sync editedJson whenever inputContext is (re)loaded
+    // Sync textarea whenever inputContext is (re)loaded
     useEffect(() => {
         if (inputContext) {
             setEditedJson(JSON.stringify(inputContext, null, 2));
-            setIsEditing(false);
             setJsonError(null);
         }
     }, [inputContext]);
 
     const originalJson = inputContext ? JSON.stringify(inputContext, null, 2) : '';
-    const isDirty = isEditing && editedJson !== originalJson;
+    const isDirty = editedJson !== originalJson;
 
     function handleJsonChange(value: string) {
         setEditedJson(value);
@@ -116,8 +44,7 @@ export const ContextPanel: React.FC<Props> = ({
         }
     }
 
-    function handleCancelEdit() {
-        setIsEditing(false);
+    function handleReset() {
         setEditedJson(originalJson);
         setJsonError(null);
     }
@@ -135,13 +62,6 @@ export const ContextPanel: React.FC<Props> = ({
             setRebuilding(false);
         }
     }
-
-    const sections = inputContext
-        ? Object.entries(inputContext).filter(([, v]) => v !== null && typeof v === 'object' && !Array.isArray(v))
-        : [];
-    const primitives = inputContext
-        ? Object.entries(inputContext).filter(([, v]) => v === null || typeof v !== 'object' || Array.isArray(v))
-        : [];
 
     return (
         <div className="flex flex-col h-full">
@@ -166,88 +86,56 @@ export const ContextPanel: React.FC<Props> = ({
             {/* Content */}
             <div className="flex-1 overflow-y-auto">
                 {tab === 'context' && (
-                    <div className="p-3">
+                    <div className="p-3 flex flex-col gap-2 h-full">
                         {!inputContext ? (
                             <div className="text-sm text-gray-400 text-center py-12">
                                 Select a venture and feature to see input context
                             </div>
                         ) : (
                             <>
-                                {/* Context toolbar */}
-                                <div className="flex items-center justify-between mb-2 flex-shrink-0">
-                                    <span className="text-xs text-gray-400">
-                                        {isEditing ? 'Edit context values, then rebuild the prompt.' : 'Read-only view of input data sent to the prompt.'}
+                                {/* Toolbar */}
+                                <div className="flex items-center justify-between flex-shrink-0">
+                                    <span className="text-xs text-gray-500">
+                                        Edit context values below, then click <strong>Rebuild Prompt</strong>.
                                     </span>
                                     <div className="flex items-center gap-2">
-                                        {isEditing ? (
-                                            <>
-                                                {isDirty && !jsonError && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={handleRebuild}
-                                                        disabled={rebuilding}
-                                                        className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-                                                    >
-                                                        <RefreshCw className={`w-3 h-3 ${rebuilding ? 'animate-spin' : ''}`} />
-                                                        {rebuilding ? 'Rebuilding…' : 'Rebuild Prompt'}
-                                                    </button>
-                                                )}
-                                                <button
-                                                    type="button"
-                                                    onClick={handleCancelEdit}
-                                                    className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border border-gray-300 text-gray-600 font-medium hover:bg-gray-50 transition-colors"
-                                                >
-                                                    <X className="w-3 h-3" />
-                                                    Cancel
-                                                </button>
-                                            </>
-                                        ) : (
+                                        {isDirty && !jsonError && (
                                             <button
                                                 type="button"
-                                                onClick={() => setIsEditing(true)}
-                                                className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border border-gray-300 text-gray-600 font-medium hover:bg-gray-50 transition-colors"
+                                                onClick={handleRebuild}
+                                                disabled={rebuilding}
+                                                className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                                             >
-                                                <Pencil className="w-3 h-3" />
-                                                Edit
+                                                <RefreshCw className={`w-3 h-3 ${rebuilding ? 'animate-spin' : ''}`} />
+                                                {rebuilding ? 'Rebuilding…' : 'Rebuild Prompt'}
+                                            </button>
+                                        )}
+                                        {isDirty && (
+                                            <button
+                                                type="button"
+                                                onClick={handleReset}
+                                                className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 font-medium"
+                                            >
+                                                <RotateCcw className="w-3 h-3" />
+                                                Reset
                                             </button>
                                         )}
                                     </div>
                                 </div>
 
-                                {isEditing ? (
-                                    <>
-                                        {jsonError && (
-                                            <div className="mb-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">
-                                                {jsonError}
-                                            </div>
-                                        )}
-                                        <textarea
-                                            className="w-full font-mono text-xs text-gray-800 bg-gray-50 border border-gray-200 rounded-lg p-3 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400"
-                                            style={{ minHeight: '520px' }}
-                                            value={editedJson}
-                                            onChange={(e) => handleJsonChange(e.target.value)}
-                                            spellCheck={false}
-                                        />
-                                    </>
-                                ) : (
-                                    <>
-                                        {/* Top-level primitives (vsm_notes etc.) */}
-                                        {primitives.length > 0 && (
-                                            <CollapsibleSection
-                                                title="Top-Level Fields"
-                                                data={Object.fromEntries(primitives)}
-                                            />
-                                        )}
-                                        {/* Nested sections */}
-                                        {sections.map(([key, val]) => (
-                                            <CollapsibleSection
-                                                key={key}
-                                                title={key.replace(/_/g, ' ')}
-                                                data={val as Record<string, any>}
-                                            />
-                                        ))}
-                                    </>
+                                {jsonError && (
+                                    <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5 flex-shrink-0">
+                                        {jsonError}
+                                    </div>
                                 )}
+
+                                <textarea
+                                    className="flex-1 w-full font-mono text-xs text-gray-800 bg-gray-50 border border-gray-200 rounded-lg p-3 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400"
+                                    style={{ minHeight: '520px' }}
+                                    value={editedJson}
+                                    onChange={(e) => handleJsonChange(e.target.value)}
+                                    spellCheck={false}
+                                />
                             </>
                         )}
                     </div>

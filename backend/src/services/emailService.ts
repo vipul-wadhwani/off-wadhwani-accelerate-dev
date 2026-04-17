@@ -619,9 +619,13 @@ export async function sendVPVMMeetingScheduledEmail(
     date: string,
     time: string,
     meetingLink: string,
-    workbenchUrl: string
+    workbenchUrl: string,
+    meetingTitle?: string
 ): Promise<void> {
-    const subject = `Meeting Scheduled with Venture`;
+    const titlePrefix = meetingTitle ? `${meetingTitle} — ` : '';
+    const titleHtml = meetingTitle ? `<p><strong>Title:</strong> ${meetingTitle}</p>\n                ` : '';
+    const titlePlain = meetingTitle ? `Title: ${meetingTitle}\n` : '';
+    const subject = `${titlePrefix}Meeting Scheduled with Venture`;
 
     const htmlBody = `
 <!DOCTYPE html>
@@ -647,7 +651,7 @@ export async function sendVPVMMeetingScheduledEmail(
             <p>Hi ${vpvmName},</p>
             <p>This is to inform you that your meeting with the venture has been scheduled. Please find the details below:</p>
             <div class="details">
-                <p><strong>Business Name:</strong> ${businessName}</p>
+                ${titleHtml}<p><strong>Business Name:</strong> ${businessName}</p>
                 <p><strong>Name:</strong> ${applicantName}</p>
                 <p>&#128197; <strong>Date:</strong> ${date}</p>
                 <p>&#9200; <strong>Time:</strong> ${time}</p>
@@ -667,7 +671,7 @@ export async function sendVPVMMeetingScheduledEmail(
 
 This is to inform you that your meeting with the venture has been scheduled. Please find the details below:
 
-Business Name: ${businessName}
+${titlePlain}Business Name: ${businessName}
 Name: ${applicantName}
 Date: ${date}
 Time: ${time}
@@ -689,9 +693,13 @@ export async function sendVPVMMeetingReminderEmail(
     date: string,
     time: string,
     meetingLink: string,
-    workbenchUrl: string
+    workbenchUrl: string,
+    meetingTitle?: string
 ): Promise<void> {
-    const subject = `Reminder: Your Meeting with the Venture is Tomorrow`;
+    const titlePrefix = meetingTitle ? `${meetingTitle} — ` : '';
+    const titleHtml = meetingTitle ? `<p><strong>Title:</strong> ${meetingTitle}</p>\n                ` : '';
+    const titlePlain = meetingTitle ? `Title: ${meetingTitle}\n` : '';
+    const subject = `${titlePrefix}Reminder: Your Meeting with the Venture is Tomorrow`;
 
     const htmlBody = `
 <!DOCTYPE html>
@@ -718,7 +726,7 @@ export async function sendVPVMMeetingReminderEmail(
             <p>Hi ${vpvmName},</p>
             <p>This is a reminder that your meeting with the venture is scheduled for tomorrow. Please find the details below:</p>
             <div class="details">
-                <p><strong>Business Name:</strong> ${businessName}</p>
+                ${titleHtml}<p><strong>Business Name:</strong> ${businessName}</p>
                 <p><strong>Name:</strong> ${applicantName}</p>
                 <p>&#128197; <strong>Date:</strong> ${date}</p>
                 <p>&#9200; <strong>Time:</strong> ${time}</p>
@@ -738,7 +746,7 @@ export async function sendVPVMMeetingReminderEmail(
 
 This is a reminder that your meeting with the venture is scheduled for tomorrow. Please find the details below:
 
-Business Name: ${businessName}
+${titlePlain}Business Name: ${businessName}
 Name: ${applicantName}
 Date: ${date}
 Time: ${time}
@@ -760,9 +768,13 @@ export async function sendVPVM30MinReminderEmail(
     date: string,
     time: string,
     meetingLink: string,
-    workbenchUrl: string
+    workbenchUrl: string,
+    meetingTitle?: string
 ): Promise<void> {
-    const subject = `Reminder: Your Meeting with the Venture starts in 30 mins`;
+    const titlePrefix = meetingTitle ? `${meetingTitle} — ` : '';
+    const titleHtml = meetingTitle ? `<p><strong>Title:</strong> ${meetingTitle}</p>\n                ` : '';
+    const titlePlain = meetingTitle ? `Title: ${meetingTitle}\n` : '';
+    const subject = `${titlePrefix}Reminder: Your Meeting with the Venture starts in 30 mins`;
 
     const htmlBody = `
 <!DOCTYPE html>
@@ -789,7 +801,7 @@ export async function sendVPVM30MinReminderEmail(
             <p>Hi ${vpvmName},</p>
             <p>This is a reminder that your meeting with the venture will begin in <strong>30 minutes</strong>. Please find the details below:</p>
             <div class="details">
-                <p><strong>Business Name:</strong> ${businessName}</p>
+                ${titleHtml}<p><strong>Business Name:</strong> ${businessName}</p>
                 <p><strong>Name:</strong> ${applicantName}</p>
                 <p>&#128197; <strong>Date:</strong> ${date}</p>
                 <p>&#9200; <strong>Time:</strong> ${time}</p>
@@ -809,7 +821,7 @@ export async function sendVPVM30MinReminderEmail(
 
 This is a reminder that your meeting with the venture will begin in 30 minutes. Please find the details below:
 
-Business Name: ${businessName}
+${titlePlain}Business Name: ${businessName}
 Name: ${applicantName}
 Date: ${date}
 Time: ${time}
@@ -830,9 +842,13 @@ export async function sendBusinessMeetingScheduledEmail(
     vpvmRole: string,
     date: string,
     time: string,
-    meetingLink: string
+    meetingLink: string,
+    meetingTitle?: string
 ): Promise<void> {
-    const subject = `Your Meeting with the ${vpvmRole} Has Been Scheduled`;
+    const titlePrefix = meetingTitle ? `${meetingTitle} — ` : '';
+    const titleHtml = meetingTitle ? `<p><strong>Title:</strong> ${meetingTitle}</p>\n                ` : '';
+    const titlePlain = meetingTitle ? `Title: ${meetingTitle}\n` : '';
+    const subject = `${titlePrefix}Your Meeting with the ${vpvmRole} Has Been Scheduled`;
 
     const htmlBody = `
 <!DOCTYPE html>
@@ -858,7 +874,7 @@ export async function sendBusinessMeetingScheduledEmail(
             <p>Hi ${applicantName},</p>
             <p>This is to inform you that your meeting with the ${vpvmRole} <strong>${vpvmName}</strong> has been scheduled. Please find the details below:</p>
             <div class="details">
-                <p>&#128197; <strong>Date:</strong> ${date}</p>
+                ${titleHtml}<p>&#128197; <strong>Date:</strong> ${date}</p>
                 <p>&#9200; <strong>Time:</strong> ${time}</p>
                 <p>&#128205; <strong>Meeting Link:</strong> <a href="${meetingLink}">${meetingLink}</a></p>
             </div>
@@ -876,7 +892,7 @@ export async function sendBusinessMeetingScheduledEmail(
 
 This is to inform you that your meeting with the ${vpvmRole} ${vpvmName} has been scheduled. Please find the details below:
 
-Date: ${date}
+${titlePlain}Date: ${date}
 Time: ${time}
 Meeting Link: ${meetingLink}
 
@@ -896,11 +912,15 @@ export async function sendBusinessMeetingReminderEmail(
     date: string,
     time: string,
     meetingLink: string,
-    isTomorrow: boolean
+    isTomorrow: boolean,
+    meetingTitle?: string
 ): Promise<void> {
+    const titlePrefix = meetingTitle ? `${meetingTitle} — ` : '';
+    const titleHtml = meetingTitle ? `<p><strong>Title:</strong> ${meetingTitle}</p>\n                ` : '';
+    const titlePlain = meetingTitle ? `Title: ${meetingTitle}\n` : '';
     const subject = isTomorrow
-        ? `Reminder: Your Meeting with the ${vpvmRole} is Tomorrow`
-        : `Reminder: Your Meeting with the ${vpvmRole} will begin in 30 mins`;
+        ? `${titlePrefix}Reminder: Your Meeting with the ${vpvmRole} is Tomorrow`
+        : `${titlePrefix}Reminder: Your Meeting with the ${vpvmRole} will begin in 30 mins`;
 
     const leadText = isTomorrow
         ? `This is a reminder that your meeting with the ${vpvmRole} <strong>${vpvmName}</strong> is scheduled for tomorrow.`
@@ -935,7 +955,7 @@ export async function sendBusinessMeetingReminderEmail(
             <p>Hi ${applicantName},</p>
             <p>${leadText} Please find the details below:</p>
             <div class="details">
-                <p>&#128197; <strong>Date:</strong> ${date}</p>
+                ${titleHtml}<p>&#128197; <strong>Date:</strong> ${date}</p>
                 <p>&#9200; <strong>Time:</strong> ${time}</p>
                 <p>&#128205; <strong>Meeting Link:</strong> <a href="${meetingLink}">${meetingLink}</a></p>
             </div>
@@ -953,7 +973,7 @@ export async function sendBusinessMeetingReminderEmail(
 
 ${leadTextPlain} Please find the details below:
 
-Date: ${date}
+${titlePlain}Date: ${date}
 Time: ${time}
 Meeting Link: ${meetingLink}
 

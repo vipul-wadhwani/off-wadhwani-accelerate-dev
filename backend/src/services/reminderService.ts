@@ -99,7 +99,8 @@ export async function sendTomorrowMeetingReminders(): Promise<void> {
                 formattedDate,
                 formattedTime,
                 platformMeetingLink,
-                workbenchUrl
+                workbenchUrl,
+                session.topic || undefined
             );
             console.log(`[Reminder] 1-day reminder sent to VP/VM ${mentor.email} for session ${session.id}`);
 
@@ -124,7 +125,8 @@ export async function sendTomorrowMeetingReminders(): Promise<void> {
                         formattedDate,
                         formattedTime,
                         session.join_url || '',
-                        true // isTomorrow
+                        true, // isTomorrow
+                        session.topic || undefined
                     );
                     console.log(`[Reminder] 1-day reminder sent to entrepreneur ${entrepreneur.email} for session ${session.id}`);
                 } else {
@@ -227,7 +229,8 @@ export async function send30MinReminders(): Promise<void> {
                 formattedDate,
                 formattedTime,
                 platformMeetingLink,
-                workbenchUrl
+                workbenchUrl,
+                session.topic || undefined
             );
             console.log(`[Reminder] 30-min reminder sent to VP/VM ${mentor.email} for session ${session.id}`);
 
@@ -252,7 +255,8 @@ export async function send30MinReminders(): Promise<void> {
                         formattedDate,
                         formattedTime,
                         session.join_url || '',
-                        false // is30Min
+                        false, // is30Min
+                        session.topic || undefined
                     );
                     console.log(`[Reminder] 30-min reminder sent to entrepreneur ${entrepreneur.email} for session ${session.id}`);
                 } else {

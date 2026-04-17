@@ -172,7 +172,7 @@ Do NOT write lengthy narratives. The screening manager wants a quick-glance tabl
 - New Product/Service: ${venture.focus_product || 'N/A'}
 - New Customer Segment: ${venture.focus_segment || 'N/A'}
 - New Geography: ${venture.focus_geography || 'N/A'}
-- Support Description: ${venture.support_description || 'N/A'}
+- Support Description: ${venture.support_request || venture.support_description || 'N/A'}
 
 **Growth Idea Support Status (Applicant Self-Assessment):**
 ${venture.workstream_statuses && venture.workstream_statuses.length > 0

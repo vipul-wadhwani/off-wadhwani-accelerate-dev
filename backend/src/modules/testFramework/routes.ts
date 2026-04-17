@@ -202,6 +202,7 @@ router.get('/context/:ventureId/:feature', async (req: Request, res: Response, n
                     focus_product: ventureData.focus_product,
                     focus_segment: ventureData.focus_segment,
                     focus_geography: ventureData.focus_geography,
+                    support_request: ventureData.support_request,
                     support_description: ventureData.support_description,
                     growth_idea_support_status: ventureStreams.map((s: any) => ({
                         stream: s.stream_name,

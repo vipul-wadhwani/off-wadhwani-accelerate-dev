@@ -54,6 +54,17 @@ export async function fetchContext(ventureId: string, feature: Feature): Promise
     return handleResponse<ContextResponse>(res);
 }
 
+// ─── POST /api/test-framework/rebuild-prompt ─────────────────────────────────
+export async function rebuildPrompt(feature: Feature, editedContext: Record<string, any>): Promise<string> {
+    const res = await fetch(`${API_URL}/api/test-framework/rebuild-prompt`, {
+        method: 'POST',
+        headers: await authHeaders(),
+        body: JSON.stringify({ feature, editedContext }),
+    });
+    const data = await handleResponse<{ prompt: string }>(res);
+    return data.prompt;
+}
+
 // ─── POST /api/test-framework/run ────────────────────────────────────────────
 export async function runTest(feature: Feature, customPrompt: string): Promise<RunResponse> {
     const res = await fetch(`${API_URL}/api/test-framework/run`, {

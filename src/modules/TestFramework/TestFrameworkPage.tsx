@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { FlaskConical, Play, Loader2, RefreshCw, Code2, CheckCircle, AlertCircle, Clock } from 'lucide-react';
 
-import { fetchVentures, fetchContext, runTest } from './api';
+import { fetchVentures, fetchContext, runTest, rebuildPrompt } from './api';
 import type { VentureSummary, Feature, ContextResponse, RunResponse } from './types';
 
 import { VentureSelector } from './components/VentureSelector';
@@ -177,6 +177,13 @@ export const TestFrameworkPage: React.FC = () => {
         }
     }, [selectedVenture, selectedFeature]);
 
+    // ── Rebuild prompt from edited context ────────────────────────────────────
+    const handleRebuildPrompt = useCallback(async (editedContext: Record<string, any>) => {
+        if (!selectedFeature) return;
+        const newPrompt = await rebuildPrompt(selectedFeature, editedContext);
+        setPrompt(newPrompt);
+    }, [selectedFeature]);
+
     // ── Run test ──────────────────────────────────────────────────────────────
     const handleRun = useCallback(async () => {
         if (!selectedFeature || !prompt.trim()) return;
@@ -302,6 +309,7 @@ export const TestFrameworkPage: React.FC = () => {
                         prompt={prompt}
                         defaultPrompt={contextData?.prompt ?? ''}
                         onPromptChange={setPrompt}
+                        onRebuildPrompt={handleRebuildPrompt}
                     />
                 </section>
 

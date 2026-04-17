@@ -434,6 +434,109 @@ router.post('/run', async (req: Request, res: Response, next: NextFunction) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// POST /test-framework/rebuild-prompt
+// Accepts { feature, editedContext } — maps edited inputContext JSON back to
+// VentureInputData and rebuilds the prompt without touching the DB.
+// Returns: { prompt }
+// ─────────────────────────────────────────────────────────────────────────────
+router.post('/rebuild-prompt', (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { feature, editedContext } = req.body as { feature: string; editedContext: Record<string, any> };
+
+        if (!feature || !editedContext) {
+            return res.status(400).json({ success: false, message: 'feature and editedContext are required' });
+        }
+        if (!['screening', 'panel', 'roadmap'].includes(feature)) {
+            return res.status(400).json({ success: false, message: `Unknown feature: ${feature}` });
+        }
+
+        const vp  = editedContext.venture_profile  || {};
+        const fin = editedContext.financials        || {};
+        const team = editedContext.team             || {};
+        const gi  = editedContext.growth_idea       || {};
+        const cb  = editedContext.current_business  || {};
+
+        // Map nested inputContext sections back to flat VentureInputData
+        const ventureData: VentureInputData = {
+            id:                      vp.id,
+            name:                    vp.name               || '',
+            founder_name:            vp.founder_name,
+            city:                    vp.city,
+            state:                   vp.state,
+            business_type:           vp.business_type,
+            designation:             vp.designation,
+            revenue_12m:             fin.revenue_12m,
+            revenue_potential_3y:    fin.revenue_potential_3y,
+            financial_condition:     fin.financial_condition,
+            min_investment:          fin.min_investment,
+            incremental_hiring:      fin.incremental_hiring,
+            full_time_employees:     team.full_time_employees,
+            time_commitment:         team.time_commitment,
+            second_line_team:        team.second_line_team,
+            target_jobs:             team.target_jobs,
+            growth_focus:            gi.growth_focus        ?? vp.growth_focus,
+            growth_dimensions_selected: gi.growth_dimensions_selected,
+            focus_product:           gi.focus_product,
+            focus_segment:           gi.focus_segment,
+            focus_geography:         gi.focus_geography,
+            support_request:         gi.support_request,
+            support_description:     gi.support_description,
+            blockers:                gi.blockers            ?? vp.blockers,
+            workstream_statuses:     (gi.growth_idea_support_status || []).map((s: any) => ({
+                stream_name: s.stream ?? s.stream_name,
+                status: s.status,
+            })),
+            what_do_you_sell:        cb.what_do_you_sell,
+            who_do_you_sell_to:      cb.who_do_you_sell_to,
+            which_regions:           cb.which_regions,
+            growth_current:          cb.growth_current,
+            growth_target:           cb.growth_target,
+            // Panel/roadmap extras
+            screening_recommendation: vp.screening_recommendation,
+            prior_ai_analysis:       editedContext.screening_scorecard ?? undefined,
+        };
+
+        const vsmNotes: string = editedContext.vsm_notes || '';
+
+        let prompt = '';
+
+        if (feature === 'screening') {
+            prompt = buildScreeningPrompt(ventureData, vsmNotes);
+        }
+
+        if (feature === 'panel') {
+            const screeningScorecard = editedContext.screening_scorecard ?? null;
+            const interactionTranscripts = editedContext.interaction_transcripts ?? '';
+            prompt = buildPanelPrompt(ventureData, vsmNotes, '', screeningScorecard, interactionTranscripts);
+        }
+
+        if (feature === 'roadmap') {
+            const roadmapCtx: RoadmapContext = {
+                vsmNotes: editedContext.vsm_notes || '',
+                aiAnalysis: editedContext.screening_ai_analysis ?? null,
+                interactionNotes: editedContext.interaction_notes ?? '',
+                panelFeedback: editedContext.panel_feedback ?? null,
+                panelScorecard: editedContext.panel_scorecard ?? null,
+                gateQuestions: editedContext.gate_questions ?? null,
+            };
+            // Roadmap-specific fields live in venture_profile for this feature
+            ventureData.blockers = vp.blockers;
+            ventureData.support_request = vp.support_request;
+            ventureData.incremental_hiring = vp.incremental_hiring;
+            ventureData.growth_focus = vp.growth_focus;
+            ventureData.focus_product = cb.focus_product;
+            ventureData.focus_segment = cb.focus_segment;
+            ventureData.focus_geography = cb.focus_geography;
+            prompt = buildRoadmapPrompt(ventureData, roadmapCtx);
+        }
+
+        return res.json({ success: true, data: { prompt } });
+    } catch (err) {
+        next(err);
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Local JSON parsers — no dependency on aiService.ts
 // ─────────────────────────────────────────────────────────────────────────────
 

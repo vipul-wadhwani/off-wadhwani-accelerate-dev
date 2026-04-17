@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ChevronDown, ChevronRight, RotateCcw } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ChevronDown, ChevronRight, RotateCcw, Pencil, RefreshCw, X } from 'lucide-react';
 
 // ─── JSON section viewer ──────────────────────────────────────────────────────
 
@@ -78,10 +78,63 @@ interface Props {
     prompt: string;
     defaultPrompt: string;
     onPromptChange: (p: string) => void;
+    onRebuildPrompt?: (editedContext: Record<string, any>) => Promise<void>;
 }
 
-export const ContextPanel: React.FC<Props> = ({ inputContext, prompt, defaultPrompt, onPromptChange }) => {
+export const ContextPanel: React.FC<Props> = ({
+    inputContext,
+    prompt,
+    defaultPrompt,
+    onPromptChange,
+    onRebuildPrompt,
+}) => {
     const [tab, setTab] = useState<'context' | 'prompt'>('context');
+    const [isEditing, setIsEditing] = useState(false);
+    const [editedJson, setEditedJson] = useState('');
+    const [jsonError, setJsonError] = useState<string | null>(null);
+    const [rebuilding, setRebuilding] = useState(false);
+
+    // Sync editedJson whenever inputContext is (re)loaded
+    useEffect(() => {
+        if (inputContext) {
+            setEditedJson(JSON.stringify(inputContext, null, 2));
+            setIsEditing(false);
+            setJsonError(null);
+        }
+    }, [inputContext]);
+
+    const originalJson = inputContext ? JSON.stringify(inputContext, null, 2) : '';
+    const isDirty = isEditing && editedJson !== originalJson;
+
+    function handleJsonChange(value: string) {
+        setEditedJson(value);
+        setJsonError(null);
+        try {
+            JSON.parse(value);
+        } catch {
+            setJsonError('Invalid JSON');
+        }
+    }
+
+    function handleCancelEdit() {
+        setIsEditing(false);
+        setEditedJson(originalJson);
+        setJsonError(null);
+    }
+
+    async function handleRebuild() {
+        if (!onRebuildPrompt || jsonError) return;
+        try {
+            const parsed = JSON.parse(editedJson);
+            setRebuilding(true);
+            await onRebuildPrompt(parsed);
+            setTab('prompt');
+        } catch (e: any) {
+            setJsonError(e.message || 'Invalid JSON');
+        } finally {
+            setRebuilding(false);
+        }
+    }
 
     const sections = inputContext
         ? Object.entries(inputContext).filter(([, v]) => v !== null && typeof v === 'object' && !Array.isArray(v))
@@ -120,21 +173,81 @@ export const ContextPanel: React.FC<Props> = ({ inputContext, prompt, defaultPro
                             </div>
                         ) : (
                             <>
-                                {/* Top-level primitives (vsm_notes etc.) */}
-                                {primitives.length > 0 && (
-                                    <CollapsibleSection
-                                        title="Top-Level Fields"
-                                        data={Object.fromEntries(primitives)}
-                                    />
+                                {/* Context toolbar */}
+                                <div className="flex items-center justify-between mb-2 flex-shrink-0">
+                                    <span className="text-xs text-gray-400">
+                                        {isEditing ? 'Edit context values, then rebuild the prompt.' : 'Read-only view of input data sent to the prompt.'}
+                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        {isEditing ? (
+                                            <>
+                                                {isDirty && !jsonError && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleRebuild}
+                                                        disabled={rebuilding}
+                                                        className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                                                    >
+                                                        <RefreshCw className={`w-3 h-3 ${rebuilding ? 'animate-spin' : ''}`} />
+                                                        {rebuilding ? 'Rebuilding…' : 'Rebuild Prompt'}
+                                                    </button>
+                                                )}
+                                                <button
+                                                    type="button"
+                                                    onClick={handleCancelEdit}
+                                                    className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border border-gray-300 text-gray-600 font-medium hover:bg-gray-50 transition-colors"
+                                                >
+                                                    <X className="w-3 h-3" />
+                                                    Cancel
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsEditing(true)}
+                                                className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border border-gray-300 text-gray-600 font-medium hover:bg-gray-50 transition-colors"
+                                            >
+                                                <Pencil className="w-3 h-3" />
+                                                Edit
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {isEditing ? (
+                                    <>
+                                        {jsonError && (
+                                            <div className="mb-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">
+                                                {jsonError}
+                                            </div>
+                                        )}
+                                        <textarea
+                                            className="w-full font-mono text-xs text-gray-800 bg-gray-50 border border-gray-200 rounded-lg p-3 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400"
+                                            style={{ minHeight: '520px' }}
+                                            value={editedJson}
+                                            onChange={(e) => handleJsonChange(e.target.value)}
+                                            spellCheck={false}
+                                        />
+                                    </>
+                                ) : (
+                                    <>
+                                        {/* Top-level primitives (vsm_notes etc.) */}
+                                        {primitives.length > 0 && (
+                                            <CollapsibleSection
+                                                title="Top-Level Fields"
+                                                data={Object.fromEntries(primitives)}
+                                            />
+                                        )}
+                                        {/* Nested sections */}
+                                        {sections.map(([key, val]) => (
+                                            <CollapsibleSection
+                                                key={key}
+                                                title={key.replace(/_/g, ' ')}
+                                                data={val as Record<string, any>}
+                                            />
+                                        ))}
+                                    </>
                                 )}
-                                {/* Nested sections */}
-                                {sections.map(([key, val]) => (
-                                    <CollapsibleSection
-                                        key={key}
-                                        title={key.replace(/_/g, ' ')}
-                                        data={val as Record<string, any>}
-                                    />
-                                ))}
                             </>
                         )}
                     </div>

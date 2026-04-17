@@ -2811,35 +2811,57 @@ router.post(
                 });
             }
 
-            // Email to entrepreneur (business)
+            // Email to entrepreneur (business) — prefer profile (via user_id),
+            // fall back to venture_applications.founder_email for ventures without a linked user.
+            let entrepreneurEmail: string | null = null;
+            let entrepreneurName: string | null = null;
+            let emailSource: 'profile' | 'application' | null = null;
+
             if (venture.user_id) {
                 const { data: entrepreneur } = await serviceClient
                     .from('profiles')
                     .select('email, full_name')
                     .eq('id', venture.user_id)
                     .single();
-
                 if (entrepreneur?.email) {
-                    logEmailTrigger('mentor_session.entrepreneur', {
-                        recipient: entrepreneur.email,
-                        metadata: { venture_id: ventureId, session_id: session.id },
-                    });
-                    sendBusinessMeetingScheduledEmail(
-                        entrepreneur.email,
-                        entrepreneur.full_name || venture.founder_name || 'Founder',
-                        mentor.full_name || 'Venture Partner',
-                        'Venture Partner',
-                        formattedDate,
-                        formattedTime,
-                        join_url
-                    ).catch(err => console.error('[MentorSession] Failed to email entrepreneur:', err.message));
-                } else {
-                    logEmailTrigger('mentor_session.entrepreneur', {
-                        skipped: true,
-                        skipReason: 'Entrepreneur profile has no email',
-                        metadata: { venture_id: ventureId, session_id: session.id, user_id: venture.user_id },
-                    });
+                    entrepreneurEmail = entrepreneur.email;
+                    entrepreneurName = entrepreneur.full_name || null;
+                    emailSource = 'profile';
                 }
+            }
+
+            if (!entrepreneurEmail) {
+                const { data: application } = await serviceClient
+                    .from('venture_applications')
+                    .select('founder_email')
+                    .eq('venture_id', ventureId)
+                    .maybeSingle();
+                if (application?.founder_email) {
+                    entrepreneurEmail = application.founder_email;
+                    emailSource = 'application';
+                }
+            }
+
+            if (entrepreneurEmail) {
+                logEmailTrigger('mentor_session.entrepreneur', {
+                    recipient: entrepreneurEmail,
+                    metadata: { venture_id: ventureId, session_id: session.id, email_source: emailSource },
+                });
+                sendBusinessMeetingScheduledEmail(
+                    entrepreneurEmail,
+                    entrepreneurName || venture.founder_name || 'Founder',
+                    mentor.full_name || 'Venture Partner',
+                    'Venture Partner',
+                    formattedDate,
+                    formattedTime,
+                    join_url
+                ).catch(err => console.error('[MentorSession] Failed to email entrepreneur:', err.message));
+            } else {
+                logEmailTrigger('mentor_session.entrepreneur', {
+                    skipped: true,
+                    skipReason: 'No entrepreneur email found in profile (via user_id) or application (founder_email)',
+                    metadata: { venture_id: ventureId, session_id: session.id, user_id: venture.user_id },
+                });
             }
 
             createdResponse(res, { session });

@@ -18,7 +18,6 @@ function ModelConfigBadge({ config }: { config: ContextResponse['modelConfig'] }
             <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Model Config</div>
             <Row label="Model"  value={config.model.replace('claude-', '').replace('-20250929', '')} />
             <Row label="Tokens" value={config.max_tokens.toLocaleString()} />
-            <Row label="Temp"   value={String(config.temperature)} />
             <Row label="Tools"  value={config.tools.length > 0 ? config.tools.join(', ') : 'none'} />
         </div>
     );

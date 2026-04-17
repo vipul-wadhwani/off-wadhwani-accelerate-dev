@@ -22,7 +22,7 @@ export async function createRequest(input: CreateRequestInput) {
     // Snapshot venture info at request time
     const { data: venture } = await supabase
         .from('ventures')
-        .select('name, founder_name, city, state, revenue_12m, full_time_employees, program_recommendation')
+        .select('name, founder_name, city, location, revenue_12m, full_time_employees, program_recommendation')
         .eq('id', input.venture_id)
         .single();
 
@@ -35,7 +35,7 @@ export async function createRequest(input: CreateRequestInput) {
     const companyInfo = {
         name: venture?.name,
         founder: venture?.founder_name,
-        location: [venture?.city, venture?.state].filter(Boolean).join(', '),
+        location: [venture?.city, venture?.location].filter(Boolean).join(', '),
         revenue: venture?.revenue_12m,
         employees: venture?.full_time_employees,
         program: venture?.program_recommendation,

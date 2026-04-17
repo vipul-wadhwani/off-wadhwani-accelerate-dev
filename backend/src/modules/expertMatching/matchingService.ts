@@ -100,7 +100,7 @@ export async function matchExperts(ventureId: string, matchCount: number = 5): P
     // Fetch venture data
     const { data: venture } = await supabase
         .from('ventures')
-        .select('id, name, founder_name, city, state, program_recommendation, revenue_12m, full_time_employees, growth_focus')
+        .select('id, name, founder_name, city, location, program_recommendation, revenue_12m, full_time_employees, growth_focus')
         .eq('id', ventureId)
         .single();
 
@@ -125,7 +125,7 @@ export async function matchExperts(ventureId: string, matchCount: number = 5): P
     const ventureContext = [
         `Company: ${venture.name}`,
         `Founder: ${venture.founder_name || 'N/A'}`,
-        `Location: ${[venture.city, venture.state].filter(Boolean).join(', ') || 'N/A'}`,
+        `Location: ${[venture.city, venture.location].filter(Boolean).join(', ') || 'N/A'}`,
         `Program: ${venture.program_recommendation || 'N/A'}`,
         `Revenue: ${venture.revenue_12m || 'N/A'}`,
         `Employees: ${venture.full_time_employees || 'N/A'}`,

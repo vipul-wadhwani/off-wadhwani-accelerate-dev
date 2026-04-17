@@ -125,7 +125,7 @@ export async function autoAssignScreeningManager(
 
             const { data: venture } = await adminClient
                 .from('ventures')
-                .select('name, founder_name, city, state')
+                .select('name, founder_name, city, location')
                 .eq('id', ventureId)
                 .single();
 
@@ -134,7 +134,7 @@ export async function autoAssignScreeningManager(
                     recipient: managerProfile.email,
                     metadata: { venture_id: ventureId, manager_id: selectedManager.id },
                 });
-                const location = [venture.city, venture.state].filter(Boolean).join(', ') || 'N/A';
+                const location = [venture.city, venture.location].filter(Boolean).join(', ') || 'N/A';
                 const appUrl = `${process.env.FRONTEND_URL || 'https://devaccelerate.wadhwaniliftoff.ai'}/screening`;
                 sendScreeningAssignmentEmail(
                     managerProfile.email,

@@ -743,7 +743,7 @@ router.post(
 
                     const { data: ventureInfo } = await serviceClient
                         .from('ventures')
-                        .select('name, founder_name, city, state')
+                        .select('name, founder_name, city, location')
                         .eq('id', req.params.id)
                         .single();
 
@@ -752,7 +752,7 @@ router.post(
                             recipient: vmProfile.email,
                             metadata: { venture_id: req.params.id, vm_id: assigned_vm_id },
                         });
-                        const location = [ventureInfo.city, ventureInfo.state].filter(Boolean).join(', ') || 'N/A';
+                        const location = [ventureInfo.city, ventureInfo.location].filter(Boolean).join(', ') || 'N/A';
                         const appUrl = `${process.env.FRONTEND_URL || 'https://devaccelerate.wadhwaniliftoff.ai'}/vpvm/requests`;
                         await sendVPVMAssignmentEmail(
                             vmProfile.email,
@@ -953,10 +953,10 @@ router.put(
                             });
                             const { data: ventureDetails } = await serviceClient
                                 .from('ventures')
-                                .select('name, founder_name, city, state')
+                                .select('name, founder_name, city, location')
                                 .eq('id', req.params.id)
                                 .single();
-                            const location = [ventureDetails?.city, ventureDetails?.state].filter(Boolean).join(', ') || 'N/A';
+                            const location = [ventureDetails?.city, ventureDetails?.location].filter(Boolean).join(', ') || 'N/A';
                             const appUrl = `${process.env.FRONTEND_URL || 'https://devaccelerate.wadhwaniliftoff.ai'}/panel/dashboard`;
                             await sendPanelistAssignmentEmail(
                                 panelist.email,

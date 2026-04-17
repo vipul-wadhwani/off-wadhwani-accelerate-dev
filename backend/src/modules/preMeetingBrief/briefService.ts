@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { createServiceRoleClient } from '../../config/supabase';
+import { Sentry } from '../../config/sentry';
 
 let _anthropic: Anthropic | null = null;
 function getAnthropic(): Anthropic {
@@ -308,7 +309,7 @@ Generate a JSON object (no markdown, no explanation) with these fields:
     try {
         const anthropic = getAnthropic();
         const response = await anthropic.messages.create({
-            model: 'claude-sonnet-4-20250514',
+            model: 'claude-sonnet-4-5-20250929',
             max_tokens: 4096,
             messages: [{ role: 'user', content: prompt }],
         });
@@ -338,6 +339,16 @@ Generate a JSON object (no markdown, no explanation) with these fields:
         return savedBrief;
     } catch (err: any) {
         console.error('[Brief] Generation error:', err);
+        Sentry.captureException(err, {
+            tags: { service: 'pre_meeting_brief' },
+            extra: {
+                session_id: sessionId,
+                venture_id: session.venture_id,
+                anthropic_status: err?.status,
+                anthropic_code: err?.code,
+                message: err?.message,
+            },
+        });
         // Return a fallback brief
         const fallbackContent: BriefContent = {
             summary: `Meeting with ${venture?.name || 'venture'}. ${application?.product_description || 'No product details available.'}`,

@@ -90,24 +90,34 @@ export async function sendEmail(
 }
 
 /**
- * Log an email trigger to Sentry — useful for tracking attempts and skips
- * from callers (e.g. when a recipient's email is missing and the send is skipped).
+ * Log an email trigger to Sentry — tracks attempts, skips, and errors.
+ * Use in catch blocks with `error` to surface DB/unexpected failures.
  */
 export function logEmailTrigger(trigger: string, context: {
     recipient?: string;
     skipped?: boolean;
     skipReason?: string;
+    error?: Error | unknown;
     metadata?: Record<string, any>;
 }): void {
-    const { recipient, skipped, skipReason, metadata } = context;
+    const { recipient, skipped, skipReason, error, metadata } = context;
 
-    if (skipped) {
+    if (error) {
+        const err = error instanceof Error ? error : new Error(String(error));
+        console.error(`[EmailService] Email error — trigger: ${trigger}:`, err.message);
+        Sentry.captureException(err, {
+            tags: { service: 'email', trigger },
+            extra: { recipient, ...metadata },
+        });
+        Sentry.flush(2000).catch(() => { /* best-effort */ });
+    } else if (skipped) {
         console.warn(`[EmailService] Email skipped — trigger: ${trigger}, reason: ${skipReason}`);
         Sentry.captureMessage(`Email skipped: ${trigger}`, {
             level: 'warning',
             tags: { service: 'email', trigger, skipped: 'true' },
             extra: { recipient, skipReason, ...metadata },
         });
+        Sentry.flush(2000).catch(() => { /* best-effort */ });
     } else {
         Sentry.addBreadcrumb({
             category: 'email',

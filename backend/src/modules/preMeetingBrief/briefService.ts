@@ -115,7 +115,7 @@ export async function generateBrief(sessionId: string, generatedBy: string): Pro
     // Get venture profile
     const { data: venture } = await supabase
         .from('ventures')
-        .select('id, name, founder_name, city, state, revenue_12m, full_time_employees, growth_focus, status')
+        .select('id, name, founder_name, city, location, revenue_12m, full_time_employees, growth_focus, status')
         .eq('id', session.venture_id)
         .single();
 
@@ -191,7 +191,7 @@ export async function generateBrief(sessionId: string, generatedBy: string): Pro
     const ventureContext = [
         `Company: ${venture?.name || 'Unknown'}`,
         `Founder: ${venture?.founder_name || 'N/A'}`,
-        `Location: ${[venture?.city, venture?.state].filter(Boolean).join(', ') || 'N/A'}`,
+        `Location: ${[venture?.city, venture?.location].filter(Boolean).join(', ') || 'N/A'}`,
         `Revenue: ${application?.revenue_12m || venture?.revenue_12m || 'N/A'}`,
         `Employees: ${application?.full_time_employees || venture?.full_time_employees || 'N/A'}`,
         `Status: ${venture?.status || 'N/A'}`,

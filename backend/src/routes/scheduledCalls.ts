@@ -311,44 +311,65 @@ router.post(
                             });
                         }
 
+                        // Resolve entrepreneur email: prefer linked profile (venture.user_id),
+                        // fall back to venture_applications.founder_email so the email still
+                        // fires for ventures created via public-apply that never got a user.
+                        let entrepreneurEmail: string | null = null;
+                        let entrepreneurName: string | null = null;
+                        let emailSource: 'profile' | 'application' | null = null;
+
                         if (ventureFull?.user_id) {
                             const { data: entrepreneur } = await serviceClient
                                 .from('profiles')
                                 .select('email, full_name')
                                 .eq('id', ventureFull.user_id)
                                 .single();
-
                             if (entrepreneur?.email) {
-                                logEmailTrigger('scheduled_call.entrepreneur', {
-                                    recipient: entrepreneur.email,
-                                    metadata: { venture_id, scheduled_call_id: data?.id },
-                                });
-                                await sendBusinessMeetingScheduledEmail(
-                                    entrepreneur.email,
-                                    entrepreneur.full_name || founderName,
-                                    mentor?.full_name || 'Venture Partner',
-                                    'Venture Partner',
-                                    formattedDate,
-                                    formattedTime,
-                                    meet_link
-                                );
-                                console.log(`[ScheduledCalls] Entrepreneur meeting email sent to ${entrepreneur.email}`);
-                            } else {
-                                logEmailTrigger('scheduled_call.entrepreneur', {
-                                    skipped: true,
-                                    skipReason: 'Entrepreneur profile has no email',
-                                    metadata: { venture_id, user_id: ventureFull.user_id, scheduled_call_id: data?.id },
-                                });
+                                entrepreneurEmail = entrepreneur.email;
+                                entrepreneurName = entrepreneur.full_name || null;
+                                emailSource = 'profile';
                             }
+                        }
+
+                        if (!entrepreneurEmail) {
+                            const { data: application } = await serviceClient
+                                .from('venture_applications')
+                                .select('founder_email')
+                                .eq('venture_id', venture_id)
+                                .maybeSingle();
+                            if (application?.founder_email) {
+                                entrepreneurEmail = application.founder_email;
+                                emailSource = 'application';
+                            }
+                        }
+
+                        if (entrepreneurEmail) {
+                            logEmailTrigger('scheduled_call.entrepreneur', {
+                                recipient: entrepreneurEmail,
+                                metadata: { venture_id, scheduled_call_id: data?.id, email_source: emailSource },
+                            });
+                            await sendBusinessMeetingScheduledEmail(
+                                entrepreneurEmail,
+                                entrepreneurName || founderName,
+                                mentor?.full_name || 'Venture Partner',
+                                'Venture Partner',
+                                formattedDate,
+                                formattedTime,
+                                meet_link
+                            );
+                            console.log(`[ScheduledCalls] Entrepreneur meeting email sent to ${entrepreneurEmail} (source: ${emailSource})`);
                         } else {
                             logEmailTrigger('scheduled_call.entrepreneur', {
                                 skipped: true,
-                                skipReason: 'Venture has no linked user_id',
-                                metadata: { venture_id, scheduled_call_id: data?.id },
+                                skipReason: 'No entrepreneur email found in profile (via user_id) or application (founder_email)',
+                                metadata: { venture_id, user_id: ventureFull?.user_id, scheduled_call_id: data?.id },
                             });
                         }
                     } catch (emailError: any) {
-                        console.error('[ScheduledCalls] Failed to send meeting emails:', emailError?.message || emailError);
+                        logEmailTrigger('scheduled_call.vpvm', {
+                            error: emailError,
+                            metadata: { venture_id, scheduled_call_id: data?.id, participant_profile_id },
+                        });
                     }
                 })();
             }

@@ -882,13 +882,14 @@ router.put(
                 // Gap-C diagnostic: status moved to Panel Review but `assigned_panelist_id`
                 // wasn't in the body → panelist email won't fire via the normal path.
                 // Log a warning so Sentry captures this silent skip case.
-                if (!req.body.assigned_panelist_id && venture.assigned_panelist_id) {
+                const dbPanelistId = (venture as any).assigned_panelist_id;
+                if (!req.body.assigned_panelist_id && dbPanelistId) {
                     logEmailTrigger('assignment.panelist', {
                         skipped: true,
                         skipReason: 'Status moved to Panel Review but assigned_panelist_id not in PUT body; panelist email not triggered (DB already has panelist)',
                         metadata: {
                             venture_id: req.params.id,
-                            db_panelist_id: venture.assigned_panelist_id,
+                            db_panelist_id: dbPanelistId,
                             status: req.body.status,
                         },
                     });

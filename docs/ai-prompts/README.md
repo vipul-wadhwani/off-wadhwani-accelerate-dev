@@ -6,10 +6,17 @@ This directory contains AI prompt templates and guidelines for implementing cons
 
 ## 📁 Contents
 
+### Active production prompts (code-backed)
+- **[screening-scale-scorecard.md](./screening-scale-scorecard.md)** — SCALE scorecard at screening stage (`buildInsightsPrompt`)
+- **[panel-scale-scorecard.md](./panel-scale-scorecard.md)** — Panel recommendation scorecard (`buildPanelInsightsPrompt`)
+- **[venture-journey-roadmap.md](./venture-journey-roadmap.md)** — 12-16 week program roadmap (`buildRoadmapPrompt`)
+
+### Reference prompts / design notes
 - **[venture-analysis.md](./venture-analysis.md)** - Deep Dive analysis prompts for VSM screening
 - **[agreement-generation.md](./agreement-generation.md)** - Contract and agreement generation prompts
 - **[interview-questions.md](./interview-questions.md)** - AI-generated interview question prompts
 - **[red-flags.md](./red-flags.md)** - Risk assessment and red flag detection prompts
+- **[i-icon-application-process.md](./i-icon-application-process.md)** - Application process i-icon copy
 
 ---
 
@@ -160,4 +167,4 @@ For questions about AI prompts:
 
 ---
 
-**Last Updated:** 2026-02-17
+**Last Updated:** 2026-04-17

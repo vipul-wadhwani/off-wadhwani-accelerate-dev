@@ -348,7 +348,10 @@ router.post(
                             });
                         }
                     } catch (emailError: any) {
-                        console.error('[ScheduledCalls] Failed to send meeting emails:', emailError?.message || emailError);
+                        logEmailTrigger('scheduled_call.vpvm', {
+                            error: emailError,
+                            metadata: { venture_id, scheduled_call_id: data?.id, participant_profile_id },
+                        });
                     }
                 })();
             }

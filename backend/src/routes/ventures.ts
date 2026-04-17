@@ -771,7 +771,10 @@ router.post(
                         });
                     }
                 } catch (emailError) {
-                    console.error('Failed to send VP/VM assignment email:', emailError);
+                    logEmailTrigger('assignment.vpvm', {
+                        error: emailError,
+                        metadata: { venture_id: req.params.id, vm_id: assigned_vm_id },
+                    });
                 }
             })();
 
@@ -869,9 +872,27 @@ router.put(
                             console.warn(`No email found for user_id ${venture.user_id}, skipping panel invitation email`);
                         }
                     } catch (emailError) {
-                        console.error('Failed to send panel invitation email:', emailError);
+                        logEmailTrigger('panel_invitation.status_change', {
+                            error: emailError,
+                            metadata: { venture_id: req.params.id, user_id: venture.user_id },
+                        });
                     }
                 })();
+
+                // Gap-C diagnostic: status moved to Panel Review but `assigned_panelist_id`
+                // wasn't in the body → panelist email won't fire via the normal path.
+                // Log a warning so Sentry captures this silent skip case.
+                if (!req.body.assigned_panelist_id && venture.assigned_panelist_id) {
+                    logEmailTrigger('assignment.panelist', {
+                        skipped: true,
+                        skipReason: 'Status moved to Panel Review but assigned_panelist_id not in PUT body; panelist email not triggered (DB already has panelist)',
+                        metadata: {
+                            venture_id: req.params.id,
+                            db_panelist_id: venture.assigned_panelist_id,
+                            status: req.body.status,
+                        },
+                    });
+                }
             }
 
             // Fire-and-forget: send LiftOff AI email when venture is recommended for Selfserve
@@ -905,7 +926,10 @@ router.put(
                             console.warn(`No founder email found for venture ${req.params.id}, skipping selfserve email`);
                         }
                     } catch (emailError) {
-                        console.error('Failed to send selfserve email:', emailError);
+                        logEmailTrigger('selfserve.recommendation', {
+                            error: emailError,
+                            metadata: { venture_id: req.params.id },
+                        });
                     }
                 })();
             }
@@ -950,7 +974,10 @@ router.put(
                             });
                         }
                     } catch (emailError) {
-                        console.error('Failed to send panelist assignment email:', emailError);
+                        logEmailTrigger('assignment.panelist', {
+                            error: emailError,
+                            metadata: { venture_id: req.params.id, panelist_id: req.body.assigned_panelist_id },
+                        });
                     }
                 })();
             }

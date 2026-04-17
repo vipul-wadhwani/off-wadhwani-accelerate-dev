@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Calendar, Loader2, Link2 } from 'lucide-react';
+import { X, Calendar, Loader2 } from 'lucide-react';
 import { api } from '../lib/api';
 
 interface Venture {
@@ -56,11 +56,7 @@ function toISODate(date: Date): string {
     return date.toISOString().split('T')[0];
 }
 
-const DEFAULT_TIME_SLOTS = [
-    { startLabel: '9:00 AM', label: '9:00 AM - 10:00 AM', start: '09:00', end: '10:00' },
-    { startLabel: '10:00 AM', label: '10:00 AM - 11:00 AM', start: '10:00', end: '11:00' },
-    { startLabel: '11:00 AM', label: '11:00 AM - 12:00 PM', start: '11:00', end: '12:00' },
-];
+type TimeSlot = { startLabel: string; label: string; start: string; end: string };
 
 function formatSlotTime(time: string): string {
     const hour = parseInt(time.split(':')[0], 10);
@@ -100,12 +96,11 @@ export const ScheduleCallModal: React.FC<ScheduleCallModalProps> = ({
     const [selectedDate, setSelectedDate] = useState<string>('');
     const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
     const [selectedPanelistId, setSelectedPanelistId] = useState<string>(panelists[0]?.id || '');
-    const [meetLink, setMeetLink] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [bookedSlots, setBookedSlots] = useState<BookedSlot[]>([]);
     const [loadingAvailability, setLoadingAvailability] = useState(false);
-    const [availableSlots, setAvailableSlots] = useState<typeof DEFAULT_TIME_SLOTS | null>(null);
+    const [availableSlots, setAvailableSlots] = useState<TimeSlot[] | null>(null);
     const [noSlotsMessage, setNoSlotsMessage] = useState<string | null>(null);
 
     const nextWeekdays = getNextWeekdays(7);
@@ -144,16 +139,18 @@ export const ScheduleCallModal: React.FC<ScheduleCallModalProps> = ({
                                     end_time: s.end_time,
                                 })));
                             } else {
-                                // No availability set for this day — fallback to defaults
-                                setAvailableSlots(DEFAULT_TIME_SLOTS);
+                                // No weekly availability configured by VP/VM for this day
+                                setAvailableSlots([]);
+                                setNoSlotsMessage('VP/VM has not set availability for this day');
                             }
                         }
                         setBookedSlots([]);
                     }
                 } catch {
                     if (!cancelled) {
-                        setAvailableSlots(DEFAULT_TIME_SLOTS);
+                        setAvailableSlots([]);
                         setBookedSlots([]);
+                        setNoSlotsMessage('Failed to load availability — please try again');
                     }
                 } finally {
                     if (!cancelled) setLoadingAvailability(false);
@@ -173,8 +170,9 @@ export const ScheduleCallModal: React.FC<ScheduleCallModalProps> = ({
 
                 if (!cancelled) {
                     if (prefSlots === null) {
-                        // No preferences set — fallback to default slots
-                        setAvailableSlots(DEFAULT_TIME_SLOTS);
+                        // Panelist hasn't configured any availability preferences
+                        setAvailableSlots([]);
+                        setNoSlotsMessage('Panelist has not set availability');
                     } else if (prefSlots.length === 0) {
                         setAvailableSlots([]);
                         setNoSlotsMessage('No available slots on this date');
@@ -196,7 +194,8 @@ export const ScheduleCallModal: React.FC<ScheduleCallModalProps> = ({
             } catch {
                 if (!cancelled) {
                     setBookedSlots([]);
-                    setAvailableSlots(DEFAULT_TIME_SLOTS);
+                    setAvailableSlots([]);
+                    setNoSlotsMessage('Failed to load availability — please try again');
                 }
             } finally {
                 if (!cancelled) setLoadingAvailability(false);
@@ -220,8 +219,8 @@ export const ScheduleCallModal: React.FC<ScheduleCallModalProps> = ({
         setError(null);
 
         try {
-            const slotsToUse = availableSlots || DEFAULT_TIME_SLOTS;
-            const slot = slotsToUse[selectedSlot];
+            if (!availableSlots || availableSlots.length === 0) return;
+            const slot = availableSlots[selectedSlot];
             await api.createScheduledCall({
                 venture_id: venture.id,
                 ...(isVPVM && vpvm
@@ -230,7 +229,6 @@ export const ScheduleCallModal: React.FC<ScheduleCallModalProps> = ({
                 call_date: selectedDate,
                 start_time: slot.start,
                 end_time: slot.end,
-                meet_link: meetLink || undefined,
             });
             onScheduled();
         } catch (err: any) {
@@ -353,7 +351,7 @@ export const ScheduleCallModal: React.FC<ScheduleCallModalProps> = ({
                             </div>
                         ) : (
                             <div className="space-y-2">
-                                {(availableSlots || DEFAULT_TIME_SLOTS).map((slot, index) => {
+                                {(availableSlots || []).map((slot, index) => {
                                     const booked = isSlotBooked(slot, bookedSlots);
                                     const isSelected = selectedSlot === index;
                                     return (
@@ -389,23 +387,6 @@ export const ScheduleCallModal: React.FC<ScheduleCallModalProps> = ({
                                 })}
                             </div>
                         )}
-                    </div>
-
-                    {/* Step 3: Meeting Link */}
-                    <div>
-                        <div className="mb-3">
-                            <span className="text-sm font-medium text-gray-700">3. Meeting Link (Zoom/Teams)</span>
-                        </div>
-                        <div className="relative">
-                            <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                            <input
-                                type="url"
-                                value={meetLink}
-                                onChange={(e) => setMeetLink(e.target.value)}
-                                placeholder="https://zoom.us/j/..."
-                                className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                            />
-                        </div>
                     </div>
 
                     {/* Error */}

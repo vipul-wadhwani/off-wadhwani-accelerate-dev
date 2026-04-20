@@ -2801,7 +2801,8 @@ router.post(
                     formattedDate,
                     formattedTime,
                     platformMeetingLink,
-                    workbenchUrl
+                    workbenchUrl,
+                    session.topic || undefined
                 ).catch(err => console.error('[MentorSession] Failed to email VP/VM:', err.message));
             } else {
                 logEmailTrigger('mentor_session.vpvm', {
@@ -2854,7 +2855,8 @@ router.post(
                     'Venture Partner',
                     formattedDate,
                     formattedTime,
-                    join_url
+                    join_url,
+                    session.topic || undefined
                 ).catch(err => console.error('[MentorSession] Failed to email entrepreneur:', err.message));
             } else {
                 logEmailTrigger('mentor_session.entrepreneur', {

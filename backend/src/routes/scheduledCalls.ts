@@ -151,7 +151,16 @@ router.post(
                 return res.status(403).json({ success: false, message: 'Access denied' });
             }
 
-            const { venture_id, panelist_id, participant_profile_id, call_date, start_time, end_time, meet_link: provided_meet_link, notes } = req.body;
+            const { venture_id, panelist_id, participant_profile_id, call_date, start_time, end_time, meet_link: provided_meet_link, notes, title } = req.body;
+
+            // Title is required — used as the session's display label on meeting cards
+            if (!title || typeof title !== 'string' || !title.trim()) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'title is required'
+                });
+            }
+            const trimmedTitle = title.trim();
 
             // Either panelist_id (panel call) or participant_profile_id (VP/VM call) is required
             if (!venture_id || !call_date || !start_time || !end_time) {
@@ -228,7 +237,7 @@ router.post(
                     .eq('id', venture_id)
                     .single();
 
-                const sessionTopic = `VP/VM Session: ${ventureData?.name || 'Venture'}`;
+                const sessionTopic = trimmedTitle;
 
                 const { data: sessionInserted, error: sessionErr } = await serviceClient
                     .from('mentor_sessions')
@@ -300,7 +309,8 @@ router.post(
                                 formattedDate,
                                 formattedTime,
                                 platformMeetingLink,
-                                workbenchUrl
+                                workbenchUrl,
+                                trimmedTitle
                             );
                             console.log(`[ScheduledCalls] VP/VM meeting email sent to ${mentor.email}`);
                         } else {
@@ -355,7 +365,8 @@ router.post(
                                 'Venture Partner',
                                 formattedDate,
                                 formattedTime,
-                                meet_link
+                                meet_link,
+                                trimmedTitle
                             );
                             console.log(`[ScheduledCalls] Entrepreneur meeting email sent to ${entrepreneurEmail} (source: ${emailSource})`);
                         } else {

@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { createServiceRoleClient } from '../../config/supabase';
+import { Sentry } from '../../config/sentry';
 
 let _anthropic: Anthropic | null = null;
 function getAnthropic(): Anthropic {
@@ -113,18 +114,20 @@ export async function generateBrief(sessionId: string, generatedBy: string): Pro
     if (!session) throw new Error('Session not found');
 
     // Get venture profile
-    const { data: venture } = await supabase
+    const { data: venture, error: ventureErr } = await supabase
         .from('ventures')
-        .select('id, name, founder_name, city, location, revenue_12m, full_time_employees, growth_focus, status')
+        .select('id, name, founder_name, city, location, status')
         .eq('id', session.venture_id)
         .single();
+    if (ventureErr) console.error('[Brief] Venture query error:', ventureErr);
 
     // Get venture application details (full form)
-    const { data: application } = await supabase
+    const { data: application, error: applicationErr } = await supabase
         .from('venture_applications')
-        .select('product_description, problem_statement, support_request, blockers, revenue_12m, full_time_employees, what_do_you_sell, who_do_you_sell_to, which_regions, focus_product, focus_segment, focus_geography, growth_focus, business_type, current_product, current_segment, current_geography, incremental_hiring')
+        .select('support_request, blockers, revenue_12m, full_time_employees, what_do_you_sell, who_do_you_sell_to, which_regions, focus_product, focus_segment, focus_geography, growth_focus, incremental_hiring')
         .eq('venture_id', session.venture_id)
         .maybeSingle();
+    if (applicationErr) console.error('[Brief] Application query error:', applicationErr);
 
     // Get panel feedback & scorecard
     const { data: panelFeedback } = await supabase
@@ -192,20 +195,14 @@ export async function generateBrief(sessionId: string, generatedBy: string): Pro
         `Company: ${venture?.name || 'Unknown'}`,
         `Founder: ${venture?.founder_name || 'N/A'}`,
         `Location: ${[venture?.city, venture?.location].filter(Boolean).join(', ') || 'N/A'}`,
-        `Revenue: ${application?.revenue_12m || venture?.revenue_12m || 'N/A'}`,
-        `Employees: ${application?.full_time_employees || venture?.full_time_employees || 'N/A'}`,
+        `Revenue (12m): ${application?.revenue_12m || 'N/A'}`,
+        `Employees: ${application?.full_time_employees || 'N/A'}`,
         `Status: ${venture?.status || 'N/A'}`,
-        application?.product_description ? `Product: ${application.product_description}` : '',
-        application?.problem_statement ? `Problem Statement: ${application.problem_statement}` : '',
         application?.support_request ? `Support Needed: ${application.support_request}` : '',
         application?.blockers ? `Current Blockers: ${application.blockers}` : '',
         application?.what_do_you_sell ? `What They Sell: ${application.what_do_you_sell}` : '',
         application?.who_do_you_sell_to ? `Target Customers: ${application.who_do_you_sell_to}` : '',
         application?.which_regions ? `Regions: ${application.which_regions}` : '',
-        application?.business_type ? `Business Type: ${application.business_type}` : '',
-        application?.current_product ? `Current Product: ${application.current_product}` : '',
-        application?.current_segment ? `Current Segment: ${application.current_segment}` : '',
-        application?.current_geography ? `Current Geography: ${application.current_geography}` : '',
         application?.focus_product ? `Focus Product: ${application.focus_product}` : '',
         application?.focus_segment ? `Focus Segment: ${application.focus_segment}` : '',
         application?.focus_geography ? `Focus Geography: ${application.focus_geography}` : '',
@@ -308,12 +305,14 @@ Generate a JSON object (no markdown, no explanation) with these fields:
     try {
         const anthropic = getAnthropic();
         const response = await anthropic.messages.create({
-            model: 'claude-sonnet-4-20250514',
+            model: 'claude-sonnet-4-5-20250929',
             max_tokens: 4096,
             messages: [{ role: 'user', content: prompt }],
         });
 
-        const text = response.content[0].type === 'text' ? response.content[0].text : '';
+        const rawText = response.content[0].type === 'text' ? response.content[0].text : '';
+        // Strip ```json ... ``` fences if the model added them despite instructions
+        const text = rawText.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
         const briefContent = JSON.parse(text) as BriefContent;
 
         // Save to DB (new version, never overwrites)
@@ -338,9 +337,19 @@ Generate a JSON object (no markdown, no explanation) with these fields:
         return savedBrief;
     } catch (err: any) {
         console.error('[Brief] Generation error:', err);
-        // Return a fallback brief
+        Sentry.captureException(err, {
+            tags: { service: 'pre_meeting_brief' },
+            extra: {
+                session_id: sessionId,
+                venture_id: session.venture_id,
+                anthropic_status: err?.status,
+                anthropic_code: err?.code,
+                message: err?.message,
+            },
+        });
+        // Return a transient fallback — DO NOT persist, so the next click retries generation
         const fallbackContent: BriefContent = {
-            summary: `Meeting with ${venture?.name || 'venture'}. ${application?.product_description || 'No product details available.'}`,
+            summary: `Meeting with ${venture?.name || 'venture'}. ${application?.what_do_you_sell || 'No product details available.'}`,
             red_flags: [],
             focus_areas: [session.topic || 'General discussion'],
             key_questions: ['What progress has been made since the last session?', 'What are the current blockers?'],
@@ -348,18 +357,15 @@ Generate a JSON object (no markdown, no explanation) with these fields:
             progress_summary: 'Unable to generate AI brief — showing basic venture information.',
         };
 
-        const { data: savedBrief } = await supabase
-            .from('pre_meeting_briefs')
-            .insert({
-                session_id: sessionId,
-                venture_id: session.venture_id,
-                generated_by: generatedBy,
-                brief_content: fallbackContent,
-                version: nextVersion,
-            })
-            .select()
-            .single();
-
-        return savedBrief;
+        return {
+            id: null,
+            session_id: sessionId,
+            venture_id: session.venture_id,
+            generated_by: generatedBy,
+            brief_content: fallbackContent,
+            version: null,
+            created_at: new Date().toISOString(),
+            is_fallback: true,
+        };
     }
 }

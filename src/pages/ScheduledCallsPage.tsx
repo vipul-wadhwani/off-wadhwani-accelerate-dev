@@ -266,16 +266,22 @@ export const ScheduledCallsPage: React.FC = () => {
                         title="Scheduled for Today"
                         date={formatDateShort(today)}
                         count={todayCalls.length}
+                        onClick={() => setDateFilter(dateFilter === today ? '' : today)}
+                        active={dateFilter === today}
                     />
                     <DaySummaryCard
                         title="Scheduled for Tomorrow"
                         date={formatDateShort(tomorrow)}
                         count={tomorrowCalls.length}
+                        onClick={() => setDateFilter(dateFilter === tomorrow ? '' : tomorrow)}
+                        active={dateFilter === tomorrow}
                     />
                     <DaySummaryCard
                         title="Scheduled for Day After"
                         date={formatDateShort(dayAfter)}
                         count={dayAfterCalls.length}
+                        onClick={() => setDateFilter(dateFilter === dayAfter ? '' : dayAfter)}
+                        active={dateFilter === dayAfter}
                     />
                 </div>
             )}
@@ -389,15 +395,28 @@ const DaySummaryCard: React.FC<{
     title: string;
     date: string;
     count: number;
-}> = ({ title, date, count }) => (
-    <div className="bg-white rounded-xl border border-gray-200 border-l-4 border-l-indigo-500 p-5 flex items-start justify-between">
-        <div>
-            <div className="text-sm font-medium text-gray-700">{title}</div>
-            <div className="text-2xl font-bold text-gray-900 mt-1">{count}</div>
-            <div className="text-xs text-gray-400 mt-0.5">{date}</div>
-        </div>
-        <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center">
-            <Calendar className="w-5 h-5 text-indigo-600" />
-        </div>
-    </div>
-);
+    onClick?: () => void;
+    active?: boolean;
+}> = ({ title, date, count, onClick, active }) => {
+    const clickable = typeof onClick === 'function';
+    const classes = `bg-white rounded-xl border border-l-4 border-l-indigo-500 p-5 flex items-start justify-between w-full text-left transition-all ${
+        active ? 'border-indigo-400 ring-2 ring-indigo-100 shadow-sm' : 'border-gray-200'
+    } ${clickable ? 'hover:border-gray-300 hover:shadow-sm cursor-pointer' : ''}`;
+    const inner = (
+        <>
+            <div>
+                <div className="text-sm font-medium text-gray-700">{title}</div>
+                <div className="text-2xl font-bold text-gray-900 mt-1">{count}</div>
+                <div className="text-xs text-gray-400 mt-0.5">{date}</div>
+            </div>
+            <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center">
+                <Calendar className="w-5 h-5 text-indigo-600" />
+            </div>
+        </>
+    );
+    return clickable ? (
+        <button type="button" onClick={onClick} className={classes}>{inner}</button>
+    ) : (
+        <div className={classes}>{inner}</div>
+    );
+};

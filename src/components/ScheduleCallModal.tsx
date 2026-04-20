@@ -93,6 +93,7 @@ export const ScheduleCallModal: React.FC<ScheduleCallModalProps> = ({
     vpvm,
 }) => {
     const isVPVM = mode === 'vpvm';
+    const [title, setTitle] = useState<string>(mode === 'vpvm' ? `VP/VM Session: ${venture.name}` : '');
     const [selectedDate, setSelectedDate] = useState<string>('');
     const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
     const [selectedPanelistId, setSelectedPanelistId] = useState<string>(panelists[0]?.id || '');
@@ -211,16 +212,18 @@ export const ScheduleCallModal: React.FC<ScheduleCallModalProps> = ({
         setSelectedSlot(null);
     }, [selectedDate]);
 
+    const trimmedTitle = title.trim();
+    const canConfirm = Boolean(trimmedTitle) && Boolean(selectedDate) && selectedSlot !== null && (isVPVM || Boolean(selectedPanelistId));
+
     const handleConfirm = async () => {
-        if (!selectedDate || selectedSlot === null) return;
-        if (!isVPVM && !selectedPanelistId) return;
+        if (!canConfirm) return;
 
         setSubmitting(true);
         setError(null);
 
         try {
             if (!availableSlots || availableSlots.length === 0) return;
-            const slot = availableSlots[selectedSlot];
+            const slot = availableSlots[selectedSlot!];
             await api.createScheduledCall({
                 venture_id: venture.id,
                 ...(isVPVM && vpvm
@@ -229,6 +232,7 @@ export const ScheduleCallModal: React.FC<ScheduleCallModalProps> = ({
                 call_date: selectedDate,
                 start_time: slot.start,
                 end_time: slot.end,
+                title: trimmedTitle,
             });
             onScheduled();
         } catch (err: any) {
@@ -307,10 +311,25 @@ export const ScheduleCallModal: React.FC<ScheduleCallModalProps> = ({
                         </div>
                     )}
 
-                    {/* Step 1: Select Date */}
+                    {/* Step 1: Title */}
                     <div>
                         <div className="mb-3">
-                            <span className="text-sm font-medium text-gray-700">1. Select Date</span>
+                            <span className="text-sm font-medium text-gray-700">1. Title <span className="text-red-500">*</span></span>
+                        </div>
+                        <input
+                            type="text"
+                            value={title}
+                            onChange={(e) => setTitle(e.target.value)}
+                            maxLength={120}
+                            placeholder="e.g. Q2 Growth Review — GTM Strategy"
+                            className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400"
+                        />
+                    </div>
+
+                    {/* Step 2: Select Date */}
+                    <div>
+                        <div className="mb-3">
+                            <span className="text-sm font-medium text-gray-700">2. Select Date</span>
                         </div>
                         <div className="grid grid-cols-3 gap-2">
                             {nextWeekdays.map((date) => {
@@ -333,11 +352,11 @@ export const ScheduleCallModal: React.FC<ScheduleCallModalProps> = ({
                         </div>
                     </div>
 
-                    {/* Step 2: Select Time Slot */}
+                    {/* Step 3: Select Time Slot */}
                     <div>
                         <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium text-gray-700">2. Select Time Slot</span>
+                                <span className="text-sm font-medium text-gray-700">3. Select Time Slot</span>
                             </div>
                         </div>
                         {loadingAvailability ? (
@@ -407,7 +426,7 @@ export const ScheduleCallModal: React.FC<ScheduleCallModalProps> = ({
                     </button>
                     <button
                         onClick={handleConfirm}
-                        disabled={!selectedDate || selectedSlot === null || (!isVPVM && !selectedPanelistId) || submitting}
+                        disabled={!canConfirm || submitting}
                         className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                     >
                         {submitting ? (

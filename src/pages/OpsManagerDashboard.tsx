@@ -272,6 +272,8 @@ export const OpsManagerDashboard: React.FC = () => {
                     breakdown={pendingBreakdown}
                     icon={<Users className="w-5 h-5 text-indigo-600" />}
                     color="indigo"
+                    onClick={() => setCallStatusFilter('')}
+                    active={callStatusFilter === ''}
                 />
                 <SummaryCard
                     title="No Calls Scheduled"
@@ -279,6 +281,8 @@ export const OpsManagerDashboard: React.FC = () => {
                     breakdown={noCallsBreakdown}
                     icon={<Calendar className="w-5 h-5 text-amber-600" />}
                     color="amber"
+                    onClick={() => setCallStatusFilter(callStatusFilter === 'no_calls' ? '' : 'no_calls')}
+                    active={callStatusFilter === 'no_calls'}
                 />
                 <SummaryCard
                     title="At Least 1 Call Scheduled"
@@ -286,6 +290,8 @@ export const OpsManagerDashboard: React.FC = () => {
                     breakdown={hasCallsBreakdown}
                     icon={<Phone className="w-5 h-5 text-green-600" />}
                     color="green"
+                    onClick={() => setCallStatusFilter(callStatusFilter === 'has_calls' ? '' : 'has_calls')}
+                    active={callStatusFilter === 'has_calls'}
                 />
             </div>
 
@@ -1027,18 +1033,31 @@ const SummaryCard: React.FC<{
     breakdown: { prime: number; coreSelect: number };
     icon: React.ReactNode;
     color: string;
-}> = ({ title, count, breakdown, icon, color }) => (
-    <div className="bg-white rounded-xl border border-gray-200 p-5">
-        <div className="flex items-center justify-between mb-3">
-            <div className={`w-10 h-10 rounded-lg bg-${color}-50 flex items-center justify-center`}>
-                {icon}
+    onClick?: () => void;
+    active?: boolean;
+}> = ({ title, count, breakdown, icon, color, onClick, active }) => {
+    const clickable = typeof onClick === 'function';
+    const baseClasses = `bg-white rounded-xl border p-5 w-full text-left transition-all ${
+        active ? 'border-indigo-400 ring-2 ring-indigo-100 shadow-sm' : 'border-gray-200'
+    } ${clickable ? 'hover:border-gray-300 hover:shadow-sm cursor-pointer' : ''}`;
+    const inner = (
+        <>
+            <div className="flex items-center justify-between mb-3">
+                <div className={`w-10 h-10 rounded-lg bg-${color}-50 flex items-center justify-center`}>
+                    {icon}
+                </div>
+                <span className="text-2xl font-bold text-gray-900">{count}</span>
             </div>
-            <span className="text-2xl font-bold text-gray-900">{count}</span>
-        </div>
-        <div className="text-sm font-medium text-gray-700 mb-2">{title}</div>
-        <div className="flex items-center gap-3 text-xs text-gray-500">
-            <span>Prime: {breakdown.prime}</span>
-            <span>Core/Select: {breakdown.coreSelect}</span>
-        </div>
-    </div>
-);
+            <div className="text-sm font-medium text-gray-700 mb-2">{title}</div>
+            <div className="flex items-center gap-3 text-xs text-gray-500">
+                <span>Prime: {breakdown.prime}</span>
+                <span>Core/Select: {breakdown.coreSelect}</span>
+            </div>
+        </>
+    );
+    return clickable ? (
+        <button type="button" onClick={onClick} className={baseClasses}>{inner}</button>
+    ) : (
+        <div className={baseClasses}>{inner}</div>
+    );
+};

@@ -1079,6 +1079,7 @@ class ApiClient {
         call_date: string;
         start_time: string;
         end_time: string;
+        title: string;
         meet_link?: string;
         notes?: string;
     }) {

@@ -157,7 +157,7 @@ Where "index" is the expert's number from the list above, "score" is 0-100 match
     try {
         const anthropic = getAnthropic();
         const response = await anthropic.messages.create({
-            model: 'claude-sonnet-4-20250514',
+            model: 'claude-sonnet-4-5-20250929',
             max_tokens: 1024,
             messages: [{ role: 'user', content: prompt }],
         });

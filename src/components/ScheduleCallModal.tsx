@@ -93,7 +93,7 @@ export const ScheduleCallModal: React.FC<ScheduleCallModalProps> = ({
     vpvm,
 }) => {
     const isVPVM = mode === 'vpvm';
-    const [title, setTitle] = useState<string>('');
+    const [title, setTitle] = useState<string>(mode === 'vpvm' ? `VP/VM Session: ${venture.name}` : '');
     const [selectedDate, setSelectedDate] = useState<string>('');
     const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
     const [selectedPanelistId, setSelectedPanelistId] = useState<string>(panelists[0]?.id || '');

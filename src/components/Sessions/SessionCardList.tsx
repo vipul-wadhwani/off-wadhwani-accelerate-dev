@@ -76,13 +76,9 @@ export const SessionCardList: React.FC<SessionCardListProps> = ({
                         >
                             <div className="flex items-start justify-between gap-3">
                                 <div className="flex-1 min-w-0">
-                                    {title ? (
-                                        <>
-                                            <p className="text-sm font-semibold text-gray-900 truncate">{title}</p>
-                                            <p className="text-xs text-gray-500 mt-0.5 truncate">{ventureName}</p>
-                                        </>
-                                    ) : (
-                                        <p className="text-sm font-semibold text-gray-900 truncate">{ventureName}</p>
+                                    <p className="text-sm font-semibold text-gray-900 truncate">{ventureName}</p>
+                                    {title && (
+                                        <p className="text-xs text-gray-500 mt-0.5 truncate">{title}</p>
                                     )}
                                     <div className="flex items-center gap-2 mt-1 text-xs text-gray-500 flex-wrap">
                                         {founderName && (

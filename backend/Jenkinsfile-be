@@ -43,6 +43,7 @@ pipeline {
                                 "${env.ACR_LOGIN_SERVER}/${env.IMAGE_NAME}:${env.ENV}-${env.BUILD_NUMBER}",
                                 "--no-cache \
                                 --build-arg AZURE_KEY_VAULT_NAME=${env.AZURE_KEY_VAULT_NAME} \
+                                --build-arg ENABLE_TEST_FRAMEWORK=true \
                                 -f backend/Dockerfile backend"
                             )
 

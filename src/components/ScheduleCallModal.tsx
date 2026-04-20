@@ -311,18 +311,18 @@ export const ScheduleCallModal: React.FC<ScheduleCallModalProps> = ({
                         </div>
                     )}
 
-                    {/* Step 1: Title */}
+                    {/* Step 1: Meeting Agenda */}
                     <div>
                         <div className="mb-3">
-                            <span className="text-sm font-medium text-gray-700">1. Title <span className="text-red-500">*</span></span>
+                            <span className="text-sm font-medium text-gray-700">1. Meeting Agenda <span className="text-red-500">*</span></span>
                         </div>
-                        <input
-                            type="text"
+                        <textarea
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
-                            maxLength={120}
+                            maxLength={240}
+                            rows={2}
                             placeholder="e.g. Q2 Growth Review — GTM Strategy"
-                            className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400"
+                            className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 resize-none"
                         />
                     </div>
 

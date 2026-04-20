@@ -622,10 +622,9 @@ export async function sendVPVMMeetingScheduledEmail(
     workbenchUrl: string,
     meetingTitle?: string
 ): Promise<void> {
-    const titlePrefix = meetingTitle ? `${meetingTitle} — ` : '';
-    const titleHtml = meetingTitle ? `<p><strong>Title:</strong> ${meetingTitle}</p>\n                ` : '';
-    const titlePlain = meetingTitle ? `Title: ${meetingTitle}\n` : '';
-    const subject = `${titlePrefix}Meeting Scheduled with Venture`;
+    const titleHtml = meetingTitle ? `<p><strong>Agenda:</strong> ${meetingTitle}</p>\n                ` : '';
+    const titlePlain = meetingTitle ? `Agenda: ${meetingTitle}\n` : '';
+    const subject = `Meeting Scheduled with Venture`;
 
     const htmlBody = `
 <!DOCTYPE html>
@@ -696,10 +695,9 @@ export async function sendVPVMMeetingReminderEmail(
     workbenchUrl: string,
     meetingTitle?: string
 ): Promise<void> {
-    const titlePrefix = meetingTitle ? `${meetingTitle} — ` : '';
-    const titleHtml = meetingTitle ? `<p><strong>Title:</strong> ${meetingTitle}</p>\n                ` : '';
-    const titlePlain = meetingTitle ? `Title: ${meetingTitle}\n` : '';
-    const subject = `${titlePrefix}Reminder: Your Meeting with the Venture is Tomorrow`;
+    const titleHtml = meetingTitle ? `<p><strong>Agenda:</strong> ${meetingTitle}</p>\n                ` : '';
+    const titlePlain = meetingTitle ? `Agenda: ${meetingTitle}\n` : '';
+    const subject = `Reminder: Your Meeting with the Venture is Tomorrow`;
 
     const htmlBody = `
 <!DOCTYPE html>
@@ -771,10 +769,9 @@ export async function sendVPVM30MinReminderEmail(
     workbenchUrl: string,
     meetingTitle?: string
 ): Promise<void> {
-    const titlePrefix = meetingTitle ? `${meetingTitle} — ` : '';
-    const titleHtml = meetingTitle ? `<p><strong>Title:</strong> ${meetingTitle}</p>\n                ` : '';
-    const titlePlain = meetingTitle ? `Title: ${meetingTitle}\n` : '';
-    const subject = `${titlePrefix}Reminder: Your Meeting with the Venture starts in 30 mins`;
+    const titleHtml = meetingTitle ? `<p><strong>Agenda:</strong> ${meetingTitle}</p>\n                ` : '';
+    const titlePlain = meetingTitle ? `Agenda: ${meetingTitle}\n` : '';
+    const subject = `Reminder: Your Meeting with the Venture starts in 30 mins`;
 
     const htmlBody = `
 <!DOCTYPE html>
@@ -845,10 +842,9 @@ export async function sendBusinessMeetingScheduledEmail(
     meetingLink: string,
     meetingTitle?: string
 ): Promise<void> {
-    const titlePrefix = meetingTitle ? `${meetingTitle} — ` : '';
-    const titleHtml = meetingTitle ? `<p><strong>Title:</strong> ${meetingTitle}</p>\n                ` : '';
-    const titlePlain = meetingTitle ? `Title: ${meetingTitle}\n` : '';
-    const subject = `${titlePrefix}Your Meeting with the ${vpvmRole} Has Been Scheduled`;
+    const titleHtml = meetingTitle ? `<p><strong>Agenda:</strong> ${meetingTitle}</p>\n                ` : '';
+    const titlePlain = meetingTitle ? `Agenda: ${meetingTitle}\n` : '';
+    const subject = `Your Meeting with the ${vpvmRole} Has Been Scheduled`;
 
     const htmlBody = `
 <!DOCTYPE html>
@@ -915,12 +911,11 @@ export async function sendBusinessMeetingReminderEmail(
     isTomorrow: boolean,
     meetingTitle?: string
 ): Promise<void> {
-    const titlePrefix = meetingTitle ? `${meetingTitle} — ` : '';
-    const titleHtml = meetingTitle ? `<p><strong>Title:</strong> ${meetingTitle}</p>\n                ` : '';
-    const titlePlain = meetingTitle ? `Title: ${meetingTitle}\n` : '';
+    const titleHtml = meetingTitle ? `<p><strong>Agenda:</strong> ${meetingTitle}</p>\n                ` : '';
+    const titlePlain = meetingTitle ? `Agenda: ${meetingTitle}\n` : '';
     const subject = isTomorrow
-        ? `${titlePrefix}Reminder: Your Meeting with the ${vpvmRole} is Tomorrow`
-        : `${titlePrefix}Reminder: Your Meeting with the ${vpvmRole} will begin in 30 mins`;
+        ? `Reminder: Your Meeting with the ${vpvmRole} is Tomorrow`
+        : `Reminder: Your Meeting with the ${vpvmRole} will begin in 30 mins`;
 
     const leadText = isTomorrow
         ? `This is a reminder that your meeting with the ${vpvmRole} <strong>${vpvmName}</strong> is scheduled for tomorrow.`

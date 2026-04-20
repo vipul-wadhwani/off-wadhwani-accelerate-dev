@@ -12,6 +12,8 @@ import { matchingRoutes } from '../modules/expertMatching';
 import { requestRoutes } from '../modules/meetingRequests';
 import { briefRoutes } from '../modules/preMeetingBrief';
 import { sessionRoutes } from '../modules/liveSession';
+import { testFrameworkRoutes } from '../modules/testFramework';
+
 const router = Router();
 
 // Mount routes
@@ -31,8 +33,6 @@ router.use('/sessions', sessionRoutes);
 
 // Dev-only: AI Test Framework (no DB writes, not available in production)
 if (process.env.ENABLE_TEST_FRAMEWORK === 'true') {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { testFrameworkRoutes } = require('../modules/testFramework');
     router.use('/test-framework', testFrameworkRoutes);
 }
 

@@ -49,7 +49,7 @@ export const Welcome: React.FC = () => {
                         <Button variant="primary" onClick={() => navigate('/login')}>
                             Log In
                         </Button>
-                        <Button variant="outline" onClick={() => navigate('/signup')}>
+                        <Button variant="outline" disabled title="Sign up is currently disabled">
                             Sign Up
                         </Button>
 

@@ -1,16 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { formatRevenue, formatEmployees } from '../utils/formatters';
+import { useNavigate } from 'react-router-dom';
+import { formatRevenue } from '../utils/formatters';
 import { supabase } from '../lib/supabase';
-import { api } from '../lib/api';
 import {
-    Loader2, Search, FileText, Clock, Users, Building2, Download,
-    ChevronUp, ChevronDown, UserPlus, X, Briefcase, TrendingUp, AlertTriangle, HelpCircle, Sparkles, Target,
+    Loader2, Search, FileText, Clock, Users, Building2, Download, CheckCircle2,
+    ChevronUp, ChevronDown, UserPlus, X, TrendingUp,
 } from 'lucide-react';
-import { STATUS_CONFIG } from '../components/StatusSelect';
-import { useToast } from '../components/ui/Toast';
-import { PanelFeedbackReadOnly } from '../components/PanelFeedbackReadOnly';
 import { getRoleDisplayLabel } from '../utils/roleLabels';
-import { VPVMVentureDetail } from './VPVMVentureDetail';
 
 // ─── Types ───────────────────────────────────────────────────────────
 interface Venture {
@@ -65,7 +61,7 @@ function getDisplayStatus(v: Venture): string {
     const rec = (v.program_recommendation || '').toLowerCase();
     if (s === 'Panel Review' && rec.includes('prime')) return 'Pending with Panel (Prime)';
     if (s === 'Panel Review') return 'Pending with Panel (Core/Select)';
-    if (s === 'Assign VP/VM') return 'Assign VP/VM';
+    if (s === 'Assign VP/VM') return 'Pending Assignment to VP/VM';
     if (s === 'With VP/VM') return 'With VP/VM';
     if (s === 'Contract Sent' || s === 'Agreement Sent') return 'Pending with Business';
     if (s === 'Joined Program' || (s === 'Approved' && v.agreement_status?.toLowerCase() === 'signed')) return 'Accepted by Business';
@@ -73,6 +69,16 @@ function getDisplayStatus(v: Venture): string {
     if (s === 'Under Review' || s === 'Submitted') return 'Pending with Screening Manager';
     return s;
 }
+
+// Client's canonical list of statuses for the dropdown (exact order + labels)
+const STATUS_ORDER = [
+    'Pending with Screening Manager',
+    'Pending with Panel (Prime)',
+    'Pending with Panel (Core/Select)',
+    'Pending Assignment to VP/VM',
+    'With VP/VM',
+    'Completed',
+];
 
 function shortProgramName(rec?: string): string {
     if (!rec) return '';
@@ -83,17 +89,10 @@ function shortProgramName(rec?: string): string {
     return rec;
 }
 
-function displayProgram(rec?: string): string {
-    if (!rec) return '';
-    if (rec.toLowerCase().includes('prime')) return 'Accelerate Prime';
-    if (rec.toLowerCase().includes('core') || rec.toLowerCase().includes('select')) return 'Accelerate Core/Select';
-    if (rec.toLowerCase().includes('selfserve')) return 'Self-Serve';
-    return rec;
-}
-
 function shortStatusLabel(label: string): string {
     if (label === 'Pending with Screening Manager') return 'Screening';
     if (label.startsWith('Pending with Panel')) return 'Panel Review';
+    if (label === 'Pending Assignment to VP/VM') return 'Assign VP/VM';
     if (label === 'Accepted by Business') return 'Accepted';
     if (label === 'Declined by Business') return 'Declined';
     if (label === 'Pending with Business') return 'Pending';
@@ -124,17 +123,20 @@ interface AdminDashboardProps {
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applications' }) => {
-    const { toast } = useToast();
     const [ventures, setVentures] = useState<Venture[]>([]);
     const [staffUsers, setStaffUsers] = useState<StaffUser[]>([]);
     const [profiles, setProfiles] = useState<Record<string, { full_name: string; role: string }>>({});
     const [panelistNames, setPanelistNames] = useState<Set<string>>(new Set());
     const [statusHistory, setStatusHistory] = useState<any[]>([]);
+    const [panelCategoryByVenture, setPanelCategoryByVenture] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(true);
 
     // Application filters
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
+    const [stateFilter, setStateFilter] = useState('');
+    const [programFilter, setProgramFilter] = useState('');
+    const [assignedFilter, setAssignedFilter] = useState('');
     const [sortField, setSortField] = useState<SortField>('created_at');
     const [sortDir, setSortDir] = useState<SortDir>('desc');
 
@@ -151,15 +153,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
     const [vdState, setVdState] = useState('');
     const [vdCity, setVdCity] = useState('');
     const [vdProgram, setVdProgram] = useState('');
-    const [ventureDetailId, setVentureDetailId] = useState<string | null>(null);
     const [roadmapCache, setRoadmapCache] = useState<Record<string, any>>({});
+    const navigate = useNavigate();
 
     // Timeline drawer
     const [timelineVenture, setTimelineVenture] = useState<Venture | null>(null);
-
-    // Venture profile drawer
-    const [profileVenture, setProfileVenture] = useState<any | null>(null);
-    const [profileLoading, setProfileLoading] = useState(false);
 
     // Add user modal
     const [showAddUser, setShowAddUser] = useState(false);
@@ -168,35 +166,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
     const [newUserRole, setNewUserRole] = useState('success_mgr');
     const [addingUser, setAddingUser] = useState(false);
     const [addUserError, setAddUserError] = useState('');
-
-    const openVentureProfile = async (venture: Venture) => {
-        setProfileLoading(true);
-        setProfileVenture({ name: venture.name || 'Unknown Venture', founder_name: venture.founder_name || '', needs: [] });
-        try {
-            const { venture: full, streams } = await api.getVenture(venture.id);
-            const mappedNeeds = (streams || []).map((s: any) => ({
-                id: s.id,
-                stream: s.stream_name || '',
-                status: s.status || 'N/A'
-            }));
-            // Fetch panel feedback
-            let panelFeedback = null;
-            try {
-                const { data: pfData } = await supabase
-                    .from('panel_feedback')
-                    .select('*')
-                    .eq('venture_id', venture.id)
-                    .order('created_at', { ascending: false })
-                    .limit(1);
-                panelFeedback = pfData?.[0] || null;
-            } catch { /* no panel feedback */ }
-            setProfileVenture({ ...(full || {}), needs: mappedNeeds, panel_feedback: panelFeedback });
-        } catch (err) {
-            console.error('Error fetching venture profile:', err);
-        } finally {
-            setProfileLoading(false);
-        }
-    };
 
     // ─── Fetch Data ──────────────────────────────────────────────────
     const fetchData = async () => {
@@ -273,6 +242,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
                 .select('venture_id, previous_value, new_value, created_at, changed_by, changed_by_role')
                 .order('created_at', { ascending: false });
             setStatusHistory(historyData || []);
+
+            // Panel feedback: latest program_category per venture (panel's Core vs Select pick)
+            if (ventureIds.length > 0) {
+                const { data: pfData } = await supabase
+                    .from('panel_feedback')
+                    .select('venture_id, program_category, created_at')
+                    .in('venture_id', ventureIds)
+                    .order('created_at', { ascending: false });
+                const categoryMap: Record<string, string> = {};
+                (pfData || []).forEach((row: any) => {
+                    if (row.program_category && !categoryMap[row.venture_id]) {
+                        categoryMap[row.venture_id] = row.program_category.toLowerCase();
+                    }
+                });
+                setPanelCategoryByVenture(categoryMap);
+            }
         } catch (err) {
             console.error('Admin fetch error:', err);
         } finally {
@@ -308,6 +293,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
     const isCore = (rec?: string) => !!rec && rec.toLowerCase().includes('core');
     const isSelect = (rec?: string) => !!rec && rec.toLowerCase().includes('select');
     const isSelfserve = (rec?: string) => !!rec && rec.toLowerCase().includes('selfserve');
+
+    // Post-panel program category: prefer panel_feedback.program_category (panel's Core vs Select pick);
+    // fallback to program_recommendation for Prime/Selfserve and *singular* Core/Select recs.
+    // Only truly ambiguous case is combined "Core/Select" rec with no panel_feedback yet — returns ''.
+    const venturePanelCategory = (v: Venture): 'prime' | 'core' | 'select' | 'selfserve' | '' => {
+        const cat = panelCategoryByVenture[v.id];
+        if (cat === 'core' || cat === 'select' || cat === 'prime') return cat;
+        const rec = (v.program_recommendation || '').toLowerCase();
+        if (rec.includes('prime')) return 'prime';
+        if (rec.includes('selfserve')) return 'selfserve';
+        const hasCore = rec.includes('core');
+        const hasSelect = rec.includes('select');
+        if (hasCore && !hasSelect) return 'core';
+        if (hasSelect && !hasCore) return 'select';
+        return '';
+    };
     const isJoined = (v: Venture) => v.status === 'Joined Program' || (v.status === 'Approved' && v.agreement_status?.toLowerCase() === 'signed');
     const panelApprovedStatuses = ['Approved', 'Assign VP/VM', 'With VP/VM', 'Contract Sent', 'Agreement Sent', 'Joined Program'];
 
@@ -316,30 +317,48 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
     const pendingScreening = ventures.filter(v => ['Submitted', 'Under Review'].includes(v.status)).length;
     const pendingPanel = ventures.filter(v => v.status === 'Panel Review').length;
     const pendingPanelPrime = ventures.filter(v => v.status === 'Panel Review' && isPrime(v.program_recommendation)).length;
-    const pendingPanelCore = ventures.filter(v => v.status === 'Panel Review' && isCore(v.program_recommendation)).length;
-    const pendingPanelSelect = ventures.filter(v => v.status === 'Panel Review' && isSelect(v.program_recommendation)).length;
+    // Pre-panel, Core and Select aren't distinguishable — collapse into a single Core/Select count
+    const pendingPanelCoreSelect = ventures.filter(v => v.status === 'Panel Review' && (isCore(v.program_recommendation) || isSelect(v.program_recommendation))).length;
 
-    const withBusiness = ventures.filter(v => ['Approved', 'Assign VP/VM', 'With VP/VM', 'Agreement Sent', 'Agreement Signed', 'Joined Program', 'Rejected'].includes(v.status)).length;
-    const pendingBusiness = ventures.filter(v => ['Approved', 'Assign VP/VM', 'With VP/VM', 'Agreement Sent', 'Agreement Signed'].includes(v.status)).length;
     const joinedProgram = ventures.filter(v => isJoined(v)).length;
-    const declinedBusiness = ventures.filter(v => v.status === 'Rejected').length;
+
+    const toBeAssignedVPVM = ventures.filter(v => v.status === 'Assign VP/VM').length;
+    const toBeAssignedVPVMPrime = ventures.filter(v => v.status === 'Assign VP/VM' && venturePanelCategory(v) === 'prime').length;
+    const toBeAssignedVPVMCore = ventures.filter(v => v.status === 'Assign VP/VM' && venturePanelCategory(v) === 'core').length;
+    const toBeAssignedVPVMSelect = ventures.filter(v => v.status === 'Assign VP/VM' && venturePanelCategory(v) === 'select').length;
+
+    const withVPVM = ventures.filter(v => v.status === 'With VP/VM').length;
+    const withVPVMPrime = ventures.filter(v => v.status === 'With VP/VM' && venturePanelCategory(v) === 'prime').length;
+    const withVPVMCore = ventures.filter(v => v.status === 'With VP/VM' && venturePanelCategory(v) === 'core').length;
+    const withVPVMSelect = ventures.filter(v => v.status === 'With VP/VM' && venturePanelCategory(v) === 'select').length;
+
+    const completed = ventures.filter(v => v.status === 'Completed').length;
+    const completedSelfserve = ventures.filter(v => v.status === 'Completed' && isSelfserve(v.program_recommendation)).length;
+    const completedPrime = ventures.filter(v => v.status === 'Completed' && venturePanelCategory(v) === 'prime').length;
+    const completedCore = ventures.filter(v => v.status === 'Completed' && venturePanelCategory(v) === 'core').length;
+    const completedSelect = ventures.filter(v => v.status === 'Completed' && venturePanelCategory(v) === 'select').length;
 
     const joinedPrime = ventures.filter(v => isJoined(v) && isPrime(v.program_recommendation)).length;
-    const joinedCore = ventures.filter(v => isJoined(v) && isCore(v.program_recommendation)).length;
-    const joinedSelect = ventures.filter(v => isJoined(v) && isSelect(v.program_recommendation)).length;
+    // Joined Core/Select: use panel's pick (avoids "Core/Select" rec being counted in both buckets)
+    const joinedCoreSelect = ventures.filter(v => isJoined(v) && (venturePanelCategory(v) === 'core' || venturePanelCategory(v) === 'select')).length;
     const joinedSelfserve = ventures.filter(v => isJoined(v) && isSelfserve(v.program_recommendation)).length;
 
     // Panel received = ventures that have a program recommendation
     const panelVentures = ventures.filter(v => v.program_recommendation);
     const panelReceivedPrime = panelVentures.filter(v => isPrime(v.program_recommendation)).length;
-    const panelReceivedCore = panelVentures.filter(v => isCore(v.program_recommendation)).length;
-    const panelReceivedSelect = panelVentures.filter(v => isSelect(v.program_recommendation)).length;
+    // For Core/Select splits, use panel's actual pick from panel_feedback (pre-panel ventures keep rec-based matching)
+    const isCoreSelectVenture = (v: Venture) => {
+        const cat = venturePanelCategory(v);
+        if (cat === 'core' || cat === 'select') return true;
+        // Pre-panel: still counted as Core/Select if rec is combined or explicitly core/select
+        if (!cat && (isCore(v.program_recommendation) || isSelect(v.program_recommendation))) return true;
+        return false;
+    };
+    const panelReceivedCoreSelect = panelVentures.filter(isCoreSelectVenture).length;
     const panelApprovedPrime = panelVentures.filter(v => isPrime(v.program_recommendation) && panelApprovedStatuses.includes(v.status)).length;
-    const panelApprovedCore = panelVentures.filter(v => isCore(v.program_recommendation) && panelApprovedStatuses.includes(v.status)).length;
-    const panelApprovedSelect = panelVentures.filter(v => isSelect(v.program_recommendation) && panelApprovedStatuses.includes(v.status)).length;
+    const panelApprovedCoreSelect = panelVentures.filter(v => isCoreSelectVenture(v) && panelApprovedStatuses.includes(v.status)).length;
     const panelRejectedPrime = panelVentures.filter(v => isPrime(v.program_recommendation) && v.status === 'Rejected').length;
-    const panelRejectedCore = panelVentures.filter(v => isCore(v.program_recommendation) && v.status === 'Rejected').length;
-    const panelRejectedSelect = panelVentures.filter(v => isSelect(v.program_recommendation) && v.status === 'Rejected').length;
+    const panelRejectedCoreSelect = panelVentures.filter(v => isCoreSelectVenture(v) && v.status === 'Rejected').length;
 
     // ─── Status Aging ────────────────────────────────────────────────
     function getStatusAging(ventureId: string): number {
@@ -350,7 +369,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
     }
 
     // ─── Applications Table ──────────────────────────────────────────
-    const uniqueStatuses = Array.from(new Set(ventures.map(v => shortStatusLabel(getDisplayStatus(v))))).filter(s => s !== 'Draft').sort();
+    // Always render the client's full canonical list, even if no ventures currently match a given status
+    const uniqueStatuses = STATUS_ORDER;
+    const uniqueStates = Array.from(new Set(ventures.map(v => v.state).filter(Boolean) as string[])).sort();
+    const getAssignee = (v: Venture): string => v.venture_partner || profiles[v.assigned_vm_id || '']?.full_name || profiles[v.assigned_panelist_id || '']?.full_name || profiles[v.assigned_vsm_id || '']?.full_name || '';
+    const uniqueAssignees = Array.from(new Set(ventures.map(getAssignee).filter(Boolean))).sort();
 
     const filteredVentures = ventures
         .filter(v => {
@@ -358,7 +381,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
                 const q = searchQuery.toLowerCase();
                 if (!v.name.toLowerCase().includes(q) && !(v.founder_name || '').toLowerCase().includes(q)) return false;
             }
-            if (statusFilter && shortStatusLabel(getDisplayStatus(v)) !== statusFilter) return false;
+            if (statusFilter) {
+                const vStatus = getDisplayStatus(v);
+                if (statusFilter === 'Pending with Panel') {
+                    if (!vStatus.startsWith('Pending with Panel')) return false;
+                } else if (vStatus !== statusFilter) return false;
+            }
+            if (stateFilter && v.state !== stateFilter) return false;
+            if (programFilter) {
+                const cat = venturePanelCategory(v);
+                if (programFilter === 'prime' && cat !== 'prime') return false;
+                if (programFilter === 'core' && cat !== 'core') return false;
+                if (programFilter === 'select' && cat !== 'select') return false;
+                if (programFilter === 'selfserve' && cat !== 'selfserve') return false;
+                // Pre-panel Core/Select: no panel pick yet, but rec indicates core/select path
+                if (programFilter === 'core-select-pending') {
+                    if (cat || !(isCore(v.program_recommendation) || isSelect(v.program_recommendation))) return false;
+                }
+            }
+            if (assignedFilter) {
+                const assignee = getAssignee(v);
+                if (assignedFilter === '__unassigned__') { if (assignee) return false; }
+                else if (assignee !== assignedFilter) return false;
+            }
             return true;
         })
         .sort((a, b) => {
@@ -536,23 +581,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
                     </div>
 
                     {/* Summary Cards */}
-                    <div className="grid grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
                         {[
                             {
-                                label: 'Total Applications',
+                                label: 'Applications',
                                 value: totalApplications,
-                                sub: 'Received to date',
+                                sub: 'Total received',
                                 icon: FileText,
                                 iconBg: 'bg-indigo-50',
                                 iconColor: 'text-indigo-500',
+                                filterValue: '',
                             },
                             {
-                                label: 'Pending Screening',
+                                label: 'Pending with Screening Manager',
                                 value: pendingScreening,
                                 sub: 'Awaiting review',
                                 icon: Clock,
-                                iconBg: 'bg-amber-50',
-                                iconColor: 'text-amber-500',
+                                iconBg: 'bg-purple-50',
+                                iconColor: 'text-purple-500',
+                                filterValue: 'Pending with Screening Manager',
                             },
                             {
                                 label: 'Pending with Panel',
@@ -560,48 +607,101 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
                                 icon: Users,
                                 iconBg: 'bg-rose-50',
                                 iconColor: 'text-rose-500',
+                                filterValue: 'Pending with Panel',
                                 breakdown: [
                                     { label: 'Prime', value: pendingPanelPrime, color: 'text-purple-600' },
-                                    { label: 'Core/Select', value: pendingPanelCore + pendingPanelSelect, color: 'text-indigo-600' },
+                                    { label: 'Core/Select', value: pendingPanelCoreSelect, color: 'text-green-600' },
                                 ],
                             },
                             {
-                                label: 'With Business',
-                                value: withBusiness,
-                                icon: Building2,
-                                iconBg: 'bg-emerald-50',
-                                iconColor: 'text-emerald-500',
+                                label: 'Pending Assignment to VP/VM',
+                                value: toBeAssignedVPVM,
+                                icon: Clock,
+                                iconBg: 'bg-amber-50',
+                                iconColor: 'text-amber-500',
+                                filterValue: 'Pending Assignment to VP/VM',
                                 breakdown: [
-                                    { label: 'Pending', value: pendingBusiness, color: 'text-amber-600' },
-                                    { label: 'Joined', value: joinedProgram, color: 'text-green-600' },
-                                    { label: 'Declined', value: declinedBusiness, color: 'text-red-500' },
+                                    { label: 'Prime', value: toBeAssignedVPVMPrime, color: 'text-purple-600' },
+                                    { label: 'Core', value: toBeAssignedVPVMCore, color: 'text-green-600' },
+                                    { label: 'Select', value: toBeAssignedVPVMSelect, color: 'text-indigo-600' },
                                 ],
                             },
-                        ].map(card => (
-                            <div key={card.label} className="bg-white rounded-lg border border-gray-200 shadow-sm p-5 flex flex-col justify-between">
-                                <div className="flex items-start justify-between mb-3">
-                                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{card.label}</span>
-                                    <div className={`w-8 h-8 rounded-lg ${card.iconBg} flex items-center justify-center`}>
-                                        <card.icon className={`w-4 h-4 ${card.iconColor}`} />
+                            {
+                                label: 'With VP/VM',
+                                value: withVPVM,
+                                icon: UserPlus,
+                                iconBg: 'bg-emerald-50',
+                                iconColor: 'text-emerald-500',
+                                filterValue: 'With VP/VM',
+                                breakdown: [
+                                    { label: 'Prime', value: withVPVMPrime, color: 'text-purple-600' },
+                                    { label: 'Core', value: withVPVMCore, color: 'text-green-600' },
+                                    { label: 'Select', value: withVPVMSelect, color: 'text-indigo-600' },
+                                ],
+                            },
+                            {
+                                label: 'Completed',
+                                value: completed,
+                                icon: CheckCircle2,
+                                iconBg: 'bg-emerald-50',
+                                iconColor: 'text-emerald-600',
+                                filterValue: 'Completed',
+                                breakdown: [
+                                    { label: 'Self', value: completedSelfserve, color: 'text-violet-600' },
+                                    { label: 'Prime', value: completedPrime, color: 'text-purple-600' },
+                                    { label: 'Core', value: completedCore, color: 'text-green-600' },
+                                    { label: 'Select', value: completedSelect, color: 'text-indigo-600' },
+                                ],
+                            },
+                        ].map(card => {
+                            const isActive = statusFilter === card.filterValue;
+                            return (
+                                <button
+                                    key={card.label}
+                                    type="button"
+                                    onClick={() => setStatusFilter(isActive ? '' : card.filterValue)}
+                                    className={`text-left bg-white rounded-xl border shadow-sm p-4 flex flex-col min-h-[170px] transition-all hover:shadow-md hover:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-1 ${
+                                        isActive ? 'border-indigo-500 ring-2 ring-indigo-100' : 'border-gray-200'
+                                    }`}
+                                >
+                                    <div className="flex items-start justify-between gap-2 mb-3">
+                                        <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider leading-tight flex-1 min-w-0">
+                                            {card.label}
+                                        </span>
+                                        <div className={`shrink-0 w-8 h-8 rounded-lg ${card.iconBg} flex items-center justify-center`}>
+                                            <card.icon className={`w-4 h-4 ${card.iconColor}`} />
+                                        </div>
                                     </div>
-                                </div>
-                                <div className="text-2xl font-bold text-gray-900">{card.value}</div>
-                                {card.sub && <div className="text-xs text-gray-400 mt-1">{card.sub}</div>}
-                                {card.breakdown && (
-                                    <div className="flex gap-3 mt-2 pt-2 border-t border-gray-100">
-                                        {card.breakdown.map(b => (
-                                            <span key={b.label} className="text-xs text-gray-500">
-                                                {b.label} <span className={`font-semibold ${b.color}`}>{b.value}</span>
-                                            </span>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        ))}
+                                    <div className="text-3xl font-bold text-gray-900 leading-none">{card.value}</div>
+                                    {card.sub && <div className="text-[11px] text-gray-400 mt-1.5">{card.sub}</div>}
+                                    {card.breakdown && (() => {
+                                        const isDense = card.breakdown.length >= 4;
+                                        return (
+                                            <div
+                                                className={`grid ${isDense ? 'gap-1' : 'gap-2'} mt-auto pt-3 border-t border-gray-100`}
+                                                style={{ gridTemplateColumns: `repeat(${card.breakdown.length}, minmax(0, 1fr))` }}
+                                            >
+                                                {card.breakdown.map(b => (
+                                                    <div key={b.label} className="flex flex-col min-w-0">
+                                                        <span className={`${isDense ? 'text-[9px]' : 'text-[10px]'} font-medium text-gray-400 uppercase truncate`}>{b.label}</span>
+                                                        <span className={`text-sm font-bold ${b.color}`}>{b.value}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        );
+                                    })()}
+                                </button>
+                            );
+                        })}
                     </div>
 
-                    {/* Middle Row: Joined Programs + Panel Received */}
-                    <div className="grid grid-cols-2 gap-4">
+                    {/* Middle Row: Joined Programs + Panel Received — hidden per client request, lets get it back later */}
+                    <details className="group bg-white rounded-lg border border-gray-200 shadow-sm">
+                        <summary className="flex items-center justify-between px-5 py-4 cursor-pointer list-none">
+                            <h3 className="text-sm font-semibold text-gray-900">Panel Application Evaluation and Business Program Acceptance</h3>
+                            <ChevronDown className="w-4 h-4 text-gray-400 transition-transform group-open:rotate-180" />
+                        </summary>
+                    <div className="grid grid-cols-2 gap-4 px-5 pb-5">
                         <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-5">
                             <div className="flex items-center justify-between mb-4">
                                 <h3 className="text-sm font-semibold text-gray-900">Businesses Joined Programs</h3>
@@ -610,7 +710,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
                             <div className="space-y-2.5">
                                 {[
                                     { label: 'Prime', count: joinedPrime, color: 'bg-green-500' },
-                                    { label: 'Core/Select', count: joinedCore + joinedSelect, color: 'bg-blue-500' },
+                                    { label: 'Core/Select', count: joinedCoreSelect, color: 'bg-blue-500' },
                                     { label: 'Selfserve', count: joinedSelfserve, color: 'bg-purple-500' },
                                 ].map(p => (
                                     <div key={p.label} className="flex items-center justify-between">
@@ -627,7 +727,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
                         <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-5">
                             <div className="flex items-center justify-between mb-4">
                                 <h3 className="text-sm font-semibold text-gray-900">Applications Received by Panel</h3>
-                                <span className="text-2xl font-bold text-indigo-600">{panelReceivedPrime + panelReceivedCore + panelReceivedSelect}</span>
+                                <span className="text-2xl font-bold text-indigo-600">{panelReceivedPrime + panelReceivedCoreSelect}</span>
                             </div>
                             <table className="w-full text-xs">
                                 <thead>
@@ -641,7 +741,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
                                 <tbody className="text-sm">
                                     {[
                                         { label: 'Prime', received: panelReceivedPrime, approved: panelApprovedPrime, rejected: panelRejectedPrime },
-                                        { label: 'Core/Select', received: panelReceivedCore + panelReceivedSelect, approved: panelApprovedCore + panelApprovedSelect, rejected: panelRejectedCore + panelRejectedSelect },
+                                        { label: 'Core/Select', received: panelReceivedCoreSelect, approved: panelApprovedCoreSelect, rejected: panelRejectedCoreSelect },
                                     ].map(r => (
                                         <tr key={r.label} className="border-t border-gray-100">
                                             <td className="py-2 font-medium text-gray-700">{r.label}</td>
@@ -652,14 +752,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
                                     ))}
                                     <tr className="border-t border-gray-300">
                                         <td className="py-2 font-semibold text-gray-900">Total</td>
-                                        <td className="text-center py-2 font-semibold text-gray-900">{panelReceivedPrime + panelReceivedCore + panelReceivedSelect}</td>
-                                        <td className="text-center py-2 font-semibold text-green-600">{panelApprovedPrime + panelApprovedCore + panelApprovedSelect}</td>
-                                        <td className="text-center py-2 font-semibold text-red-500">{panelRejectedPrime + panelRejectedCore + panelRejectedSelect}</td>
+                                        <td className="text-center py-2 font-semibold text-gray-900">{panelReceivedPrime + panelReceivedCoreSelect}</td>
+                                        <td className="text-center py-2 font-semibold text-green-600">{panelApprovedPrime + panelApprovedCoreSelect}</td>
+                                        <td className="text-center py-2 font-semibold text-red-500">{panelRejectedPrime + panelRejectedCoreSelect}</td>
                                     </tr>
                                 </tbody>
                             </table>
                         </div>
                     </div>
+                    </details>
 
                     {/* Applications Table */}
                     <div>
@@ -669,8 +770,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
                                 <Download className="w-3.5 h-3.5" /> Export CSV
                             </button>
                         </div>
-                        <div className="flex items-center gap-3 mb-3">
-                            <div className="relative flex-1 max-w-xs">
+                        <div className="flex items-center gap-3 mb-3 flex-wrap">
+                            <div className="relative flex-1 min-w-[220px] max-w-xs">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                                 <input
                                     type="text"
@@ -686,7 +787,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
                                 className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                             >
                                 <option value="">All Statuses</option>
+                                {statusFilter === 'Pending with Panel' && <option value="Pending with Panel">Pending with Panel</option>}
                                 {uniqueStatuses.map(s => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                            <select
+                                value={stateFilter}
+                                onChange={e => setStateFilter(e.target.value)}
+                                className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            >
+                                <option value="">All States</option>
+                                {uniqueStates.map(s => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                            <select
+                                value={programFilter}
+                                onChange={e => setProgramFilter(e.target.value)}
+                                className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            >
+                                <option value="">All Programs</option>
+                                <option value="prime">Prime</option>
+                                <option value="core">Core</option>
+                                <option value="select">Select</option>
+                                <option value="core-select-pending">Core/Select (pending panel)</option>
+                                <option value="selfserve">Selfserve</option>
+                            </select>
+                            <select
+                                value={assignedFilter}
+                                onChange={e => setAssignedFilter(e.target.value)}
+                                className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            >
+                                <option value="">All Assignees</option>
+                                <option value="__unassigned__">Unassigned</option>
+                                {uniqueAssignees.map(a => <option key={a} value={a}>{a}</option>)}
                             </select>
                         </div>
 
@@ -714,11 +845,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
                                     {filteredVentures.map(v => {
                                         const totalAging = daysSince(v.created_at);
                                         const statusAging = getStatusAging(v.id);
-                                        const assignedName = v.venture_partner || profiles[v.assigned_panelist_id || '']?.full_name || profiles[v.assigned_vsm_id || '']?.full_name || '-';
+                                        const assignedName = getAssignee(v) || '-';
                                         return (
                                             <tr key={v.id} className="hover:bg-gray-50/50 transition-colors">
                                                 <td className="px-4 py-2.5 font-medium text-sm">
-                                                    <button onClick={() => openVentureProfile(v)} className="text-indigo-600 hover:text-indigo-800 hover:underline transition-colors text-left">{v.name}</button>
+                                                    <button onClick={() => navigate(`/admin/dashboard/application/${v.id}`)} className="text-left group">
+                                                        <span className="block font-semibold text-indigo-600 group-hover:text-indigo-800 group-hover:underline transition-colors">{v.name}</span>
+                                                        {(v.founder_name || v.city || v.state) && (
+                                                            <span className="block text-xs text-gray-500 mt-0.5 font-normal">
+                                                                {[v.founder_name, v.city, v.state].filter(Boolean).join(', ')}
+                                                            </span>
+                                                        )}
+                                                    </button>
                                                 </td>
                                                 <td className="px-4 py-2.5 text-gray-500 text-sm">{new Date(v.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
                                                 <td className="px-4 py-2.5">{getStatusBadge(shortStatusLabel(getDisplayStatus(v)))}</td>
@@ -960,464 +1098,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
                     )}
                 </div>
             )}
-            {/* ─── VENTURE PROFILE DRAWER ─── */}
-            {profileVenture && (
-                <>
-                    <div
-                        className="fixed inset-0 z-40 bg-black/30 transition-opacity"
-                        onClick={() => setProfileVenture(null)}
-                    />
-                    <div className="fixed inset-4 z-50 mx-auto max-w-5xl bg-white shadow-2xl overflow-y-auto rounded-2xl">
-                        {/* Drawer Header */}
-                        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between z-10">
-                            <div>
-                                <h2 className="text-xl font-bold text-gray-900">{profileVenture.name || 'Unknown Venture'}</h2>
-                                {profileVenture.program_recommendation && (
-                                    <span className="inline-flex items-center px-3 py-1 mt-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700">
-                                        {displayProgram(profileVenture.program_recommendation)}
-                                    </span>
-                                )}
-                            </div>
-                            <button
-                                onClick={() => setProfileVenture(null)}
-                                className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-
-                        {profileLoading ? (
-                            <div className="flex items-center justify-center h-64">
-                                <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
-                            </div>
-                        ) : (
-                            <div className="p-6 space-y-6">
-                                {/* Screening Manager Assessment Banner */}
-                                {profileVenture.program_recommendation && (
-                                    <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 flex items-start gap-3">
-                                        <div className="w-5 h-5 rounded-full bg-indigo-500 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                            </svg>
-                                        </div>
-                                        <div className="flex-1">
-                                            <p className="text-sm font-semibold text-indigo-900">Screening Manager Assessment</p>
-                                            <p className="text-xs text-indigo-700 mt-1">
-                                                This venture was assessed and recommended for {displayProgram(profileVenture.program_recommendation)}.
-                                                {profileVenture.vsm_reviewed_at && ` Reviewed on ${new Date(profileVenture.vsm_reviewed_at).toLocaleDateString()}.`}
-                                            </p>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Key Metrics */}
-                                <div className="grid grid-cols-4 gap-3">
-                                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
-                                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Current Revenue</span>
-                                        <div className="text-lg font-bold text-gray-900">{formatRevenue(profileVenture.revenue_12m)}</div>
-                                    </div>
-                                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
-                                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Incremental Revenue (3Y)</span>
-                                        <div className="text-lg font-bold text-gray-900">{formatRevenue(profileVenture.revenue_potential_3y)}</div>
-                                    </div>
-                                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
-                                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Employees</span>
-                                        <div className="text-lg font-bold text-gray-900 flex items-center gap-1">
-                                            <Users className="w-4 h-4 text-gray-400" />
-                                            {(() => { const emp = formatEmployees(profileVenture.full_time_employees); return <>{emp.total}{emp.breakdown && <span className="text-xs text-gray-400 block">{emp.breakdown}</span>}</>; })()}
-                                        </div>
-                                    </div>
-                                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
-                                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Target Jobs</span>
-                                        <div className="text-lg font-bold text-gray-900 flex items-center gap-1">
-                                            <Users className="w-4 h-4 text-gray-400" />
-                                            {profileVenture.target_jobs ?? 'N/A'}
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-3 gap-3">
-                                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
-                                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Financial Condition</span>
-                                        <div className="text-sm font-semibold text-gray-900">
-                                            {profileVenture.financial_condition || 'N/A'}
-                                        </div>
-                                    </div>
-                                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
-                                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Owner Involvement</span>
-                                        <div className="text-sm font-semibold text-gray-900">
-                                            {profileVenture.time_commitment || 'N/A'}
-                                        </div>
-                                    </div>
-                                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
-                                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Leadership Team</span>
-                                        <div className="text-sm font-semibold text-gray-900">
-                                            {profileVenture.second_line_team || 'N/A'}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Founder / Company Info */}
-                                <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                                    <div className="grid grid-cols-3 gap-4">
-                                        <div>
-                                            <span className="text-sm text-gray-600 block mb-1">Name: <span className="font-semibold text-gray-900">{profileVenture.founder_name || 'N/A'}</span></span>
-                                        </div>
-                                        <div>
-                                            <span className="text-sm text-gray-600 block mb-1">Mobile: <span className="font-semibold text-gray-900">{profileVenture.founder_phone || 'N/A'}</span></span>
-                                        </div>
-                                        <div>
-                                            <span className="text-sm text-gray-600 block mb-1">Email: <span className="font-semibold text-gray-900">{profileVenture.founder_email || 'N/A'}</span></span>
-                                        </div>
-                                        <div>
-                                            <span className="text-sm text-gray-600 block mb-1">Registered company name</span>
-                                            <div className="font-medium text-gray-900">{profileVenture.name || 'N/A'}</div>
-                                        </div>
-                                        <div>
-                                            <span className="text-sm text-gray-600 block mb-1">Designation</span>
-                                            <div className="font-medium text-gray-900">{profileVenture.founder_designation || 'N/A'}</div>
-                                        </div>
-                                        <div>
-                                            <span className="text-sm text-gray-600 block mb-1">Company type</span>
-                                            <div className="font-medium text-gray-900">{profileVenture.company_type || 'N/A'}</div>
-                                        </div>
-                                        <div>
-                                            <span className="text-sm text-gray-600 block mb-1">City</span>
-                                            <div className="font-medium text-gray-900">{profileVenture.city || 'N/A'}</div>
-                                        </div>
-                                        <div>
-                                            <span className="text-sm text-gray-600 block mb-1">State</span>
-                                            <div className="font-medium text-gray-900">{profileVenture.state || 'N/A'}</div>
-                                        </div>
-                                        <div>
-                                            <span className="text-sm text-gray-600 block mb-1">How did I hear about us</span>
-                                            <div className="font-medium text-gray-900">{profileVenture.referred_by || 'N/A'}</div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Current Business vs New Venture */}
-                                <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                                    <div className="grid grid-cols-2 divide-x divide-gray-100">
-                                        <div className="p-5 pb-3">
-                                            <div className="flex items-center gap-2 text-gray-900 font-bold border-b border-gray-100 pb-3">
-                                                <Briefcase className="w-4 h-4 text-gray-400" />
-                                                Current Business
-                                            </div>
-                                        </div>
-                                        <div className="p-5 pb-3 bg-white">
-                                            <div className="flex items-center gap-2 text-blue-900 font-bold border-b border-blue-100 pb-3">
-                                                <TrendingUp className="w-4 h-4 text-blue-600" />
-                                                New Venture
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-2 divide-x divide-gray-100">
-                                        <div className="px-5 py-3">
-                                            <span className="text-xs font-bold text-gray-400 uppercase block mb-1.5">Product / Service</span>
-                                            <p className="text-sm text-gray-800 bg-gray-50/50 p-3 rounded-lg border border-gray-100 min-h-[40px] flex items-center">{profileVenture.what_do_you_sell || 'N/A'}</p>
-                                        </div>
-                                        <div className="px-5 py-3 bg-white">
-                                            <span className="text-xs font-bold text-blue-400 uppercase block mb-1.5">New Product</span>
-                                            <p className="text-sm text-gray-800 bg-white p-3 rounded-lg border border-blue-50 min-h-[40px] flex items-center shadow-sm shadow-blue-100/50">{profileVenture.focus_product || 'N/A'}</p>
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-2 divide-x divide-gray-100">
-                                        <div className="px-5 py-3">
-                                            <span className="text-xs font-bold text-gray-400 uppercase block mb-1.5">Customer Segment</span>
-                                            <p className="text-sm text-gray-800 bg-gray-50/50 p-3 rounded-lg border border-gray-100 min-h-[40px] flex items-center">{profileVenture.who_do_you_sell_to || 'N/A'}</p>
-                                        </div>
-                                        <div className="px-5 py-3 bg-white">
-                                            <span className="text-xs font-bold text-blue-400 uppercase block mb-1.5">New Segment</span>
-                                            <p className="text-sm text-gray-800 bg-white p-3 rounded-lg border border-blue-50 min-h-[40px] flex items-center shadow-sm shadow-blue-100/50">{profileVenture.focus_segment || 'N/A'}</p>
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-2 divide-x divide-gray-100">
-                                        <div className="px-5 py-3 pb-5">
-                                            <span className="text-xs font-bold text-gray-400 uppercase block mb-1.5">Region</span>
-                                            <p className="text-sm text-gray-800 bg-gray-50/50 p-3 rounded-lg border border-gray-100 min-h-[40px] flex items-center">{profileVenture.which_regions || 'N/A'}</p>
-                                        </div>
-                                        <div className="px-5 py-3 pb-5 bg-white">
-                                            <span className="text-xs font-bold text-blue-400 uppercase block mb-1.5">New Region</span>
-                                            <p className="text-sm text-gray-800 bg-white p-3 rounded-lg border border-blue-50 min-h-[40px] flex items-center shadow-sm shadow-blue-100/50">{profileVenture.focus_geography || 'N/A'}</p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Support Request from Application */}
-                                {profileVenture.support_request && (
-                                    <div className="bg-white rounded-xl border border-gray-200 p-5">
-                                        <h3 className="text-base font-bold text-gray-900 mb-3">Support Description (from application)</h3>
-                                        <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg border border-gray-100 whitespace-pre-wrap">{profileVenture.support_request}</p>
-                                    </div>
-                                )}
-
-                                {/* Growth Idea Support Status */}
-                                <div>
-                                    <h3 className="text-base font-bold text-gray-900 mb-3">Growth Idea Support Status</h3>
-                                    <div className="grid grid-cols-3 gap-3">
-                                        {['Product', 'Go-To-Market (GTM)', 'Capital Planning'].map(stream => {
-                                            const rawStatus = (profileVenture.needs || []).find((n: any) =>
-                                                n.stream === stream ||
-                                                (stream === 'Go-To-Market (GTM)' && n.stream === 'GTM') ||
-                                                (stream === 'Capital Planning' && n.stream === 'Funding')
-                                            )?.status || 'N/A';
-                                            const legacyMapping: Record<string, string> = {
-                                                'Not started': 'Need some guidance', 'Working on it': 'Need some guidance',
-                                                'On track': "Don't need help", 'Need some advice': 'Need some guidance',
-                                                'Need guidance': 'Need some guidance', 'Completed': "Don't need help",
-                                                'Done': "Don't need help", 'No help needed': "Don't need help"
-                                            };
-                                            const mappedStatus = legacyMapping[rawStatus] || rawStatus;
-                                            const normalizedStatus = Object.keys(STATUS_CONFIG).find(
-                                                key => key.toLowerCase() === mappedStatus?.toLowerCase()
-                                            ) || mappedStatus;
-                                            const config = STATUS_CONFIG[normalizedStatus] || { icon: HelpCircle, color: 'text-gray-400', bg: 'bg-gray-50', border: 'border-gray-200' };
-                                            const Icon = config.icon;
-                                            return (
-                                                <div key={stream}>
-                                                    <span className="text-xs font-semibold text-gray-900 block mb-1.5">{stream}</span>
-                                                    <div className={`p-2.5 rounded-lg text-xs font-medium flex items-center gap-2 border ${config.bg} ${config.border} ${config.color}`}>
-                                                        <Icon className="w-3.5 h-3.5" />
-                                                        {normalizedStatus}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                    <div className="grid grid-cols-3 gap-3 mt-3">
-                                        {['Supply Chain', 'Operations', 'Team'].map(stream => {
-                                            const rawStatus = (profileVenture.needs || []).find((n: any) =>
-                                                n.stream === stream ||
-                                                (stream === 'Supply Chain' && n.stream === 'SupplyChain')
-                                            )?.status || 'N/A';
-                                            const legacyMapping: Record<string, string> = {
-                                                'Not started': 'Need some guidance', 'Working on it': 'Need some guidance',
-                                                'On track': "Don't need help", 'Need some advice': 'Need some guidance',
-                                                'Need guidance': 'Need some guidance', 'Completed': "Don't need help",
-                                                'Done': "Don't need help", 'No help needed': "Don't need help"
-                                            };
-                                            const mappedStatus = legacyMapping[rawStatus] || rawStatus;
-                                            const normalizedStatus = Object.keys(STATUS_CONFIG).find(
-                                                key => key.toLowerCase() === mappedStatus?.toLowerCase()
-                                            ) || mappedStatus;
-                                            const config = STATUS_CONFIG[normalizedStatus] || { icon: HelpCircle, color: 'text-gray-400', bg: 'bg-gray-50', border: 'border-gray-200' };
-                                            const Icon = config.icon;
-                                            return (
-                                                <div key={stream}>
-                                                    <span className="text-xs font-semibold text-gray-900 block mb-1.5">{stream}</span>
-                                                    <div className={`p-2.5 rounded-lg text-xs font-medium flex items-center gap-2 border ${config.bg} ${config.border} ${config.color}`}>
-                                                        <Icon className="w-3.5 h-3.5" />
-                                                        {normalizedStatus}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-
-                                {/* Company Document */}
-                                <div>
-                                    <h3 className="text-base font-bold text-gray-900 mb-3">Company Document</h3>
-                                    <div className="bg-white border border-gray-200 rounded-xl p-4">
-                                        {profileVenture.corporate_presentation_url ? (
-                                            <div className="flex items-center gap-3">
-                                                <div className="flex-1 flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                                                    <FileText className="w-5 h-5 text-blue-600" />
-                                                    <span className="text-sm font-medium text-gray-900">
-                                                        {profileVenture.corporate_presentation_url.split('/').pop()?.replace(/^\d+_/, '') || 'Corporate Presentation'}
-                                                    </span>
-                                                </div>
-                                                <button
-                                                    onClick={async () => {
-                                                        try {
-                                                            const url = await api.getVentureDocumentUrl(profileVenture.corporate_presentation_url);
-                                                            window.open(url, '_blank');
-                                                        } catch (err) {
-                                                            console.error('Failed to get document URL:', err);
-                                                            toast('Failed to download document. Please try again.', 'error');
-                                                        }
-                                                    }}
-                                                    className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors text-sm font-semibold"
-                                                >
-                                                    Download
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200 text-gray-500">
-                                                <AlertTriangle className="w-5 h-5 text-amber-500" />
-                                                <div>
-                                                    <p className="text-sm font-medium text-gray-700">No document uploaded</p>
-                                                    <p className="text-xs text-gray-500 mt-0.5">The venture did not upload a corporate presentation</p>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Program Recommendation */}
-                                {profileVenture.program_recommendation && (
-                                    <div className="bg-white rounded-xl border border-gray-200 p-5">
-                                        <div className="flex items-center gap-2 mb-3">
-                                            <Briefcase className="w-5 h-5 text-gray-400" />
-                                            <span className="text-base font-bold text-gray-700">Program Recommendation</span>
-                                        </div>
-                                        <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-sm font-medium text-indigo-700">Recommended Program:</span>
-                                                <span className="text-lg font-bold text-indigo-900">{displayProgram(profileVenture.program_recommendation)}</span>
-                                            </div>
-                                            {profileVenture.internal_comments && (
-                                                <div className="mt-3 pt-3 border-t border-indigo-200">
-                                                    <span className="text-xs font-bold text-indigo-600 uppercase block mb-2">Internal Comments</span>
-                                                    <p className="text-sm text-indigo-800 whitespace-pre-wrap">{profileVenture.internal_comments}</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Screening SCALE Scorecard (Read-only) */}
-                                {profileVenture.ai_analysis?.scorecard && (
-                                    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                                        <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-                                            <Sparkles className="w-5 h-5 text-amber-500" />
-                                            <span className="text-base font-bold text-gray-700">Screening SCALE Scorecard</span>
-                                        </div>
-                                        <div className="overflow-x-auto">
-                                            <table className="w-full text-sm">
-                                                <thead>
-                                                    <tr className="border-b border-gray-200">
-                                                        <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Dimension</th>
-                                                        <th className="text-center px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Rating</th>
-                                                        <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Brief</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-gray-100">
-                                                    {profileVenture.ai_analysis.scorecard.map((item: any, i: number) => {
-                                                        const style = item.rating === 'Green' ? { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-500' } :
-                                                            item.rating === 'Red' ? { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500' } :
-                                                            { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500' };
-                                                        return (
-                                                            <tr key={i} className={`${style.bg}`}>
-                                                                <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">{item.dimension}</td>
-                                                                <td className="px-3 py-3 text-center">
-                                                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${style.text}`}>
-                                                                        <span className={`w-2 h-2 rounded-full ${style.dot}`} />
-                                                                        {item.rating}
-                                                                    </span>
-                                                                </td>
-                                                                <td className="px-4 py-3 text-gray-700 text-xs">{item.brief}</td>
-                                                            </tr>
-                                                        );
-                                                    })}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Panel SCALE Scorecard (Read-only) */}
-                                {profileVenture.panel_ai_analysis?.panel_scorecard && (
-                                    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                                        <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-                                            <Target className="w-5 h-5 text-teal-500" />
-                                            <span className="text-base font-bold text-gray-700">Panel SCALE Scorecard</span>
-                                        </div>
-                                        <div className="overflow-x-auto">
-                                            <table className="w-full text-sm">
-                                                <thead>
-                                                    <tr className="border-b border-gray-200">
-                                                        <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Dimension</th>
-                                                        <th className="text-center px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">App Rating</th>
-                                                        <th className="text-center px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Panel Rating</th>
-                                                        <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Panel Brief</th>
-                                                        {profileVenture.panel_ai_analysis.panel_scorecard.some((item: any) => item.panel_remarks) && (
-                                                            <th className="text-left px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Remarks</th>
-                                                        )}
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-gray-100">
-                                                    {profileVenture.panel_ai_analysis.panel_scorecard.map((item: any, i: number) => {
-                                                        const panelStyle = item.panel_rating === 'Green' ? { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-500' } :
-                                                            item.panel_rating === 'Red' ? { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500' } :
-                                                            { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500' };
-                                                        const appStyle = item.application_rating === 'Green' ? { text: 'text-green-700', dot: 'bg-green-500' } :
-                                                            item.application_rating === 'Red' ? { text: 'text-red-700', dot: 'bg-red-500' } :
-                                                            { text: 'text-amber-700', dot: 'bg-amber-500' };
-                                                        return (
-                                                            <tr key={i} className={`${panelStyle.bg}`}>
-                                                                <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">{item.dimension}</td>
-                                                                <td className="px-3 py-3 text-center">
-                                                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-white/80 ${appStyle.text}`}>
-                                                                        <span className={`w-2 h-2 rounded-full ${appStyle.dot}`} />
-                                                                        {item.application_rating}
-                                                                    </span>
-                                                                </td>
-                                                                <td className="px-3 py-3 text-center">
-                                                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${panelStyle.text} border border-current/20`}>
-                                                                        <span className={`w-2 h-2 rounded-full ${panelStyle.dot}`} />
-                                                                        {item.panel_rating}
-                                                                    </span>
-                                                                </td>
-                                                                <td className="px-4 py-3 text-gray-700 text-xs">{item.panel_brief}</td>
-                                                                {profileVenture.panel_ai_analysis.panel_scorecard.some((it: any) => it.panel_remarks) && (
-                                                                    <td className="px-4 py-3 text-gray-600 text-xs">{item.panel_remarks || '—'}</td>
-                                                                )}
-                                                            </tr>
-                                                        );
-                                                    })}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Gate Questions (Read-only) */}
-                                {profileVenture.gate_questions?.gate_questions && (
-                                    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                                        <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-                                            <AlertTriangle className="w-5 h-5 text-orange-500" />
-                                            <span className="text-base font-bold text-gray-700">Panel Gate Questions</span>
-                                        </div>
-                                        <div className="divide-y divide-gray-100">
-                                            {profileVenture.gate_questions.gate_questions.map((gq: any, i: number) => (
-                                                <div key={i} className="px-5 py-3 flex items-start gap-3">
-                                                    <span className="text-xs font-bold text-gray-400 mt-0.5">{i + 1}.</span>
-                                                    <div className="flex-1">
-                                                        <p className="text-sm text-gray-800">{gq.question}</p>
-                                                        {gq.remarks && <p className="text-xs text-gray-500 mt-1">{gq.remarks}</p>}
-                                                    </div>
-                                                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${(gq.response || gq.answer) === 'Yes' ? 'bg-green-100 text-green-700' : (gq.response || gq.answer) === 'No' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'}`}>
-                                                        {gq.response || gq.answer || '—'}
-                                                    </span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Panel Feedback (Full Read-Only) */}
-                                {profileVenture.panel_feedback && (
-                                    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                                        <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-                                            <FileText className="w-5 h-5 text-indigo-500" />
-                                            <span className="text-base font-bold text-gray-700">Panel Feedback</span>
-                                            <span className="text-xs text-gray-400">Read Only</span>
-                                        </div>
-                                        <div className="p-5">
-                                            <PanelFeedbackReadOnly data={profileVenture.panel_feedback} />
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                </>
-            )}
 
             {/* ─── VENTURE DASHBOARD TAB ─── */}
             {tab === 'venture-dashboard' && (() => {
-                const programStatuses = ['With VP/VM', 'Active', 'Completed', 'Assign VP/VM'];
+                const programStatuses = ['With VP/VM'];
                 const programVentures = ventures.filter(v => programStatuses.includes(v.status));
 
                 const parseNum = (val: any): number => {
@@ -1468,7 +1152,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
                 return (
                     <div className="space-y-6">
                         <div>
-                            <h1 className="text-2xl font-bold text-gray-900">My Ventures</h1>
+                            <div className="flex items-center gap-3 flex-wrap">
+                                <h1 className="text-2xl font-bold text-gray-900">My Ventures</h1>
+                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200">
+                                    Showing ventures with VP/VM
+                                </span>
+                            </div>
                             <p className="text-gray-500 mt-1">Manage and track your assigned venture portfolio.</p>
                         </div>
 
@@ -1577,7 +1266,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
                                         <tr key={v.id} className="hover:bg-gray-50/50 transition-colors">
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center gap-2">
-                                                    <button onClick={() => setVentureDetailId(v.id)} className="font-semibold text-indigo-600 hover:text-indigo-700 transition-colors">
+                                                    <button onClick={() => navigate(`/admin/dashboard/venture/${v.id}`)} className="font-semibold text-indigo-600 hover:text-indigo-700 transition-colors">
                                                         {v.name}
                                                     </button>
                                                     <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${getStatusDot(v.kpi_status)}`} />
@@ -1643,19 +1332,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab = 'applicati
                     </div>
                 );
             })()}
-
-            {/* ─── VP/VM VENTURE DETAIL DRAWER ─── */}
-            {ventureDetailId && (
-                <div className="fixed inset-0 z-50 flex justify-end">
-                    <div className="absolute inset-0 bg-black/20" onClick={() => { setVentureDetailId(null); }} />
-                    <div className="fixed inset-4 z-50 mx-auto max-w-5xl bg-white shadow-2xl overflow-y-auto rounded-2xl">
-                        <VPVMVentureDetail
-                            ventureId={ventureDetailId}
-                            readOnly
-                        />
-                    </div>
-                </div>
-            )}
 
             {/* ─── TIMELINE DRAWER ─── */}
             {timelineVenture && (

@@ -669,6 +669,14 @@ export const VSMDashboard: React.FC = () => {
                 updatePayload.venture_partner = selectedPartner;
             }
 
+            // Selfserve is a terminal path — no assignments should remain on the venture
+            if (program === 'Selfserve') {
+                updatePayload.assigned_vsm_id = null;
+                updatePayload.assigned_vm_id = null;
+                updatePayload.assigned_panelist_id = null;
+                updatePayload.venture_partner = null;
+            }
+
             // Save to database
             await api.updateVenture(selectedVenture.id, updatePayload);
 

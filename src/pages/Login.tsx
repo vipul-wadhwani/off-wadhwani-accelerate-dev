@@ -77,7 +77,7 @@ export const Login: React.FC = () => {
                 </div>
                 <h1 className="text-2xl font-bold text-gray-900">Sign in to your account</h1>
                 <p className="mt-2 text-gray-600">
-                    Or <button onClick={() => navigate('/signup')} className="text-red-600 font-medium hover:underline">create a new account</button>
+                    Or <button disabled className="text-gray-400 font-medium cursor-not-allowed" title="Account creation is currently disabled">create a new account</button>
                 </p>
             </div>
 

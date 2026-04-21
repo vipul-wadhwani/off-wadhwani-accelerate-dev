@@ -24,6 +24,7 @@ import { PublicApplication } from './pages/PublicApplication';
 import { VentureWorkbench } from './pages/VentureWorkbench';
 import { AdminLayout } from './layouts/AdminLayout';
 import { AdminDashboard } from './pages/AdminDashboard';
+import { AdminApplicationDetail } from './pages/AdminApplicationDetail';
 import { VPVMLayout } from './layouts/VPVMLayout';
 import { VPVMDashboard } from './pages/VPVMDashboard';
 import { VPVMVentureDetail } from './pages/VPVMVentureDetail';
@@ -191,7 +192,9 @@ function App() {
             </ProtectedRoute>
           }>
             <Route index element={<AdminDashboard tab="applications" />} />
+            <Route path="application/:id" element={<AdminApplicationDetail />} />
             <Route path="ventures" element={<AdminDashboard tab="venture-dashboard" />} />
+            <Route path="venture/:id" element={<VPVMVentureDetail readOnly backPath="/admin/dashboard/ventures" backLabel="Back to Venture Dashboard" />} />
             <Route path="screening-performance" element={<AdminDashboard tab="performance" />} />
             <Route path="users" element={<AdminDashboard tab="users" />} />
           </Route>

@@ -32,6 +32,9 @@ docs/keyvault-secrets*
 scripts/backups/prod/*.sql
 scripts/backups/prod/*.json
 
+# Migration reports (local reference, not checked in)
+docs/migration-reports/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

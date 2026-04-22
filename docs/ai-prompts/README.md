@@ -7,16 +7,24 @@ This directory contains AI prompt templates and guidelines for implementing cons
 ## 📁 Contents
 
 ### Active production prompts (code-backed)
-- **[screening-scale-scorecard.md](./screening-scale-scorecard.md)** — SCALE scorecard at screening stage (`buildInsightsPrompt`)
-- **[panel-scale-scorecard.md](./panel-scale-scorecard.md)** — Panel recommendation scorecard (`buildPanelInsightsPrompt`)
-- **[venture-journey-roadmap.md](./venture-journey-roadmap.md)** — 12-16 week program roadmap (`buildRoadmapPrompt`)
+- **[screening-scale-scorecard.md](./screening-scale-scorecard.md)** — SCALE scorecard at screening stage (`buildInsightsPrompt` in `aiService.ts`)
+- **[panel-scale-scorecard.md](./panel-scale-scorecard.md)** — Panel recommendation scorecard (`buildPanelInsightsPrompt` in `aiService.ts`)
+- **[venture-journey-roadmap.md](./venture-journey-roadmap.md)** — 12-16 week program roadmap (`buildRoadmapPrompt` in `aiService.ts`)
+- **[roadmap-deliverables.md](./roadmap-deliverables.md)** — 4–5 trackable deliverables per stream (`generateDeliverables` in `aiService.ts`)
+- **[resource-recommendations.md](./resource-recommendations.md)** — Expert / service-provider / masterclass / research recs per deliverable (`generateRecommendations` in `aiService.ts`)
+- **[expert-matching.md](./expert-matching.md)** — Rank available mentors for a venture (`matchExperts` in `expertMatching/matchingService.ts`)
+- **[pre-meeting-brief.md](./pre-meeting-brief.md)** — Pre-session brief for VP/mentor (`generateBrief` in `preMeetingBrief/briefService.ts`)
+- **[live-session-insights.md](./live-session-insights.md)** — Rolling mid-session insight snapshots (`generateInsightSnapshot` in `liveSession/insightService.ts`)
+- **[meeting-summary.md](./meeting-summary.md)** — End-of-session transcript summary + action items (`endSession` in `liveSession/summaryService.ts`)
 
-### Reference prompts / design notes
+### Reference prompts / design notes (not code-backed)
 - **[venture-analysis.md](./venture-analysis.md)** - Deep Dive analysis prompts for VSM screening
 - **[agreement-generation.md](./agreement-generation.md)** - Contract and agreement generation prompts
 - **[interview-questions.md](./interview-questions.md)** - AI-generated interview question prompts
 - **[red-flags.md](./red-flags.md)** - Risk assessment and red flag detection prompts
 - **[i-icon-application-process.md](./i-icon-application-process.md)** - Application process i-icon copy
+
+> **Note:** The TypeScript source is the source of truth for all code-backed prompts. `.md` files here are documentation only — editing them does not change runtime behavior.
 
 ---
 
@@ -167,4 +175,4 @@ For questions about AI prompts:
 
 ---
 
-**Last Updated:** 2026-04-17
+**Last Updated:** 2026-04-22

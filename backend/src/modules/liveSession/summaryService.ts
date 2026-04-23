@@ -68,7 +68,8 @@ Return a JSON object (no markdown):
                 messages: [{ role: 'user', content: prompt }],
             });
 
-            const text = response.content[0].type === 'text' ? response.content[0].text : '';
+            const rawText = response.content[0].type === 'text' ? response.content[0].text : '';
+            const text = rawText.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
             const result = JSON.parse(text);
 
             // Save summary
